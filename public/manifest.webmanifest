@@ -1,0 +1,17 @@
+{
+  "name": "HeliJump — Gire e Ganhe",
+  "short_name": "HeliJump",
+  "description": "A plataforma de skill game mais premium do Brasil. Controle a torre, atravesse plataformas e multiplique seu saldo com habilidade e timing.",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#0B0815",
+  "theme_color": "#0B0815",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

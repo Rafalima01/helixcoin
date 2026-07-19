@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(npx --yes create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack)",
+      "Bash(npx --yes create-next-app@latest helijump-app --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack)",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const m = require\\('./node_modules/lucide-react/dist/cjs/lucide-react.js'\\); console.log\\(Object.keys\\(m\\).filter\\(k => /insta|twit|you|social/i.test\\(k\\)\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(xargs grep -l \"CanvasProps\")",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(echo \"EXIT CODE: $?\")"
+    ]
+  }
+}
