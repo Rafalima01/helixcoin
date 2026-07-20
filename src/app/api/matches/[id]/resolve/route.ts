@@ -4,10 +4,19 @@ import { z } from "zod";
 import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 import { getMultiplierForPlatforms } from "@/lib/multiplier";
+import { gameConfigContainer } from "@/modules/game-config/container";
+import { recordAntiCheatViolation } from "@/modules/game-config/services/anti-cheat-violation-recorder";
+import type { AntiCheatConfig } from "@/modules/game-config/entities/game-economy-config.entity";
 
 const resolveSchema = z.object({
   action: z.enum(["cashout", "loss", "forfeit"]),
   platformsPassed: z.number().int().min(0).max(500),
+  // Optional client-reported telemetry — the anti-cheat check simply skips
+  // whatever the client didn't report; absence is never itself a violation.
+  maxVerticalSpeed: z.number().optional(),
+  maxHorizontalSpeed: z.number().optional(),
+  maxAcceleration: z.number().optional(),
+  collisionsPerSecond: z.number().optional(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -37,6 +46,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { action, platformsPassed } = parsed.data;
+
+  // Heuristic, server-side-only anti-cheat (see AntiCheatService's doc
+  // comment for why this is deliberately NOT trying to detect client-side
+  // tampering) — runs before either branch below, so a flagged attempt can
+  // never sneak a payout through the cashout path.
+  if (match.antiCheatSnapshot) {
+    const { antiCheatService } = gameConfigContainer;
+    const elapsedSeconds = (Date.now() - match.createdAt.getTime()) / 1000;
+    const limits = match.antiCheatSnapshot as unknown as AntiCheatConfig;
+
+    const check = antiCheatService.check({
+      action,
+      platformsPassed,
+      elapsedSeconds,
+      reportedMaxVerticalSpeed: parsed.data.maxVerticalSpeed,
+      reportedMaxHorizontalSpeed: parsed.data.maxHorizontalSpeed,
+      reportedMaxAcceleration: parsed.data.maxAcceleration,
+      reportedCollisionsPerSecond: parsed.data.collisionsPerSecond,
+      limits,
+    });
+
+    if (check.flagged) {
+      await prisma.match.update({
+        where: { id },
+        data: {
+          status: "LOST",
+          platformsPassed,
+          multiplier: getMultiplierForPlatforms(platformsPassed),
+          payout: 0,
+          resolvedAt: new Date(),
+        },
+      });
+      await recordAntiCheatViolation({
+        userId: auth.userId,
+        matchId: id,
+        result: check,
+        limits: limits as unknown as Record<string, number>,
+      });
+      return NextResponse.json(
+        { error: "Partida cancelada — atividade incompatível com o esperado foi detectada." },
+        { status: 400 }
+      );
+    }
+  }
 
   if (action === "loss" || action === "forfeit") {
     const updated = await prisma.match.update({

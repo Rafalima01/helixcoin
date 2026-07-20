@@ -1,5 +1,10 @@
-import { PrismaClient, type Role } from "@prisma/client";
+import { PrismaClient, Prisma, type Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import {
+  buildDefaultGeneral,
+  buildDefaultModes,
+  buildDefaultAntiCheat,
+} from "@/modules/game-config/utils/config-defaults.util";
 
 const prisma = new PrismaClient();
 
@@ -110,6 +115,32 @@ async function seedPermissions() {
   }
 }
 
+/**
+ * Bootstraps GameEconomyConfig version 1 (ACTIVE) from field-registry
+ * defaults — those defaults are set to match the previously-hardcoded
+ * ENGINE_CONFIG/multiplier.ts/validation.ts values exactly for NORMAL mode,
+ * so this doesn't change gameplay for existing players. Skipped if any
+ * version already exists (re-running the seed must never clobber an
+ * admin's real config).
+ */
+async function seedGameEconomyConfig(createdById: string) {
+  const existing = await prisma.gameEconomyConfig.findFirst();
+  if (existing) return;
+
+  await prisma.gameEconomyConfig.create({
+    data: {
+      version: 1,
+      status: "ACTIVE",
+      description: "Configuração inicial (valores padrão do motor de jogo)",
+      general: buildDefaultGeneral() as unknown as Prisma.InputJsonValue,
+      modes: buildDefaultModes() as unknown as Prisma.InputJsonValue,
+      antiCheat: buildDefaultAntiCheat() as unknown as Prisma.InputJsonValue,
+      createdById,
+      activatedAt: new Date(),
+    },
+  });
+}
+
 async function main() {
   for (const a of ACHIEVEMENTS) {
     await prisma.achievement.upsert({
@@ -125,7 +156,7 @@ async function main() {
 
   const demoUser = await prisma.user.upsert({
     where: { email: "demo@helijump.gg" },
-    update: {},
+    update: { tags: ["demo"] },
     create: {
       firstName: "Jogador",
       lastName: "Demo",
@@ -138,12 +169,15 @@ async function main() {
       referralCode: "DEMO2026",
       xp: 1240,
       level: 6,
+      // Manually flagged for Demo mode (src/modules/game-config) — this
+      // account is literally the platform demo, so it's the natural fit.
+      tags: ["demo"],
       wallet: { create: { balance: 25000 } },
     },
   });
 
   const adminPasswordHash = await bcrypt.hash("admin1234", 10);
-  await prisma.user.upsert({
+  const adminUser = await prisma.user.upsert({
     where: { email: "admin@helijump.gg" },
     update: {},
     create: {
@@ -158,6 +192,8 @@ async function main() {
       referralCode: "ADMIN2026",
     },
   });
+
+  await seedGameEconomyConfig(adminUser.id);
 
   const existingMatches = await prisma.match.count({ where: { userId: demoUser.id } });
   if (existingMatches === 0) {

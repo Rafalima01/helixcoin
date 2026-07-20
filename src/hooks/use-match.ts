@@ -23,6 +23,9 @@ export function useStartMatch() {
         betAmount: number;
         targetMultiplier: number;
         goalAmount: number;
+        mode: "DEMO" | "NORMAL" | "HARD";
+        configVersion: number;
+        engineParams: Record<string, number | boolean>;
       }>("/api/matches/start", {
         method: "POST",
         body: JSON.stringify({ amount }),

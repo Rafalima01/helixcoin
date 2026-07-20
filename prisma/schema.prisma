@@ -29,6 +29,9 @@ datasource db {
 
 /// Platform-wide game settings, controlled exclusively by the backend/admin.
 /// Single row with id "global" — the frontend only ever reads it.
+/// NOTE: `targetMultiplier` is superseded by GameEconomyConfig.general as of
+/// the game-config module (Phase 4) — kept here only for the still-unrelated
+/// affiliate commission fields. Matches no longer read `targetMultiplier`.
 model GameConfig {
   id               String   @id @default("global")
   targetMultiplier Float    @default(5)
@@ -37,6 +40,56 @@ model GameConfig {
   commissionLevel2 Float    @default(0.05)
   commissionLevel3 Float    @default(0.02)
   updatedAt        DateTime @updatedAt
+}
+
+// ============================================================================
+// Game Engine / RTP Control (Phase 4) — src/modules/game-config is the ONLY
+// writer/reader of GameEconomyConfig. See that module's field-registry.ts for
+// the catalog of every knob stored inside `general`/`modes`/`antiCheat`.
+// ============================================================================
+
+enum GameMode {
+  DEMO
+  NORMAL
+  HARD
+}
+
+enum ConfigStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+/// Versioned, mode-scoped economy/physics/anti-cheat configuration. Rows are
+/// append-only: activating a draft archives the previous ACTIVE row rather
+/// than mutating it, so history (and "restore a previous version") is just a
+/// read + clone, never a destructive update.
+model GameEconomyConfig {
+  id          String       @id @default(uuid())
+  version     Int          @unique
+  status      ConfigStatus @default(DRAFT)
+  /// Admin-entered changelog note for this version.
+  description String?
+
+  /// { targetMultiplierDefault, betMin, betMax, quickBetAmounts[] (cents),
+  ///   hardModeBalanceThreshold (cents, 0 = disabled),
+  ///   goalMultiplierMin/Default/Max, goalAllowFixed, goalAllowDynamic }
+  general Json
+
+  /// { DEMO: {...field-registry keys}, NORMAL: {...}, HARD: {...} }
+  modes Json
+
+  /// { maxPlatformsPerSecond, minSecondsToGoal, minSecondsBeforeCashout,
+  ///   maxVerticalSpeed, maxHorizontalSpeed, maxAcceleration,
+  ///   maxCollisionsPerSecond }
+  antiCheat Json
+
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  activatedAt DateTime?
+
+  @@index([status])
 }
 
 // ============================================================================
@@ -92,6 +145,7 @@ model User {
   wallet                  Wallet?
   matches                 Match[]
   transactions            Transaction[]
+  createdGameConfigs      GameEconomyConfig[]
   achievements            UserAchievement[]
   notifications           Notification[]
   sessions                Session[]
@@ -292,13 +346,30 @@ model Match {
   status           MatchStatus @default(ACTIVE)
   platformsPassed  Int         @default(0)
   multiplier       Float       @default(1.0)
-  /// Goal multiplier snapshotted from GameConfig at match start. Cashout is
-  /// rejected server-side while the current multiplier is below this value.
+  /// Goal multiplier snapshotted from GameEconomyConfig at match start.
+  /// Cashout is rejected server-side while the current multiplier is below
+  /// this value.
   targetMultiplier Float       @default(5)
   payout           Int?
   seed             String
-  createdAt        DateTime    @default(now())
-  resolvedAt       DateTime?
+
+  /// Difficulty mode resolved for this user at match start (see
+  /// GameConfigService.resolveModeForUser).
+  mode              GameMode @default(NORMAL)
+  /// GameEconomyConfig.version this match was generated from — lets a config
+  /// change mid-flight never affect matches already in progress.
+  configVersion     Int?
+  /// Exact mode-profile payload (physics + generation params) applied to this
+  /// match — the frontend engine's only source of truth, snapshotted so it
+  /// stays reproducible/auditable even after the config is later edited.
+  engineParams      Json?
+  /// GameEconomyConfig.antiCheat snapshotted at match start — resolve checks
+  /// against this, not whatever is currently active, for the same
+  /// reproducibility reason as engineParams.
+  antiCheatSnapshot Json?
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
 
   @@index([userId, status])
   @@index([createdAt])

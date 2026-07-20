@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { ENGINE_CONFIG as CFG, SEGMENT_ANGLE } from "@/game-engine/config";
+import { activeEngineConfig as CFG, getSegmentAngle } from "@/game-engine/config";
 import type { EngineRuntime } from "@/game-engine/types";
 import { ringRotation, ringVisible } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
 
 /** Extruded annular-sector geometry, authored centered on the +X axis. */
 function createSegmentGeometry(scaleY = 1): THREE.BufferGeometry {
-  const half = (SEGMENT_ANGLE / 2) * CFG.segmentGapFactor;
+  const half = (getSegmentAngle() / 2) * CFG.segmentGapFactor;
   const inner = CFG.ringInnerRadius;
   const outer = CFG.ringOuterRadius;
   const shape = new THREE.Shape();
@@ -98,6 +98,7 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
 
     const first = Math.max(0, passes - CFG.renderBehind);
     const last = Math.min(runtime.rings.length - 1, passes + CFG.renderAhead);
+    const segmentAngle = getSegmentAngle();
 
     let nBase = 0;
     let nDanger = 0;
@@ -116,7 +117,7 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
         if (type === "hole") continue;
 
         dummy.position.set(0, ring.y, 0);
-        dummy.rotation.set(0, -(rot + k * SEGMENT_ANGLE), 0);
+        dummy.rotation.set(0, -(rot + k * segmentAngle), 0);
         dummy.scale.setScalar(1);
         dummy.updateMatrix();
 

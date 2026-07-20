@@ -15,7 +15,10 @@ export const GAME_CONFIG_QUERY_KEY = ["game-config"];
 export function useGameConfig() {
   return useQuery({
     queryKey: GAME_CONFIG_QUERY_KEY,
-    queryFn: () => fetchJson<{ targetMultiplier: number }>("/api/config"),
+    queryFn: () =>
+      fetchJson<{ targetMultiplier: number; betMin: number; betMax: number; quickBetAmounts: number[] }>(
+        "/api/config"
+      ),
     staleTime: 60_000,
   });
 }

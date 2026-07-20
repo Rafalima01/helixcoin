@@ -13,8 +13,6 @@ import { useGameConfig } from "@/hooks/use-game-config";
 import { centsToReais } from "@/lib/multiplier";
 import { formatCurrency, formatMultiplier, cn } from "@/lib/utils";
 
-const QUICK_AMOUNTS = [5, 10, 20, 50];
-
 export function BetPanel() {
   const router = useRouter();
   const { amount, setAmount } = useBetStore();
@@ -22,14 +20,23 @@ export function BetPanel() {
   const { data: config, isLoading: configLoading } = useGameConfig();
   const balance = centsToReais(data?.balance ?? 0);
 
-  // The goal multiplier is defined by the platform (backend/admin) — the
-  // frontend only reads it. Every bet follows it automatically.
+  // Quick-bet buttons, min/max, and the goal multiplier are all defined by
+  // the platform (backend/admin) — the frontend only reads and renders them.
   const targetMultiplier = config?.targetMultiplier ?? null;
   const goalValue = targetMultiplier ? amount * targetMultiplier : null;
+  const quickAmounts = config?.quickBetAmounts ?? [];
 
   const handlePlay = () => {
     if (amount <= 0) {
       toast.error("Escolha um valor de aposta");
+      return;
+    }
+    if (config && amount < config.betMin) {
+      toast.error(`Valor mínimo de aposta: ${formatCurrency(config.betMin)}`);
+      return;
+    }
+    if (config && amount > config.betMax) {
+      toast.error(`Valor máximo de aposta: ${formatCurrency(config.betMax)}`);
       return;
     }
     if (amount > balance) {
@@ -54,7 +61,7 @@ export function BetPanel() {
       <div className="flex flex-col gap-3 mb-6">
         <label className="text-sm font-medium text-text-secondary">Valor da aposta</label>
         <div className="grid grid-cols-4 gap-2">
-          {QUICK_AMOUNTS.map((v) => (
+          {quickAmounts.map((v) => (
             <button
               key={v}
               onClick={() => setAmount(v)}
@@ -65,7 +72,7 @@ export function BetPanel() {
                   : "border-border bg-white/[0.02] text-text-secondary hover:border-border-strong"
               )}
             >
-              R${v}
+              R${v % 1 === 0 ? v : v.toFixed(2)}
             </button>
           ))}
         </div>

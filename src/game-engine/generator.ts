@@ -1,5 +1,5 @@
 import { createRng } from "@/lib/rng";
-import { ENGINE_CONFIG as CFG } from "@/game-engine/config";
+import { activeEngineConfig as CFG } from "@/game-engine/config";
 import type { RingData, RingMotion, RingVariant, SegmentType } from "@/game-engine/types";
 
 /**
@@ -42,6 +42,10 @@ function pickMotion(rng: () => number, depth: number): RingMotion {
 
 function dangerBudget(rng: () => number, depth: number): number {
   if (depth < CFG.safeDepth) return 0;
+  // Admin-facing "Chance de segmentos vermelhos" — gates whether the
+  // depth-scaled budget below applies at all for this ring. 1 (the default)
+  // means it always does, exactly like before this was configurable.
+  if (rng() > CFG.dangerChance) return 0;
   const base = Math.min(CFG.maxDangerSegments, 1 + Math.floor((depth - CFG.safeDepth) / 9));
   return rng() < 0.75 ? base : Math.max(0, base - 1);
 }

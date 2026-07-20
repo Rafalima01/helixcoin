@@ -1,4 +1,4 @@
-import { ENGINE_CONFIG as CFG } from "@/game-engine/config";
+import { activeEngineConfig as CFG } from "@/game-engine/config";
 import type { EngineRuntime, RingData } from "@/game-engine/types";
 
 /**

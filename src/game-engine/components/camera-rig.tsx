@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { ENGINE_CONFIG as CFG } from "@/game-engine/config";
+import { activeEngineConfig as CFG } from "@/game-engine/config";
 import type { EngineRuntime } from "@/game-engine/types";
 
 const radial = new THREE.Vector3();

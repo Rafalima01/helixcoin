@@ -21,22 +21,33 @@ export function PlayScreen() {
   const startMatch = useStartMatch();
   const resolveMatch = useResolveMatch();
   const [seed, setSeed] = useState<string | null>(null);
+  const [engineParams, setEngineParams] = useState<Record<string, number | boolean> | undefined>(undefined);
+  const [startError, setStartError] = useState<string | null>(null);
   const began = useRef(false);
 
-  const beginMatch = useCallback(() => {
+  // `mutateAsync` (not `.mutate(vars, { onSuccess, onError })`) deliberately,
+  // and `seed`/`startError` (not `startMatch.isPending`/`.isError`) drive the
+  // render below — the mutation object's own reactive flags can get stuck
+  // mid-transition here (StrictMode's dev-only double-invoke tears down and
+  // recreates this effect's subscriptions between its two passes, and the
+  // mutation observer's state doesn't reliably settle across that). Awaiting
+  // the promise directly and tracking success/failure in local state isn't
+  // affected by that, since neither depends on the observer's lifecycle.
+  const beginMatch = useCallback(async () => {
     setSeed(null);
+    setEngineParams(undefined);
+    setStartError(null);
     useGameStore.getState().reset();
-    startMatch.mutate(betAmount, {
-      onSuccess: (data) => {
-        useGameStore
-          .getState()
-          .startMatch(data.matchId, data.betAmount, data.targetMultiplier, data.goalAmount);
-        setSeed(data.seed);
-      },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : "Erro ao iniciar partida");
-      },
-    });
+    try {
+      const data = await startMatch.mutateAsync(betAmount);
+      useGameStore
+        .getState()
+        .startMatch(data.matchId, data.betAmount, data.targetMultiplier, data.goalAmount);
+      setEngineParams(data.engineParams);
+      setSeed(data.seed);
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : "Não foi possível iniciar a partida.");
+    }
   }, [betAmount, startMatch]);
 
   useEffect(() => {
@@ -80,15 +91,11 @@ export function PlayScreen() {
     beginMatch();
   };
 
-  if (startMatch.isError) {
+  if (startError) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-app-radial px-6 text-center">
         <AlertTriangle className="size-10 text-error" />
-        <p className="text-text-secondary max-w-xs">
-          {startMatch.error instanceof Error
-            ? startMatch.error.message
-            : "Não foi possível iniciar a partida."}
-        </p>
+        <p className="text-text-secondary max-w-xs">{startError}</p>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={() => router.push("/home")}>
             Voltar
@@ -101,7 +108,7 @@ export function PlayScreen() {
     );
   }
 
-  if (startMatch.isPending || !seed) {
+  if (!seed) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-app-radial">
         <Loader2 className="size-10 text-purple animate-spin" />
@@ -114,7 +121,7 @@ export function PlayScreen() {
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <GameEngine key={seed} seed={seed} onDeath={handleDeath} />
+      <GameEngine key={seed} seed={seed} engineParams={engineParams} onDeath={handleDeath} />
       <GameHud
         onCashout={handleCashout}
         cashoutLoading={resolveMatch.isPending && gameStatus === "resolving"}

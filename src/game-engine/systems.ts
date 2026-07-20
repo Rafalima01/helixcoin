@@ -1,4 +1,4 @@
-import { ENGINE_CONFIG as CFG } from "@/game-engine/config";
+import { activeEngineConfig as CFG } from "@/game-engine/config";
 import type { EngineRuntime, TouchKind } from "@/game-engine/types";
 import { AudioManager } from "@/game-engine/audio";
 import { particleBus } from "@/game-engine/components/particles";

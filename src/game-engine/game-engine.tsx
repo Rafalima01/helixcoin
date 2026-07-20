@@ -6,7 +6,7 @@ import { Physics, useBeforePhysicsStep } from "@react-three/rapier";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import type * as THREE from "three";
 import type { RapierRigidBody } from "@react-three/rapier";
-import { ENGINE_CONFIG as CFG } from "@/game-engine/config";
+import { activeEngineConfig as CFG, setActiveEngineConfig } from "@/game-engine/config";
 import {
   createRuntime,
   type EngineRuntime,
@@ -63,11 +63,22 @@ function EngineSystems({
 
 export function GameEngine({
   seed,
+  engineParams,
   onDeath,
 }: {
   seed: string;
+  /** Server-issued mode profile for this match (src/modules/game-config) — the engine's only source of truth for the overridable knobs (see config.ts's setActiveEngineConfig doc comment). */
+  engineParams?: Record<string, number | boolean>;
   onDeath: (platformsPassed: number) => void;
 }) {
+  // Must run synchronously, before the useState initializer below (which
+  // calls generateRings and therefore reads CFG.initialRings) — an effect
+  // would fire too late. Safe to call on every render: idempotent for the
+  // same engineParams, and this component fully remounts per match (see
+  // play-screen.tsx's key={seed}), so it only ever runs against this
+  // match's own params.
+  setActiveEngineConfig(engineParams);
+
   const [rings, setRings] = useState<RingData[]>(() => generateRings(seed, 0, CFG.initialRings));
   const [physicsVersion, setPhysicsVersion] = useState(0);
   const ballRef = useRef<RapierRigidBody | null>(null);

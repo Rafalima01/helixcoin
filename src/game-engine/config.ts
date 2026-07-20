@@ -48,6 +48,10 @@ export const ENGINE_CONFIG = {
   holeWidthSegments: 2, // 60° opening — always passable
   safeDepth: 4, // first rings have no hazards at all
   maxDangerSegments: 3,
+  // Gate in front of the depth-scaled danger budget (see generator.ts's
+  // dangerBudget) — 1 means "always apply it, exactly like before this was
+  // configurable"; admin-facing as "Chance de segmentos vermelhos".
+  dangerChance: 1,
 
   // ---- Input ----
   dragSensitivity: 0.011, // radians per pixel
@@ -115,5 +119,69 @@ export const ENGINE_CONFIG = {
 
 export type EngineConfig = typeof ENGINE_CONFIG;
 
-export const SEGMENT_ANGLE = (Math.PI * 2) / ENGINE_CONFIG.segmentsPerRing;
+/**
+ * Angular width of one segment, in radians — depends on `segmentsPerRing`,
+ * which is now an admin-configurable, per-mode value (see
+ * `applyEngineOverrides` below). Read this via a function call, never cache
+ * it in a module-scope constant: tower-renderer.tsx and tower-physics.tsx
+ * both derive per-match geometry (mesh shape, collider half-widths) from
+ * it, and those must be recomputed fresh for each match's active config —
+ * see tower-physics.tsx's `useMemo(() => ..., [])` for how that's done
+ * without going stale across matches.
+ */
+export function getSegmentAngle(): number {
+  return (Math.PI * 2) / activeEngineConfig.segmentsPerRing;
+}
+
 export const RING_MID_RADIUS = (ENGINE_CONFIG.ringInnerRadius + ENGINE_CONFIG.ringOuterRadius) / 2;
+
+/**
+ * Server-driven overrides (src/modules/game-config), applied on top of the
+ * defaults above.
+ *
+ * `activeEngineConfig` is a live ES module binding — every file in this
+ * directory does `import { activeEngineConfig as CFG }` instead of
+ * importing `ENGINE_CONFIG` directly, so one `setActiveEngineConfig()` call
+ * (from GameEngine, once per match, before its first render) updates what
+ * every consumer sees. That includes the plain-function modules
+ * (generator.ts, systems.ts, tower-state.ts) that aren't React components
+ * and can't use context — ESM live bindings make prop/context threading
+ * through them unnecessary.
+ *
+ * This is deliberately a SMALL set — the admin panel only exposes the knobs
+ * that meaningfully change perceived difficulty (ball gravity/bounce/speed,
+ * red-segment odds and severity, protected-platform count, platform/segment
+ * count, opening width). Everything else that used to be individually
+ * configurable (ball weight, collision radius/precision, elasticity,
+ * friction, rotation min/max, drag sensitivity, camera distance/height/FOV/
+ * speed, collision cooldown, bonus-platform chance, ...) was removed from
+ * the registry and is now a fixed ENGINE_CONFIG constant — see this
+ * module's game-config-rtp-module memory note for the full rationale.
+ */
+export let activeEngineConfig: EngineConfig = ENGINE_CONFIG;
+
+export function setActiveEngineConfig(overrides: Record<string, number | boolean> | null | undefined): void {
+  activeEngineConfig = overrides ? applyEngineOverrides(ENGINE_CONFIG, overrides) : ENGINE_CONFIG;
+}
+
+function num(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function applyEngineOverrides(
+  base: EngineConfig,
+  o: Record<string, number | boolean>
+): EngineConfig {
+  return {
+    ...base,
+    gravity: num(o.gravity, base.gravity),
+    bounceRestitution: num(o.bounceForce, base.bounceRestitution),
+    maxFallSpeed: num(o.ballSpeed, base.maxFallSpeed),
+    dangerChance: num(o.dangerChance, base.dangerChance),
+    maxDangerSegments: num(o.maxDangerSegments, base.maxDangerSegments),
+    safeDepth: num(o.protectedPlatforms, base.safeDepth),
+    initialRings: num(o.totalPlatforms, base.initialRings),
+    segmentsPerRing: num(o.segmentsPerPlatform, base.segmentsPerRing),
+    holeWidthSegments: num(o.gapWidth, base.holeWidthSegments),
+  } as EngineConfig;
+}

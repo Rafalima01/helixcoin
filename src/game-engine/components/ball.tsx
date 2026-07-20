@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Trail } from "@react-three/drei";
 import { RigidBody, BallCollider, type RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
-import { ENGINE_CONFIG as CFG } from "@/game-engine/config";
+import { activeEngineConfig as CFG } from "@/game-engine/config";
 import type { EngineRuntime } from "@/game-engine/types";
 import { ringVisible } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
