@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import type { NextRequest } from "next/server";
+import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 import { betSchema } from "@/lib/validation";
 import { roundToCents } from "@/lib/multiplier";
 import { getGameConfig } from "@/lib/game-config";
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function POST(req: NextRequest) {
+  const auth = await getAuthContext(req);
+  if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
@@ -19,18 +20,18 @@ export async function POST(req: Request) {
 
   const betAmountCents = roundToCents(parsed.data.amount);
 
-  const wallet = await prisma.wallet.findUnique({ where: { userId: session.user.id } });
+  const wallet = await prisma.wallet.findUnique({ where: { userId: auth.userId } });
   if (!wallet || wallet.balance < betAmountCents) {
     return NextResponse.json({ error: "Saldo insuficiente" }, { status: 400 });
   }
 
   const config = await getGameConfig();
-  const seed = `${session.user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const seed = `${auth.userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   const [match] = await prisma.$transaction([
     prisma.match.create({
       data: {
-        userId: session.user.id,
+        userId: auth.userId,
         betAmount: betAmountCents,
         status: "ACTIVE",
         seed,
@@ -40,12 +41,12 @@ export async function POST(req: Request) {
       },
     }),
     prisma.wallet.update({
-      where: { userId: session.user.id },
+      where: { userId: auth.userId },
       data: { balance: { decrement: betAmountCents } },
     }),
     prisma.transaction.create({
       data: {
-        userId: session.user.id,
+        userId: auth.userId,
         type: "BET",
         amount: betAmountCents,
         status: "COMPLETED",

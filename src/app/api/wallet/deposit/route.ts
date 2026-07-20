@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import type { NextRequest } from "next/server";
+import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 import { depositSchema } from "@/lib/validation";
 import { roundToCents } from "@/lib/multiplier";
@@ -11,9 +12,9 @@ function generatePixCode() {
   return code;
 }
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function POST(req: NextRequest) {
+  const auth = await getAuthContext(req);
+  if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
 
   const transaction = await prisma.transaction.create({
     data: {
-      userId: session.user.id,
+      userId: auth.userId,
       type: "DEPOSIT",
       amount: amountCents,
       status: "PENDING",

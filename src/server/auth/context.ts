@@ -5,6 +5,7 @@ import { createChildLogger } from "@/server/logger";
 import { verifyAccessToken } from "@/server/auth/jwt";
 import { isAccessTokenBlacklisted } from "@/server/auth/tokens";
 import { hasRole } from "@/server/auth/rbac";
+import { ACCESS_COOKIE_NAME } from "@/server/auth/cookies";
 
 const logger = createChildLogger({ module: "auth.context" });
 
@@ -12,28 +13,34 @@ export interface AuthContext {
   userId: string;
   role?: Role;
   sessionId: string;
+  familyId: string;
 }
 
-function extractBearerToken(req: NextRequest): string | null {
+/** Bearer header first (headless/mobile/API clients), then the httpOnly cookie (same-origin web app). */
+function extractAccessToken(req: NextRequest): string | null {
   const header = req.headers.get("authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-  return header.slice("Bearer ".length).trim() || null;
+  if (header?.startsWith("Bearer ")) {
+    const token = header.slice("Bearer ".length).trim();
+    if (token) return token;
+  }
+  return req.cookies.get(ACCESS_COOKIE_NAME)?.value ?? null;
 }
 
 /**
  * Resolves the caller's identity from the `Authorization: Bearer <jwt>`
- * header. Returns `null` for a missing/invalid/expired/blacklisted token —
- * it never throws, so callers decide whether the route requires auth
- * (`requireAuth`) or merely benefits from knowing who's calling if present.
+ * header or the httpOnly access-token cookie. Returns `null` for a
+ * missing/invalid/expired/blacklisted token — it never throws, so callers
+ * decide whether the route requires auth (`requireAuth`) or merely
+ * benefits from knowing who's calling if present.
  */
 export async function getAuthContext(req: NextRequest): Promise<AuthContext | null> {
-  const token = extractBearerToken(req);
+  const token = extractAccessToken(req);
   if (!token) return null;
 
   try {
     const claims = await verifyAccessToken(token);
     if (await isAccessTokenBlacklisted(claims.sessionId)) return null;
-    return { userId: claims.sub, role: claims.role, sessionId: claims.sessionId };
+    return { userId: claims.sub, role: claims.role, sessionId: claims.sessionId, familyId: claims.familyId };
   } catch (err) {
     logger.debug({ err }, "Access token verification failed");
     return null;

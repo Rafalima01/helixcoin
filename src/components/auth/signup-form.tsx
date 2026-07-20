@@ -5,12 +5,20 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signIn } from "next-auth/react";
-import { User, Mail, Lock, Gift } from "lucide-react";
+import { z } from "zod";
+import { User, AtSign, Mail, Lock, Gift } from "lucide-react";
 import toast from "react-hot-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { signupSchema, type SignupInput } from "@/lib/validation";
+import { registerSchema } from "@/modules/identity/validators/auth.validator";
+
+const signupFormSchema = registerSchema.extend({
+  terms: z.boolean().refine((v) => v === true, {
+    message: "Você precisa aceitar os termos para continuar",
+  }),
+});
+
+type SignupFormInput = z.infer<typeof signupFormSchema>;
 
 export function SignupForm() {
   const router = useRouter();
@@ -21,37 +29,44 @@ export function SignupForm() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<SignupInput>({
-    resolver: zodResolver(signupSchema),
+  } = useForm<SignupFormInput>({
+    resolver: zodResolver(signupFormSchema),
     defaultValues: {
       referralCode: searchParams.get("ref") ?? "",
       terms: false,
     },
   });
 
-  const onSubmit = async (data: SignupInput) => {
+  const onSubmit = async (data: SignupFormInput) => {
     setSubmitting(true);
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          firstName: data.firstName,
+          lastName: data.lastName,
+          username: data.username,
+          email: data.email,
+          password: data.password,
+          referralCode: data.referralCode,
+        }),
       });
       const json = await res.json();
 
       if (!res.ok) {
-        toast.error(json.error ?? "Não foi possível criar sua conta");
+        toast.error(json.error?.message ?? "Não foi possível criar sua conta");
         setSubmitting(false);
         return;
       }
 
-      const signInRes = await signIn("credentials", {
-        email: data.email,
-        password: data.password,
-        redirect: false,
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email, password: data.password }),
       });
 
-      if (signInRes?.error) {
+      if (!loginRes.ok) {
         toast.success("Conta criada! Faça login para continuar.");
         router.push("/login");
         return;
@@ -69,13 +84,30 @@ export function SignupForm() {
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Nome"
+            icon={User}
+            placeholder="Seu nome"
+            autoComplete="given-name"
+            error={errors.firstName?.message}
+            {...register("firstName")}
+          />
+          <Input
+            label="Sobrenome"
+            placeholder="Seu sobrenome"
+            autoComplete="family-name"
+            error={errors.lastName?.message}
+            {...register("lastName")}
+          />
+        </div>
         <Input
-          label="Nome completo"
-          icon={User}
-          placeholder="Seu nome"
-          autoComplete="name"
-          error={errors.name?.message}
-          {...register("name")}
+          label="Username"
+          icon={AtSign}
+          placeholder="seu_username"
+          autoComplete="username"
+          error={errors.username?.message}
+          {...register("username")}
         />
         <Input
           label="Email"
@@ -90,7 +122,7 @@ export function SignupForm() {
           label="Senha"
           type="password"
           icon={Lock}
-          placeholder="Mínimo de 6 caracteres"
+          placeholder="Mínimo de 8 caracteres"
           autoComplete="new-password"
           error={errors.password?.message}
           {...register("password")}

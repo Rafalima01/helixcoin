@@ -37,6 +37,8 @@ interface SessionRecord {
   userId: string;
   role?: Role;
   familyId: string;
+  /** Preserved across rotations so "remember me" keeps its longer TTL every refresh, not just the first one. */
+  refreshTtl: string;
 }
 
 export interface IssuedTokens {
@@ -55,20 +57,22 @@ export function parseDurationSeconds(input: string): number {
   return value * multipliers[match[2] as keyof typeof multipliers];
 }
 
+/** @param refreshTtl overrides env.JWT_REFRESH_TTL — "remember me" issues a longer-lived refresh token/session. */
 export async function issueTokenPair(
   userId: string,
   role?: Role,
-  familyId: string = crypto.randomUUID()
+  familyId: string = crypto.randomUUID(),
+  refreshTtl: string = env.JWT_REFRESH_TTL
 ): Promise<IssuedTokens> {
   const sessionId = crypto.randomUUID();
-  const ttlSeconds = parseDurationSeconds(env.JWT_REFRESH_TTL);
+  const ttlSeconds = parseDurationSeconds(refreshTtl);
 
   const [accessToken, refreshToken] = await Promise.all([
-    signAccessToken({ sub: userId, role, sessionId }),
-    signRefreshToken({ sub: userId, sessionId, familyId }),
+    signAccessToken({ sub: userId, role, sessionId, familyId }),
+    signRefreshToken({ sub: userId, sessionId, familyId }, refreshTtl),
   ]);
 
-  const record: SessionRecord = { userId, role, familyId };
+  const record: SessionRecord = { userId, role, familyId, refreshTtl };
   await CacheService.set(sessionKey(sessionId), record, ttlSeconds);
   await redis.sadd(familyKey(familyId), sessionId);
   await redis.expire(familyKey(familyId), ttlSeconds);
@@ -90,7 +94,7 @@ export async function rotateRefreshToken(refreshToken: string): Promise<IssuedTo
   }
 
   await revokeSession(claims.sessionId);
-  return issueTokenPair(session.userId, session.role, claims.familyId);
+  return issueTokenPair(session.userId, session.role, claims.familyId, session.refreshTtl);
 }
 
 export async function revokeSession(sessionId: string): Promise<void> {

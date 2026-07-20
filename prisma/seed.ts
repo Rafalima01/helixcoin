@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -32,6 +32,84 @@ const ACHIEVEMENTS = [
   },
 ];
 
+/** Permission catalog — independent of roles (see prisma/schema.prisma's RolePermission doc). */
+const PERMISSIONS = [
+  { key: "users.read", description: "Visualizar usuários" },
+  { key: "users.create", description: "Criar usuários" },
+  { key: "users.update", description: "Editar usuários" },
+  { key: "users.delete", description: "Excluir (soft delete) usuários" },
+  { key: "users.block", description: "Bloquear/desbloquear usuários" },
+  { key: "users.restore", description: "Restaurar usuários excluídos" },
+  { key: "sessions.read", description: "Visualizar sessões de usuários" },
+  { key: "sessions.revoke", description: "Encerrar sessões de usuários" },
+  { key: "permissions.read", description: "Visualizar papéis e permissões" },
+  { key: "audit.read", description: "Visualizar trilha de auditoria" },
+  { key: "wallet.read", description: "Visualizar carteiras" },
+  { key: "wallet.update", description: "Ajustar carteiras" },
+  { key: "game.manage", description: "Gerenciar configurações do jogo" },
+  { key: "rtp.manage", description: "Gerenciar RTP" },
+  { key: "affiliate.read", description: "Visualizar afiliados" },
+  { key: "affiliate.update", description: "Editar afiliados" },
+  { key: "settings.manage", description: "Gerenciar configurações da plataforma" },
+  { key: "finance.read", description: "Visualizar dados financeiros" },
+  { key: "reports.export", description: "Exportar relatórios" },
+] as const;
+
+/** Default role → permission grants. SUPER_ADMIN bypasses this entirely at runtime (see server/auth/rbac.ts) — listed here only so the backoffice's Permissions screen shows it as "all". */
+const ROLE_GRANTS: Record<Role, readonly (typeof PERMISSIONS)[number]["key"][]> = {
+  SUPER_ADMIN: PERMISSIONS.map((p) => p.key),
+  ADMIN: [
+    "users.read",
+    "users.create",
+    "users.update",
+    "users.block",
+    "users.restore",
+    "sessions.read",
+    "sessions.revoke",
+    "permissions.read",
+    "audit.read",
+    "wallet.read",
+    "game.manage",
+    "rtp.manage",
+    "affiliate.read",
+    "affiliate.update",
+    "settings.manage",
+    "reports.export",
+  ],
+  FINANCE: ["wallet.read", "wallet.update", "finance.read", "reports.export", "audit.read"],
+  OPERATOR: ["game.manage", "rtp.manage", "wallet.read"],
+  MODERATOR: ["users.read", "users.block", "sessions.read", "sessions.revoke"],
+  SUPPORT: ["users.read", "sessions.read", "sessions.revoke"],
+  COMPLIANCE: ["users.read", "audit.read", "reports.export", "finance.read"],
+  AUDIT: ["audit.read", "users.read", "reports.export"],
+  USER: [],
+  AFFILIATE: ["affiliate.read"],
+};
+
+async function seedPermissions() {
+  const byKey = new Map<string, string>();
+  for (const p of PERMISSIONS) {
+    const row = await prisma.permission.upsert({
+      where: { key: p.key },
+      update: { description: p.description },
+      create: p,
+    });
+    byKey.set(p.key, row.id);
+  }
+
+  for (const [role, keys] of Object.entries(ROLE_GRANTS) as [Role, readonly string[]][]) {
+    for (const key of keys) {
+      const permissionId = byKey.get(key);
+      if (!permissionId) continue;
+      await prisma.rolePermission.upsert({
+        where: { role_permissionId: { role, permissionId } },
+        update: {},
+        create: { role, permissionId },
+      });
+    }
+  }
+}
+
 async function main() {
   for (const a of ACHIEVEMENTS) {
     await prisma.achievement.upsert({
@@ -41,19 +119,43 @@ async function main() {
     });
   }
 
+  await seedPermissions();
+
   const demoPasswordHash = await bcrypt.hash("demo1234", 10);
 
   const demoUser = await prisma.user.upsert({
     where: { email: "demo@helijump.gg" },
     update: {},
     create: {
-      name: "Jogador Demo",
+      firstName: "Jogador",
+      lastName: "Demo",
+      username: "jogador_demo",
       email: "demo@helijump.gg",
       passwordHash: demoPasswordHash,
+      status: "ACTIVE",
+      role: "USER",
+      emailVerifiedAt: new Date(),
       referralCode: "DEMO2026",
       xp: 1240,
       level: 6,
       wallet: { create: { balance: 25000 } },
+    },
+  });
+
+  const adminPasswordHash = await bcrypt.hash("admin1234", 10);
+  await prisma.user.upsert({
+    where: { email: "admin@helijump.gg" },
+    update: {},
+    create: {
+      firstName: "Rafael",
+      lastName: "Lima",
+      username: "rafael_lima",
+      email: "admin@helijump.gg",
+      passwordHash: adminPasswordHash,
+      status: "ACTIVE",
+      role: "SUPER_ADMIN",
+      emailVerifiedAt: new Date(),
+      referralCode: "ADMIN2026",
     },
   });
 
@@ -95,7 +197,7 @@ async function main() {
     });
   }
 
-  console.log("Seed complete:", demoUser.email);
+  console.log("Seed complete:", demoUser.email, "+ admin@helijump.gg");
 }
 
 main()

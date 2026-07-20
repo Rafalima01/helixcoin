@@ -4,7 +4,6 @@
  * the real backend replaces the service layer.
  */
 import type {
-  AdminAccountDTO,
   AdminUserRowDTO,
   AffiliateRowDTO,
   AlertDTO,
@@ -299,54 +298,6 @@ export const usersRows: AdminUserRowDTO[] = USER_NAMES.map((name, i) => {
   };
 });
 
-export const adminAccounts: AdminAccountDTO[] = [
-  {
-    id: "adm_1",
-    name: "Rafael Lima",
-    email: "rafael@helijump.gg",
-    role: "owner",
-    twoFactor: true,
-    lastLoginAt: "agora",
-    status: "active",
-  },
-  {
-    id: "adm_2",
-    name: "Carla Nunes",
-    email: "carla@helijump.gg",
-    role: "finance",
-    twoFactor: true,
-    lastLoginAt: "há 12 min",
-    status: "active",
-  },
-  {
-    id: "adm_3",
-    name: "Diego Prado",
-    email: "diego@helijump.gg",
-    role: "support",
-    twoFactor: true,
-    lastLoginAt: "há 1 h",
-    status: "active",
-  },
-  {
-    id: "adm_4",
-    name: "Aline Barros",
-    email: "aline@helijump.gg",
-    role: "analyst",
-    twoFactor: false,
-    lastLoginAt: "há 3 d",
-    status: "active",
-  },
-  {
-    id: "adm_5",
-    name: "Marcos Vidal",
-    email: "marcos@helijump.gg",
-    role: "admin",
-    twoFactor: true,
-    lastLoginAt: "há 6 d",
-    status: "suspended",
-  },
-];
-
 export const walletsRows: WalletRowDTO[] = usersRows.slice(0, 10).map((u, i) => {
   const r = rng(200 + i);
   return {
@@ -622,40 +573,6 @@ export const promotions: PromotionDTO[] = [
 ];
 
 // -------------------------------------------------------------- operations
-export const auditRows: AuditEntryDTO[] = [
-  ...recentEvents,
-  {
-    id: "ev6",
-    actor: "Rafael Lima",
-    role: "owner",
-    action: "Criou chave de API produção",
-    target: "ak_live_71",
-    ip: "187.44.12.90",
-    createdAt: "há 2 h",
-    severity: "warning",
-  },
-  {
-    id: "ev7",
-    actor: "Aline Barros",
-    role: "analyst",
-    action: "Exportou relatório financeiro",
-    target: "rep_jul_19",
-    ip: "45.171.8.22",
-    createdAt: "há 3 h",
-    severity: "info",
-  },
-  {
-    id: "ev8",
-    actor: "Sistema",
-    role: "admin",
-    action: "Rotação automática de segredos",
-    target: "vault",
-    ip: "—",
-    createdAt: "há 6 h",
-    severity: "info",
-  },
-];
-
 export const logRows: LogEntryDTO[] = [
   {
     id: "lg_1",

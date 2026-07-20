@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import type { NextRequest } from "next/server";
+import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 import { getGameConfig } from "@/lib/game-config";
 
@@ -26,15 +27,15 @@ interface NetworkNode {
   children: NetworkNode[];
 }
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const auth = await getAuthContext(req);
+  if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
   const [me, config] = await Promise.all([
     prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: auth.userId },
       select: { referralCode: true },
     }),
     getGameConfig(),
@@ -46,10 +47,15 @@ export async function GET() {
   const rates = [config.commissionLevel1, config.commissionLevel2, config.commissionLevel3];
 
   // Breadth-first walk, one query per level, capped at depth 3.
-  const select = { id: true, name: true, createdAt: true, referredById: true };
-  const levelUsers: { id: string; name: string; createdAt: Date; referredById: string | null }[][] =
-    [];
-  let parentIds = [session.user.id];
+  const select = { id: true, firstName: true, lastName: true, createdAt: true, referredById: true };
+  const levelUsers: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    createdAt: Date;
+    referredById: string | null;
+  }[][] = [];
+  let parentIds = [auth.userId];
   for (let depth = 0; depth < 3; depth++) {
     if (parentIds.length === 0) {
       levelUsers.push([]);
@@ -92,7 +98,7 @@ export async function GET() {
       commissionCents += nodeCommission;
       nodesById.set(u.id, {
         id: u.id,
-        name: u.name,
+        name: `${u.firstName} ${u.lastName}`.trim(),
         level,
         createdAt: u.createdAt,
         active: dep.count > 0,
@@ -116,7 +122,7 @@ export async function GET() {
   for (const users of levelUsers) {
     for (const u of users) {
       const node = nodesById.get(u.id)!;
-      if (u.referredById === session.user.id) {
+      if (u.referredById === auth.userId) {
         tree.push(node);
       } else if (u.referredById && nodesById.has(u.referredById)) {
         nodesById.get(u.referredById)!.children.push(node);

@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import type { NextRequest } from "next/server";
+import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 
 /** Account-level aggregates for the profile screen. All values in cents. */
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const auth = await getAuthContext(req);
+  if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
   const [sums, wallet] = await Promise.all([
     prisma.transaction.groupBy({
       by: ["type"],
-      where: { userId: session.user.id, status: "COMPLETED" },
+      where: { userId: auth.userId, status: "COMPLETED" },
       _sum: { amount: true },
     }),
-    prisma.wallet.findUnique({ where: { userId: session.user.id } }),
+    prisma.wallet.findUnique({ where: { userId: auth.userId } }),
   ]);
 
   const byType = Object.fromEntries(sums.map((s) => [s.type, s._sum.amount ?? 0]));

@@ -24,7 +24,7 @@ export function SecuritySection({ email }: { email: string }) {
       return;
     }
     try {
-      await changePassword.mutateAsync({ currentPassword: current, newPassword: next });
+      await changePassword.mutateAsync({ currentPassword: current, newPassword: next, confirmPassword: confirm });
       toast.success("Senha alterada com sucesso!");
       setCurrent("");
       setNext("");

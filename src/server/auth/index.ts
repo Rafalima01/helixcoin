@@ -17,7 +17,8 @@ export {
   parseDurationSeconds,
   type IssuedTokens,
 } from "@/server/auth/tokens";
-export { hasRole, hasPermission, ROLE_HIERARCHY, ROLE_PERMISSIONS } from "@/server/auth/rbac";
+export { hasRole, ROLE_HIERARCHY } from "@/server/auth/rbac";
 export { getAuthContext, requireAuth, requireRole, type AuthContext } from "@/server/auth/context";
+export { getServerAuthContext } from "@/server/auth/server-context";
 export { withAuth, withRole } from "@/server/auth/middleware";
 export { setRefreshCookie, clearRefreshCookie, REFRESH_COOKIE_NAME } from "@/server/auth/cookies";

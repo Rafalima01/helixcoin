@@ -1,25 +1,7 @@
 import { z } from "zod";
 
-export const signupSchema = z
-  .object({
-    name: z.string().trim().min(2, "Informe seu nome completo").max(80),
-    email: z.string().trim().email("Email inválido"),
-    password: z.string().min(6, "Mínimo de 6 caracteres").max(72, "Máximo de 72 caracteres"),
-    referralCode: z.string().trim().optional().or(z.literal("")),
-    terms: z.boolean().refine((v) => v === true, {
-      message: "Você precisa aceitar os termos para continuar",
-    }),
-  })
-  .strict();
-
-export type SignupInput = z.infer<typeof signupSchema>;
-
-export const loginSchema = z.object({
-  email: z.string().trim().email("Email inválido"),
-  password: z.string().min(1, "Informe sua senha"),
-});
-
-export type LoginInput = z.infer<typeof loginSchema>;
+// signupSchema/loginSchema live in @/modules/identity/validators/auth.validator
+// now — the identity module is the sole source of auth, including validation.
 
 export const depositSchema = z.object({
   amount: z.number().min(5, "Valor mínimo de R$ 5,00").max(50000, "Valor máximo de R$ 50.000,00"),

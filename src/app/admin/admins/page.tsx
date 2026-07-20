@@ -1,44 +1,58 @@
 "use client";
 
-import { ShieldPlus, KeyRound, Eye, Headset, LineChart, Crown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ShieldPlus, KeyRound, Eye, Headset, LineChart, Crown, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader, DataTable, StatusBadge, type TableColumn } from "@/components/admin/ui";
-import { AdminServices } from "@/lib/admin/services";
-import { useAdminData, notImplemented } from "@/lib/admin/use-admin-data";
-import type { AdminAccountDTO } from "@/lib/admin/types";
+import { IdentityAdminApi } from "@/lib/admin/identity-api";
+import { notImplemented } from "@/lib/admin/use-admin-data";
+import type { UserResponseDto } from "@/modules/identity/dto/user.dto";
 
-const ROLES = [
-  { role: "owner", label: "Owner", icon: Crown, desc: "Acesso total, incluindo RBAC e chaves." },
-  { role: "admin", label: "Admin", icon: KeyRound, desc: "Gestão operacional completa." },
-  {
-    role: "finance",
-    label: "Financeiro",
-    icon: LineChart,
-    desc: "Aprova saques, ledger e gateways.",
-  },
-  { role: "support", label: "Suporte", icon: Headset, desc: "Atendimento e ações limitadas." },
-  { role: "analyst", label: "Analista", icon: Eye, desc: "Somente leitura e relatórios." },
-];
+const STAFF_ROLES = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "FINANCE",
+  "OPERATOR",
+  "MODERATOR",
+  "SUPPORT",
+  "COMPLIANCE",
+  "AUDIT",
+] as const;
 
-const ROLE_LABEL: Record<AdminAccountDTO["role"], string> = {
-  owner: "Owner",
-  admin: "Admin",
-  finance: "Financeiro",
-  support: "Suporte",
-  analyst: "Analista",
+const ROLE_META: Record<(typeof STAFF_ROLES)[number], { label: string; icon: typeof Crown; desc: string }> = {
+  SUPER_ADMIN: { label: "Super Admin", icon: Crown, desc: "Acesso total, ignora a matriz de permissões." },
+  ADMIN: { label: "Admin", icon: KeyRound, desc: "Gestão operacional completa." },
+  FINANCE: { label: "Financeiro", icon: LineChart, desc: "Carteiras, ledger e gateways." },
+  OPERATOR: { label: "Operador", icon: KeyRound, desc: "Configuração de jogo e RTP." },
+  MODERATOR: { label: "Moderador", icon: Headset, desc: "Bloqueio e sessões de jogadores." },
+  SUPPORT: { label: "Suporte", icon: Headset, desc: "Atendimento e ações limitadas." },
+  COMPLIANCE: { label: "Compliance", icon: Scale, desc: "Auditoria e conformidade." },
+  AUDIT: { label: "Auditoria", icon: Eye, desc: "Somente leitura e relatórios." },
+};
+
+const STATUS_LABEL: Record<UserResponseDto["status"], { label: string; tone: "success" | "danger" | "warning" | "neutral" }> = {
+  ACTIVE: { label: "Ativo", tone: "success" },
+  BLOCKED: { label: "Bloqueado", tone: "danger" },
+  SUSPENDED: { label: "Suspenso", tone: "warning" },
+  PENDING: { label: "Pendente", tone: "neutral" },
 };
 
 export default function AdminAdminsPage() {
-  const { data, loading } = useAdminData(AdminServices.adminAccounts);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "staff"],
+    queryFn: () => IdentityAdminApi.searchUsers({ page: 1, pageSize: 200 }),
+  });
 
-  const columns: TableColumn<AdminAccountDTO>[] = [
+  const staff = (data?.data ?? []).filter((u) => (STAFF_ROLES as readonly string[]).includes(u.role));
+
+  const columns: TableColumn<UserResponseDto>[] = [
     {
       key: "name",
       header: "Administrador",
       render: (a) => (
         <div className="min-w-0">
-          <p className="font-semibold truncate">{a.name}</p>
+          <p className="font-semibold truncate">{a.fullName}</p>
           <p className="text-xs text-text-muted truncate">{a.email}</p>
         </div>
       ),
@@ -47,15 +61,17 @@ export default function AdminAdminsPage() {
       key: "role",
       header: "Papel (RBAC)",
       render: (a) => (
-        <StatusBadge tone={a.role === "owner" ? "pink" : "info"}>{ROLE_LABEL[a.role]}</StatusBadge>
+        <StatusBadge tone={a.role === "SUPER_ADMIN" ? "pink" : "info"}>
+          {ROLE_META[a.role as keyof typeof ROLE_META]?.label ?? a.role}
+        </StatusBadge>
       ),
     },
     {
-      key: "2fa",
-      header: "2FA",
+      key: "mfa",
+      header: "MFA",
       render: (a) => (
-        <StatusBadge tone={a.twoFactor ? "success" : "warning"}>
-          {a.twoFactor ? "Ativo" : "Pendente"}
+        <StatusBadge tone={a.mfaEnabled ? "success" : "warning"}>
+          {a.mfaEnabled ? "Ativo" : "Pendente"}
         </StatusBadge>
       ),
     },
@@ -63,16 +79,18 @@ export default function AdminAdminsPage() {
       key: "status",
       header: "Status",
       render: (a) => (
-        <StatusBadge tone={a.status === "active" ? "success" : "danger"}>
-          {a.status === "active" ? "Ativo" : "Suspenso"}
-        </StatusBadge>
+        <StatusBadge tone={STATUS_LABEL[a.status].tone}>{STATUS_LABEL[a.status].label}</StatusBadge>
       ),
     },
     {
       key: "login",
       header: "Último login",
       align: "right",
-      render: (a) => <span className="text-xs text-text-muted">{a.lastLoginAt}</span>,
+      render: (a) => (
+        <span className="text-xs text-text-muted">
+          {a.lastLoginAt ? new Date(a.lastLoginAt).toLocaleString("pt-BR") : "—"}
+        </span>
+      ),
     },
   ];
 
@@ -80,7 +98,7 @@ export default function AdminAdminsPage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Gestão Administrativa"
-        description="Contas administrativas, papéis e permissões (RBAC). A matriz de permissões definitiva será aplicada no Backend."
+        description="Contas com papéis não-jogador (RBAC) — mesma base de usuários do módulo Identity, filtrada por papel."
         actions={
           <Button variant="primary" size="sm" onClick={notImplemented}>
             <ShieldPlus className="size-4" /> Convidar administrador
@@ -88,17 +106,20 @@ export default function AdminAdminsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-        {ROLES.map((r) => (
-          <Card key={r.role} className="p-4 flex flex-col gap-2">
-            <r.icon className="size-4 text-purple" />
-            <p className="text-sm font-bold">{r.label}</p>
-            <p className="text-xs text-text-secondary leading-relaxed">{r.desc}</p>
-          </Card>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {STAFF_ROLES.map((role) => {
+          const meta = ROLE_META[role];
+          return (
+            <Card key={role} className="p-4 flex flex-col gap-2">
+              <meta.icon className="size-4 text-purple" />
+              <p className="text-sm font-bold">{meta.label}</p>
+              <p className="text-xs text-text-secondary leading-relaxed">{meta.desc}</p>
+            </Card>
+          );
+        })}
       </div>
 
-      <DataTable columns={columns} rows={data ?? []} loading={loading} />
+      <DataTable columns={columns} rows={staff} loading={isLoading} />
     </div>
   );
 }

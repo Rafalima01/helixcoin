@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 import { getMultiplierForPlatforms } from "@/lib/multiplier";
 
@@ -9,9 +10,9 @@ const resolveSchema = z.object({
   platformsPassed: z.number().int().min(0).max(500),
 });
 
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await getAuthContext(req);
+  if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
@@ -23,7 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const match = await prisma.match.findUnique({ where: { id } });
-  if (!match || match.userId !== session.user.id) {
+  if (!match || match.userId !== auth.userId) {
     return NextResponse.json({ error: "Partida não encontrada" }, { status: 404 });
   }
   if (match.status !== "ACTIVE") {
@@ -82,12 +83,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     }),
     prisma.wallet.update({
-      where: { userId: session.user.id },
+      where: { userId: auth.userId },
       data: { balance: { increment: payout } },
     }),
     prisma.transaction.create({
       data: {
-        userId: session.user.id,
+        userId: auth.userId,
         type: "PAYOUT",
         amount: payout,
         status: "COMPLETED",

@@ -3,11 +3,13 @@ import { env } from "@/server/config/env";
 import type { Role } from "@prisma/client";
 
 /**
- * JWT access/refresh mechanics for headless API clients (mobile apps, the
- * admin backoffice API, server-to-server integrations) — separate from the
- * player web app's NextAuth session cookie, which stays as-is. `jose` (not
+ * JWT access/refresh mechanics — the sole auth mechanism for the whole
+ * platform (src/modules/identity), covering both headless API clients
+ * (mobile apps, the admin backoffice API, server-to-server integrations via
+ * the `Authorization: Bearer` header) and the player/admin web apps (via
+ * httpOnly cookies — see server/auth/cookies.ts). `jose` (not
  * `jsonwebtoken`) because it works in both the Node runtime (Route
- * Handlers) and the Edge runtime (Next Middleware), so the same verify
+ * Handlers) and whatever runtime Proxy ends up on, so the same verify
  * function can guard either.
  */
 
@@ -18,6 +20,8 @@ export interface AccessTokenClaims extends JWTPayload {
   sub: string; // user id
   role?: Role;
   sessionId: string;
+  /** Stable across refresh-token rotation — what the durable Session row (src/modules/identity) is keyed by. */
+  familyId: string;
 }
 
 export interface RefreshTokenClaims extends JWTPayload {
@@ -35,6 +39,7 @@ interface SignAccessTokenInput {
   sub: string;
   role?: Role;
   sessionId: string;
+  familyId: string;
 }
 
 interface SignRefreshTokenInput {
@@ -44,7 +49,7 @@ interface SignRefreshTokenInput {
 }
 
 export async function signAccessToken(claims: SignAccessTokenInput): Promise<string> {
-  return new SignJWT({ role: claims.role, sessionId: claims.sessionId })
+  return new SignJWT({ role: claims.role, sessionId: claims.sessionId, familyId: claims.familyId })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(claims.sub)
     .setIssuedAt()
@@ -52,12 +57,13 @@ export async function signAccessToken(claims: SignAccessTokenInput): Promise<str
     .sign(accessSecret);
 }
 
-export async function signRefreshToken(claims: SignRefreshTokenInput): Promise<string> {
+/** @param ttl overrides env.JWT_REFRESH_TTL — "remember me" issues a longer-lived refresh token. */
+export async function signRefreshToken(claims: SignRefreshTokenInput, ttl: string = env.JWT_REFRESH_TTL): Promise<string> {
   return new SignJWT({ sessionId: claims.sessionId, familyId: claims.familyId })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(claims.sub)
     .setIssuedAt()
-    .setExpirationTime(env.JWT_REFRESH_TTL)
+    .setExpirationTime(ttl)
     .sign(refreshSecret);
 }
 

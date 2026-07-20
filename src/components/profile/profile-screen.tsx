@@ -2,22 +2,24 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { User, ShieldCheck, Receipt, Gamepad2, Gift, ArrowRight, Sparkles } from "lucide-react";
+import { User, ShieldCheck, Monitor, Receipt, Gamepad2, Gift, ArrowRight, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWallet } from "@/hooks/use-wallet";
 import { AccountStats } from "@/components/profile/account-stats";
 import { SecuritySection } from "@/components/profile/security-section";
+import { SessionsSection } from "@/components/profile/sessions-section";
 import { TransactionsList } from "@/components/profile/transactions-list";
 import { GameHistory } from "@/components/profile/game-history";
 import { cn } from "@/lib/utils";
 
-type TabKey = "conta" | "seguranca" | "transacoes" | "historico" | "afiliados";
+type TabKey = "conta" | "seguranca" | "sessoes" | "transacoes" | "historico" | "afiliados";
 
 const TABS: { key: TabKey; label: string; icon: typeof User }[] = [
   { key: "conta", label: "Conta", icon: User },
   { key: "seguranca", label: "Segurança", icon: ShieldCheck },
+  { key: "sessoes", label: "Sessões", icon: Monitor },
   { key: "transacoes", label: "Transações", icon: Receipt },
   { key: "historico", label: "Histórico de jogo", icon: Gamepad2 },
   { key: "afiliados", label: "Afiliados", icon: Gift },
@@ -122,6 +124,7 @@ export function ProfileScreen() {
       {/* Tab content */}
       {tab === "conta" && <AccountStats />}
       {tab === "seguranca" && <SecuritySection email={email} />}
+      {tab === "sessoes" && <SessionsSection />}
       {tab === "transacoes" && <TransactionsList />}
       {tab === "historico" && <GameHistory />}
       {tab === "afiliados" && <AffiliateCard />}

@@ -8,8 +8,6 @@
  */
 import * as mock from "@/lib/admin/mock-data";
 import type {
-  AdminAccountDTO,
-  AdminUserRowDTO,
   AffiliateRowDTO,
   AlertDTO,
   ApiKeyDTO,
@@ -37,8 +35,6 @@ export const AdminServices = {
   dashboardKpis: (): Promise<KpiDTO[]> => resolve(mock.dashboardKpis),
   alerts: (): Promise<AlertDTO[]> => resolve(mock.dashboardAlerts),
   recentEvents: (): Promise<AuditEntryDTO[]> => resolve(mock.recentEvents),
-  users: (): Promise<AdminUserRowDTO[]> => resolve(mock.usersRows),
-  adminAccounts: (): Promise<AdminAccountDTO[]> => resolve(mock.adminAccounts),
   wallets: (): Promise<WalletRowDTO[]> => resolve(mock.walletsRows),
   ledger: (): Promise<LedgerEntryDTO[]> => resolve(mock.ledgerRows),
   deposits: (): Promise<PaymentRowDTO[]> => resolve(mock.paymentRows(1, "deposit")),
@@ -48,7 +44,6 @@ export const AdminServices = {
   financeSummary: (): Promise<FinanceSummaryDTO> => resolve(mock.financeSummary),
   games: (): Promise<GameRowDTO[]> => resolve(mock.games),
   promotions: (): Promise<PromotionDTO[]> => resolve(mock.promotions),
-  audit: (): Promise<AuditEntryDTO[]> => resolve(mock.auditRows),
   logs: (): Promise<LogEntryDTO[]> => resolve(mock.logRows),
   notifications: (): Promise<NotificationCampaignDTO[]> => resolve(mock.notificationCampaigns),
   integrations: (): Promise<IntegrationDTO[]> => resolve(mock.integrations),

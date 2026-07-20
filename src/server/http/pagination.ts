@@ -26,6 +26,8 @@ export interface PaginationMeta {
   pageSize: number;
   total: number;
   totalPages: number;
+  /** Lets a PaginationMeta be passed directly as `ok()`'s response `meta`. */
+  [key: string]: unknown;
 }
 
 export function buildPaginationMeta(params: PaginationParams, total: number): PaginationMeta {

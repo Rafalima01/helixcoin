@@ -2,14 +2,21 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { signOut } from "next-auth/react";
 import { LogOut, User, Gift } from "lucide-react";
 
 export function UserMenu({ name, email }: { name: string; email: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const initial = name?.charAt(0)?.toUpperCase() ?? "U";
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/");
+    router.refresh();
+  };
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -65,7 +72,7 @@ export function UserMenu({ name, email }: { name: string; email: string }) {
             <div className="h-px bg-border my-1" />
 
             <button
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={handleLogout}
               className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-error hover:bg-error/10 transition-colors"
             >
               <LogOut className="size-4" />

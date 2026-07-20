@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import type { NextRequest } from "next/server";
+import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 import { withdrawSchema } from "@/lib/validation";
 import { roundToCents } from "@/lib/multiplier";
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function POST(req: NextRequest) {
+  const auth = await getAuthContext(req);
+  if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
 
   const amountCents = roundToCents(parsed.data.amount);
 
-  const wallet = await prisma.wallet.findUnique({ where: { userId: session.user.id } });
+  const wallet = await prisma.wallet.findUnique({ where: { userId: auth.userId } });
   if (!wallet || wallet.balance < amountCents) {
     return NextResponse.json({ error: "Saldo insuficiente" }, { status: 400 });
   }
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   const [, updatedWallet] = await prisma.$transaction([
     prisma.transaction.create({
       data: {
-        userId: session.user.id,
+        userId: auth.userId,
         type: "WITHDRAW",
         amount: amountCents,
         status: "COMPLETED",
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
       },
     }),
     prisma.wallet.update({
-      where: { userId: session.user.id },
+      where: { userId: auth.userId },
       data: { balance: { decrement: amountCents } },
     }),
   ]);

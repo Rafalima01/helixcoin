@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { hasRole, hasPermission } from "@/server/auth/rbac";
+import { hasRole } from "@/server/auth/rbac";
+
+// Fine-grained permission checks moved to the identity module's
+// PermissionService (DB-backed Permission/RolePermission tables) — see
+// src/modules/identity/tests/permission.service.test.ts.
 
 describe("hasRole", () => {
   it("denies when no role is present", () => {
@@ -16,20 +20,5 @@ describe("hasRole", () => {
 
   it("SUPER_ADMIN always passes, even for an empty allowlist", () => {
     expect(hasRole("SUPER_ADMIN", [])).toBe(true);
-  });
-});
-
-describe("hasPermission", () => {
-  it("SUPER_ADMIN passes any permission string", () => {
-    expect(hasPermission("SUPER_ADMIN", "anything:at-all")).toBe(true);
-  });
-
-  it("fails closed for every other role — no permission matrix defined yet", () => {
-    expect(hasPermission("ADMIN", "wallets:adjust")).toBe(false);
-    expect(hasPermission("FINANCE", "withdrawals:approve")).toBe(false);
-  });
-
-  it("denies when no role is present", () => {
-    expect(hasPermission(undefined, "wallets:adjust")).toBe(false);
   });
 });

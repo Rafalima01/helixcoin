@@ -86,10 +86,65 @@ export function useReferralStats() {
 
 export function useChangePassword() {
   return useMutation({
-    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
-      fetchJson<{ ok: boolean }>("/api/user/password", {
+    mutationFn: async (data: {
+      currentPassword: string;
+      newPassword: string;
+      confirmPassword: string;
+      revokeOtherSessions?: boolean;
+    }) => {
+      const res = await fetch("/api/auth/password/change", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error?.message ?? "Erro na requisição");
+      return json;
+    },
+  });
+}
+
+export interface SessionInfo {
+  id: string;
+  ip: string | null;
+  os: string | null;
+  browser: string | null;
+  device: string | null;
+  location: string | null;
+  rememberMe: boolean;
+  active: boolean;
+  current: boolean;
+  createdAt: string;
+  lastActivityAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
+async function identityFetch<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error?.message ?? "Erro na requisição");
+  return json?.data as T;
+}
+
+export function useSessions() {
+  return useQuery({
+    queryKey: ["sessions"],
+    queryFn: () => identityFetch<SessionInfo[]>("/api/sessions"),
+  });
+}
+
+export function useRevokeSession() {
+  return useMutation({
+    mutationFn: (sessionId: string) => identityFetch(`/api/sessions/${sessionId}`, { method: "DELETE" }),
+  });
+}
+
+export function useRevokeAllSessions() {
+  return useMutation({
+    mutationFn: () => identityFetch<{ revokedCount: number }>("/api/sessions/revoke-all", { method: "POST" }),
   });
 }

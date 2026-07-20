@@ -1,52 +1,51 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  PageHeader,
-  DataTable,
-  FilterBar,
-  FilterChips,
-  StatusBadge,
-  type TableColumn,
-} from "@/components/admin/ui";
-import { AdminServices } from "@/lib/admin/services";
-import { useAdminData } from "@/lib/admin/use-admin-data";
-import type { AuditEntryDTO } from "@/lib/admin/types";
+import { useQuery } from "@tanstack/react-query";
+import { PageHeader, DataTable, FilterBar, FilterChips, type TableColumn } from "@/components/admin/ui";
+import { IdentityAdminApi } from "@/lib/admin/identity-api";
+import type { AuditLogResponseDto } from "@/modules/identity/dto/audit.dto";
+
+const ACTION_GROUPS = [
+  { value: "all", label: "Tudo" },
+  { value: "auth.", label: "Autenticação" },
+  { value: "admin.user.", label: "Gestão de usuários" },
+  { value: "auth.session.", label: "Sessões" },
+];
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR");
+}
 
 export default function AdminAuditPage() {
-  const { data, loading } = useAdminData(AdminServices.audit);
   const [search, setSearch] = useState("");
-  const [severity, setSeverity] = useState("all");
+  const [actionPrefix, setActionPrefix] = useState("all");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "audit", actionPrefix],
+    queryFn: () =>
+      IdentityAdminApi.searchAudit({
+        action: actionPrefix === "all" ? undefined : actionPrefix,
+        page: 1,
+        pageSize: 100,
+      }),
+  });
 
   const rows = useMemo(() => {
-    let out = data ?? [];
-    if (severity !== "all") out = out.filter((a) => a.severity === severity);
+    let out = data?.data ?? [];
     if (search) {
       const q = search.toLowerCase();
       out = out.filter(
         (a) =>
           a.action.toLowerCase().includes(q) ||
-          a.actor.toLowerCase().includes(q) ||
-          a.target.includes(q)
+          (a.actorId ?? "").toLowerCase().includes(q) ||
+          (a.entityId ?? "").toLowerCase().includes(q)
       );
     }
     return out;
-  }, [data, search, severity]);
+  }, [data, search]);
 
-  const columns: TableColumn<AuditEntryDTO>[] = [
-    {
-      key: "sev",
-      header: "Nível",
-      render: (a) => (
-        <StatusBadge
-          tone={
-            a.severity === "critical" ? "danger" : a.severity === "warning" ? "warning" : "neutral"
-          }
-        >
-          {a.severity === "critical" ? "Crítico" : a.severity === "warning" ? "Atenção" : "Info"}
-        </StatusBadge>
-      ),
-    },
+  const columns: TableColumn<AuditLogResponseDto>[] = [
     {
       key: "action",
       header: "Ação",
@@ -57,26 +56,31 @@ export default function AdminAuditPage() {
       header: "Autor",
       render: (a) => (
         <div>
-          <p className="text-sm">{a.actor}</p>
-          <p className="text-[10px] uppercase text-text-muted">{a.role}</p>
+          <code className="text-xs">{a.actorId ?? "sistema"}</code>
+          <p className="text-[10px] uppercase text-text-muted">{a.actorType}</p>
         </div>
       ),
     },
     {
-      key: "target",
-      header: "Alvo",
-      render: (a) => <code className="text-xs text-text-secondary">{a.target}</code>,
+      key: "entity",
+      header: "Entidade",
+      render: (a) => (
+        <code className="text-xs text-text-secondary">
+          {a.entityType}
+          {a.entityId ? `#${a.entityId.slice(0, 8)}` : ""}
+        </code>
+      ),
     },
     {
       key: "ip",
       header: "IP",
-      render: (a) => <span className="text-xs text-text-muted tabular-nums">{a.ip}</span>,
+      render: (a) => <span className="text-xs text-text-muted tabular-nums">{a.ip ?? "—"}</span>,
     },
     {
       key: "at",
       header: "Quando",
       align: "right",
-      render: (a) => <span className="text-xs text-text-muted">{a.createdAt}</span>,
+      render: (a) => <span className="text-xs text-text-muted">{formatDate(a.createdAt)}</span>,
     },
   ];
 
@@ -84,25 +88,12 @@ export default function AdminAuditPage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Auditoria"
-        description="Trilha imutável de toda ação administrativa. No Backend, cada mutação gravará autor, diff e contexto."
+        description="Trilha imutável (AuditLog) — cada mutação grava autor, diff, IP e sessão. Registros nunca podem ser apagados."
       />
-      <FilterBar
-        search={search}
-        onSearch={setSearch}
-        placeholder="Buscar por ação, autor ou alvo..."
-      >
-        <FilterChips
-          value={severity}
-          onChange={setSeverity}
-          options={[
-            { value: "all", label: "Tudo" },
-            { value: "critical", label: "Críticos" },
-            { value: "warning", label: "Atenção" },
-            { value: "info", label: "Info" },
-          ]}
-        />
+      <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por ação, autor ou entidade...">
+        <FilterChips value={actionPrefix} onChange={setActionPrefix} options={ACTION_GROUPS} />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={loading} pageSize={10} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} />
     </div>
   );
 }

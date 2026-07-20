@@ -31,6 +31,15 @@ export interface AuditRecordInput {
  * because the audit table hiccupped is worse) — errors are logged, not
  * thrown.
  */
+export interface AuditSearchQuery {
+  actorId?: string;
+  entityType?: string;
+  entityId?: string;
+  action?: string;
+  page: number;
+  pageSize: number;
+}
+
 export const AuditService = {
   async record(input: AuditRecordInput): Promise<void> {
     try {
@@ -55,6 +64,28 @@ export const AuditService = {
         "Failed to write audit log"
       );
     }
+  },
+
+  /** Read path for the immutable trail — never exposes a way to mutate or delete rows. */
+  async search(query: AuditSearchQuery) {
+    const where: Prisma.AuditLogWhereInput = {
+      ...(query.actorId ? { actorId: query.actorId } : {}),
+      ...(query.entityType ? { entityType: query.entityType } : {}),
+      ...(query.entityId ? { entityId: query.entityId } : {}),
+      ...(query.action ? { action: { startsWith: query.action } } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    return { items, total };
   },
 };
 

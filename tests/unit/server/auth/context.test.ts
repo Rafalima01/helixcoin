@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { requireAuth, requireRole, type AuthContext } from "@/server/auth/context";
 import { ForbiddenError, UnauthorizedError } from "@/server/errors";
 
-const ctx: AuthContext = { userId: "u1", role: "SUPPORT", sessionId: "s1" };
+const ctx: AuthContext = { userId: "u1", role: "SUPPORT", sessionId: "s1", familyId: "f1" };
 
 describe("requireAuth", () => {
   it("returns the context when present", () => {

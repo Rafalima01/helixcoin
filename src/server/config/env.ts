@@ -18,15 +18,24 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   REDIS_URL: z.string().min(1, "REDIS_URL is required"),
 
-  AUTH_SECRET: z.string().min(1, "AUTH_SECRET is required"),
-  NEXTAUTH_URL: z.string().url().optional(),
-  AUTH_GOOGLE_ID: z.string().optional().default(""),
-  AUTH_GOOGLE_SECRET: z.string().optional().default(""),
-
   JWT_ACCESS_SECRET: z.string().min(1, "JWT_ACCESS_SECRET is required"),
   JWT_REFRESH_SECRET: z.string().min(1, "JWT_REFRESH_SECRET is required"),
   JWT_ACCESS_TTL: z.string().default("15m"),
   JWT_REFRESH_TTL: z.string().default("30d"),
+
+  /** "Proteção contra sessão duplicada" — false revokes every other session on new login. */
+  AUTH_ALLOW_CONCURRENT_SESSIONS: z
+    .string()
+    .optional()
+    .default("true")
+    .transform((v) => v !== "false"),
+
+  /** MFA schema/plumbing is fully prepared (see identity module) but no verification flow is wired — stays off until a real TOTP/SMS/Email OTP integration lands. */
+  MFA_ENABLED: z
+    .string()
+    .optional()
+    .default("false")
+    .transform((v) => v === "true"),
 
   /** 32-byte key, base64-encoded — `openssl rand -base64 32`. Used by server/security's AES-256-GCM helpers. */
   ENCRYPTION_KEY: z.string().min(1, "ENCRYPTION_KEY is required"),

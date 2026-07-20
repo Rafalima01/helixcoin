@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { getServerAuthContext } from "@/server/auth";
+import { hasRole, ROLE_HIERARCHY } from "@/server/auth/rbac";
 import { AdminShell } from "@/components/admin/admin-shell";
 
 export const metadata: Metadata = {
@@ -6,10 +9,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/**
- * Backoffice layout. Phase 1 is a navigable mockup — definitive authentication
- * and RBAC middleware will guard this segment in a later phase.
- */
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const auth = await getServerAuthContext();
+  if (!auth || !hasRole(auth.role, ROLE_HIERARCHY)) redirect("/login");
+
   return <AdminShell>{children}</AdminShell>;
 }

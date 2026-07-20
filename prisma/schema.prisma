@@ -19,11 +19,10 @@ datasource db {
 //   friendly ID generation (safe to generate client-side, before insert).
 // - Timestamps: `createdAt` on every append-only/event-like row. Mutable
 //   entities also carry `updatedAt @updatedAt`.
-// - Soft delete: NOT applied to existing player-facing tables in this phase
-//   (adding the column without threading `deletedAt: null` through every
-//   query would be a half-finished feature, worse than not having it). The
-//   pattern is demonstrated in src/modules/_template's repository base class
-//   for the module that adopts it first.
+// - Soft delete: applied where a real module needs it (User, as of Phase 3).
+//   Every query against a soft-deletable model MUST filter `deletedAt: null`
+//   explicitly — Prisma has no global default-scope mechanism, so this is a
+//   repository-layer discipline (see modules/identity's UserRepository).
 // - Money: always integer cents (Int), never Float — see Transaction.amount,
 //   Wallet.balance, Match.betAmount/payout.
 // ============================================================================
@@ -40,30 +39,206 @@ model GameConfig {
   updatedAt        DateTime @updatedAt
 }
 
-model User {
-  id            String    @id @default(uuid())
-  name          String
-  email         String    @unique
-  emailVerified DateTime?
-  passwordHash  String?
-  image         String?
-  referralCode  String    @unique
-  referredById  String?
-  referredBy    User?     @relation("Referrals", fields: [referredById], references: [id])
-  referrals     User[]    @relation("Referrals")
-  xp            Int       @default(0)
-  level         Int       @default(1)
-  createdAt     DateTime  @default(now())
+// ============================================================================
+// Identity module (Phase 3) — the ONLY source of authentication/authorization
+// for the whole platform. See src/modules/identity.
+// ============================================================================
 
-  wallet        Wallet?
-  matches       Match[]
-  transactions  Transaction[]
-  achievements  UserAchievement[]
-  notifications Notification[]
-  accounts      Account[]
-  sessions      Session[]
+enum UserStatus {
+  ACTIVE
+  PENDING // registered, email not yet verified — still able to log in unless the module enforces otherwise
+  BLOCKED // administrative block, indefinite
+  SUSPENDED // administrative block, temporary (see User.suspendedUntil)
+}
+
+model User {
+  id           String    @id @default(uuid())
+  firstName    String
+  lastName     String
+  username     String    @unique
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  avatar       String?
+  /// Prepared, not enforced yet — nullable, unique when present.
+  cpf          String?   @unique
+  dateOfBirth  DateTime?
+  locale       String    @default("pt-BR")
+  timezone     String    @default("America/Sao_Paulo")
+
+  status UserStatus @default(PENDING)
+  role   Role       @default(USER)
+  tags   String[]   @default([])
+
+  lastLoginAt     DateTime?
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  mfaEnabled      Boolean   @default(false)
+  loginAttempts   Int       @default(0)
+  lockedUntil     DateTime? // temporary lock from repeated failed logins (distinct from status: BLOCKED)
+  suspendedUntil  DateTime? // administrative temporary suspension (status: SUSPENDED)
+
+  referralCode String  @unique
+  referredById String?
+  referredBy   User?   @relation("Referrals", fields: [referredById], references: [id])
+  referrals    User[]  @relation("Referrals")
+  xp           Int     @default(0)
+  level        Int     @default(1)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // soft delete — repositories must filter this explicitly
+
+  wallet                  Wallet?
+  matches                 Match[]
+  transactions            Transaction[]
+  achievements            UserAchievement[]
+  notifications           Notification[]
+  sessions                Session[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  mfaMethods              MfaMethod[]
+  mfaRecoveryCodes        MfaRecoveryCode[]
 
   @@index([referredById])
+  @@index([status])
+  @@index([role])
+  @@index([deletedAt])
+}
+
+/// Staff/player RBAC roles. `USER` is the default for players; `AFFILIATE`
+/// is a player additionally enrolled in the affiliate program. The rest are
+/// staff/backoffice roles.
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE
+  OPERATOR
+  MODERATOR
+  SUPPORT
+  COMPLIANCE
+  AUDIT
+  USER
+  AFFILIATE
+}
+
+/// Permission catalog — independent of roles. A role is just a named group
+/// of permissions (RolePermission), never a hardcoded check in application
+/// code beyond `PermissionService.hasPermission(role, key)`.
+model Permission {
+  id          String @id @default(uuid())
+  /// Stable machine key, e.g. "users.read" — what code checks against.
+  key         String @unique
+  description String
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  role         Role
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([role, permissionId])
+  @@index([role])
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+}
+
+/// One row per login. Mirrors the Redis-side session created by
+/// src/server/auth/tokens.ts (same id) — Redis is the fast-path
+/// TTL/rotation store the JWT middleware reads on every request; this table
+/// is the durable, queryable record a user's "my devices" screen reads and
+/// an admin can audit after the Redis TTL has long expired.
+model Session {
+  id             String        @id // same value as the JWT `sessionId` claim — not a fresh uuid()
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId       String
+  status         SessionStatus @default(ACTIVE)
+  ip             String?
+  userAgent      String?
+  os             String?
+  browser        String?
+  device         String?
+  /// Requires a GeoIP provider — not wired in this phase, stays null.
+  location       String?
+  rememberMe     Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  lastActivityAt DateTime      @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+
+  @@index([userId, status])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+/// Token itself is never stored — only its SHA-256 hash (server/security's
+/// sha256Hex), so a database read can never leak a usable reset link.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  requestIp String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The email being verified — captured at request time so a pending email
+  /// change doesn't silently verify whatever address is on the row later.
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+enum MfaMethodType {
+  TOTP // authenticator app
+  EMAIL
+  SMS
+}
+
+/// Structure only — no verification flow is wired yet (feature-flagged off).
+/// `secretEncrypted` uses server/security's AES-256-GCM helper when a real
+/// TOTP integration lands.
+model MfaMethod {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            MfaMethodType
+  secretEncrypted String?
+  enabled         Boolean       @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@unique([userId, type])
+}
+
+model MfaRecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Wallet {
@@ -162,59 +337,12 @@ model Notification {
   @@index([userId, read])
 }
 
-model Account {
-  id                String  @id @default(uuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
 // ============================================================================
-// Backend infrastructure (Phase 2) — no business logic reads/writes these
-// yet. AuditService (src/server/audit) is the only writer, by convention.
+// Backend infrastructure (Phase 2) — AuditService (src/server/audit) is the
+// only writer, by convention. Now the identity module's primary consumer:
+// login history is a filtered read over this table (action starting with
+// "auth."), not a separate model.
 // ============================================================================
-
-/// Staff/admin RBAC roles. Not yet attached to any table (no admin-account
-/// model exists — Phase 2 is infrastructure only). JWT access tokens issued
-/// by src/server/auth encode this as a claim once a real admin-account
-/// module assigns it to a user.
-enum Role {
-  SUPER_ADMIN
-  ADMIN
-  FINANCE
-  OPERATOR
-  MODERATOR
-  SUPPORT
-  COMPLIANCE
-  AUDIT
-}
 
 enum AuditActorType {
   SYSTEM
@@ -246,4 +374,5 @@ model AuditLog {
   @@index([actorId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([action])
 }

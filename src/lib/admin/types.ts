@@ -40,16 +40,6 @@ export interface AdminUserRowDTO {
 
 export type AdminRole = "owner" | "admin" | "finance" | "support" | "analyst";
 
-export interface AdminAccountDTO {
-  id: string;
-  name: string;
-  email: string;
-  role: AdminRole;
-  twoFactor: boolean;
-  lastLoginAt: string;
-  status: "active" | "suspended";
-}
-
 export interface WalletRowDTO {
   id: string;
   userName: string;

@@ -1,35 +1,53 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import type { NextRequest } from "next/server";
+import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const auth = await getAuthContext(req);
+  if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
   const wallet = await prisma.wallet.upsert({
-    where: { userId: session.user.id },
+    where: { userId: auth.userId },
     update: {},
-    create: { userId: session.user.id, balance: 0 },
+    create: { userId: auth.userId, balance: 0 },
   });
 
-  const [recentTransactions, recentMatches, user] = await Promise.all([
+  const [recentTransactions, recentMatches, userRow] = await Promise.all([
     prisma.transaction.findMany({
-      where: { userId: session.user.id },
+      where: { userId: auth.userId },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
     prisma.match.findMany({
-      where: { userId: session.user.id },
+      where: { userId: auth.userId },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
     prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { name: true, email: true, image: true, referralCode: true, xp: true, level: true },
+      where: { id: auth.userId },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        avatar: true,
+        referralCode: true,
+        xp: true,
+        level: true,
+      },
     }),
   ]);
+
+  const user = userRow && {
+    name: `${userRow.firstName} ${userRow.lastName}`.trim(),
+    email: userRow.email,
+    image: userRow.avatar,
+    referralCode: userRow.referralCode,
+    xp: userRow.xp,
+    level: userRow.level,
+  };
 
   return NextResponse.json({
     balance: wallet.balance,

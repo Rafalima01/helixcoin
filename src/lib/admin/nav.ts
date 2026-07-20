@@ -21,6 +21,7 @@ import {
   KeyRound,
   ScrollText,
   Fingerprint,
+  Lock,
   ListTree,
   Activity,
   Server,
@@ -54,6 +55,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     items: [
       { href: "/admin/users", label: "Usuários", icon: Users },
       { href: "/admin/admins", label: "Administração", icon: ShieldCheck },
+      { href: "/admin/permissions", label: "Permissões", icon: Lock },
       { href: "/admin/affiliates", label: "Afiliados", icon: Gift },
     ],
   },
