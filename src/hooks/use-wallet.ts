@@ -39,10 +39,10 @@ export function useWallet() {
 export function useCreateDeposit() {
   return useMutation({
     mutationFn: (amount: number) =>
-      fetchJson<{ transactionId: string; pixCode: string; amount: number }>(
-        "/api/wallet/deposit",
-        { method: "POST", body: JSON.stringify({ amount }) }
-      ),
+      fetchJson<{ transactionId: string; pixCode: string; amount: number }>("/api/wallet/deposit", {
+        method: "POST",
+        body: JSON.stringify({ amount }),
+      }),
   });
 }
 

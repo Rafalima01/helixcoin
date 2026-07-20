@@ -4,10 +4,7 @@ export const signupSchema = z
   .object({
     name: z.string().trim().min(2, "Informe seu nome completo").max(80),
     email: z.string().trim().email("Email inválido"),
-    password: z
-      .string()
-      .min(6, "Mínimo de 6 caracteres")
-      .max(72, "Máximo de 72 caracteres"),
+    password: z.string().min(6, "Mínimo de 6 caracteres").max(72, "Máximo de 72 caracteres"),
     referralCode: z.string().trim().optional().or(z.literal("")),
     terms: z.boolean().refine((v) => v === true, {
       message: "Você precisa aceitar os termos para continuar",

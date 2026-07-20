@@ -5,7 +5,14 @@ export function Logo({ className, iconOnly }: { className?: string; iconOnly?: b
     <div className={cn("flex items-center gap-2.5 select-none", className)}>
       <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="shrink-0">
         <defs>
-          <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id="logoGrad"
+            x1="0"
+            y1="0"
+            x2="32"
+            y2="32"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#8B5CF6" />
             <stop offset="1" stopColor="#FF4FAE" />
           </linearGradient>

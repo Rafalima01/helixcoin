@@ -2,15 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  User,
-  ShieldCheck,
-  Receipt,
-  Gamepad2,
-  Gift,
-  ArrowRight,
-  Sparkles,
-} from "lucide-react";
+import { User, ShieldCheck, Receipt, Gamepad2, Gift, ArrowRight, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,7 +25,10 @@ const TABS: { key: TabKey; label: string; icon: typeof User }[] = [
 
 function AffiliateCard() {
   return (
-    <Card glow="purple" className="p-6 md:p-8 bg-gradient-to-br from-purple/15 via-transparent to-pink/10">
+    <Card
+      glow="purple"
+      className="p-6 md:p-8 bg-gradient-to-br from-purple/15 via-transparent to-pink/10"
+    >
       <div className="flex flex-col sm:flex-row sm:items-center gap-5">
         <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple to-pink text-white">
           <Gift className="size-6" />
@@ -44,8 +39,8 @@ function AffiliateCard() {
             <Sparkles className="size-4 text-warning" />
           </p>
           <p className="text-sm text-text-secondary leading-relaxed max-w-lg">
-            Convide amigos com seus links exclusivos de três níveis e receba comissões conforme
-            eles se tornam jogadores ativos e realizam depósitos.
+            Convide amigos com seus links exclusivos de três níveis e receba comissões conforme eles
+            se tornam jogadores ativos e realizam depósitos.
           </p>
         </div>
         <Link href="/referrals" className="shrink-0">

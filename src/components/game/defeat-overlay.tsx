@@ -36,8 +36,8 @@ export function DefeatOverlay({ onTryAgain }: { onTryAgain: () => void }) {
           -{formatCurrency(lost)}
         </p>
         <p className="text-sm text-text-secondary mb-8">
-          Você atravessou {platformsPassed} plataformas antes de cair. Tente de novo e resgate
-          antes do buraco te pegar.
+          Você atravessou {platformsPassed} plataformas antes de cair. Tente de novo e resgate antes
+          do buraco te pegar.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full">

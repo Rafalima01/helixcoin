@@ -39,7 +39,10 @@ export default function AdminSettingsPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Compliance & KYC" actions={<StatusBadge tone="success">Ativo</StatusBadge>}>
+        <SectionCard
+          title="Compliance & KYC"
+          actions={<StatusBadge tone="success">Ativo</StatusBadge>}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Input label="KYC obrigatório a partir de" value="R$ 2.000,00 sacados" readOnly />
             <Input label="Idade mínima" value="18 anos" readOnly />

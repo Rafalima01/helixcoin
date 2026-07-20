@@ -105,7 +105,9 @@ export function PlayScreen() {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-app-radial">
         <Loader2 className="size-10 text-purple animate-spin" />
-        <p className="text-text-secondary">Preparando sua partida de {formatCurrency(betAmount)}...</p>
+        <p className="text-text-secondary">
+          Preparando sua partida de {formatCurrency(betAmount)}...
+        </p>
       </div>
     );
   }

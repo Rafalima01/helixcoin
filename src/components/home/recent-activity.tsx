@@ -1,6 +1,13 @@
 "use client";
 
-import { AlertTriangle, Inbox, TrendingUp, TrendingDown, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import {
+  AlertTriangle,
+  Inbox,
+  TrendingUp,
+  TrendingDown,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +34,10 @@ export function RecentActivity() {
         <div className="flex flex-col items-center gap-2 py-8 text-center">
           <AlertTriangle className="size-6 text-error" />
           <p className="text-sm text-text-secondary">Não foi possível carregar sua atividade</p>
-          <button onClick={() => refetch()} className="text-xs text-purple font-semibold hover:text-pink">
+          <button
+            onClick={() => refetch()}
+            className="text-xs text-purple font-semibold hover:text-pink"
+          >
             Tentar novamente
           </button>
         </div>

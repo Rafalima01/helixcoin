@@ -11,7 +11,12 @@ import type { AdminAccountDTO } from "@/lib/admin/types";
 const ROLES = [
   { role: "owner", label: "Owner", icon: Crown, desc: "Acesso total, incluindo RBAC e chaves." },
   { role: "admin", label: "Admin", icon: KeyRound, desc: "Gestão operacional completa." },
-  { role: "finance", label: "Financeiro", icon: LineChart, desc: "Aprova saques, ledger e gateways." },
+  {
+    role: "finance",
+    label: "Financeiro",
+    icon: LineChart,
+    desc: "Aprova saques, ledger e gateways.",
+  },
   { role: "support", label: "Suporte", icon: Headset, desc: "Atendimento e ações limitadas." },
   { role: "analyst", label: "Analista", icon: Eye, desc: "Somente leitura e relatórios." },
 ];
@@ -38,10 +43,37 @@ export default function AdminAdminsPage() {
         </div>
       ),
     },
-    { key: "role", header: "Papel (RBAC)", render: (a) => <StatusBadge tone={a.role === "owner" ? "pink" : "info"}>{ROLE_LABEL[a.role]}</StatusBadge> },
-    { key: "2fa", header: "2FA", render: (a) => <StatusBadge tone={a.twoFactor ? "success" : "warning"}>{a.twoFactor ? "Ativo" : "Pendente"}</StatusBadge> },
-    { key: "status", header: "Status", render: (a) => <StatusBadge tone={a.status === "active" ? "success" : "danger"}>{a.status === "active" ? "Ativo" : "Suspenso"}</StatusBadge> },
-    { key: "login", header: "Último login", align: "right", render: (a) => <span className="text-xs text-text-muted">{a.lastLoginAt}</span> },
+    {
+      key: "role",
+      header: "Papel (RBAC)",
+      render: (a) => (
+        <StatusBadge tone={a.role === "owner" ? "pink" : "info"}>{ROLE_LABEL[a.role]}</StatusBadge>
+      ),
+    },
+    {
+      key: "2fa",
+      header: "2FA",
+      render: (a) => (
+        <StatusBadge tone={a.twoFactor ? "success" : "warning"}>
+          {a.twoFactor ? "Ativo" : "Pendente"}
+        </StatusBadge>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (a) => (
+        <StatusBadge tone={a.status === "active" ? "success" : "danger"}>
+          {a.status === "active" ? "Ativo" : "Suspenso"}
+        </StatusBadge>
+      ),
+    },
+    {
+      key: "login",
+      header: "Último login",
+      align: "right",
+      render: (a) => <span className="text-xs text-text-muted">{a.lastLoginAt}</span>,
+    },
   ];
 
   return (

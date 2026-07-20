@@ -75,8 +75,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       platformsPassed,
       multiplier,
       combo: combo + count,
-      goalReached:
-        goalReached || (targetMultiplier > 1 && multiplier >= targetMultiplier - 1e-9),
+      goalReached: goalReached || (targetMultiplier > 1 && multiplier >= targetMultiplier - 1e-9),
     });
   },
 

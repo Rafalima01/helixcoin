@@ -26,9 +26,8 @@ export function Hero() {
           </h1>
 
           <p className="text-lg md:text-xl text-text-secondary max-w-xl mb-9 leading-relaxed">
-            O skill game mais viciante do Brasil. Controle a torre, atravesse
-            plataformas e multiplique seu saldo com puro timing e reflexo —
-            sem sorte, sem cartas, sem roleta.
+            O skill game mais viciante do Brasil. Controle a torre, atravesse plataformas e
+            multiplique seu saldo com puro timing e reflexo — sem sorte, sem cartas, sem roleta.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4">

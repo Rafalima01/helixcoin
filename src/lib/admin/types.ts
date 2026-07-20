@@ -61,14 +61,7 @@ export interface WalletRowDTO {
 }
 
 export type LedgerType =
-  | "deposit"
-  | "withdraw"
-  | "bet"
-  | "payout"
-  | "bonus"
-  | "cashback"
-  | "commission"
-  | "adjustment";
+  "deposit" | "withdraw" | "bet" | "payout" | "bonus" | "cashback" | "commission" | "adjustment";
 
 export interface LedgerEntryDTO {
   id: string;

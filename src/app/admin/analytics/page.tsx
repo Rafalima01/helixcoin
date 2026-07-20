@@ -41,7 +41,12 @@ export default function AdminAnalyticsPage() {
           <AreaChart data={dau} height={200} formatValue={(v) => v.toLocaleString("pt-BR")} />
         </SectionCard>
         <SectionCard title="Sessões por hora" description="Distribuição nas últimas 24h">
-          <BarChart data={sessionsByHour} color="#FF4FAE" height={200} formatValue={(v) => v.toLocaleString("pt-BR")} />
+          <BarChart
+            data={sessionsByHour}
+            color="#FF4FAE"
+            height={200}
+            formatValue={(v) => v.toLocaleString("pt-BR")}
+          />
         </SectionCard>
         <SectionCard title="Retenção de coortes" description="% de jogadores que retornam">
           <BarChart data={retention} color="#7DD3FC" height={200} formatValue={(v) => `${v}%`} />

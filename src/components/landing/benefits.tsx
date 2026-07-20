@@ -41,9 +41,7 @@ export function Benefits() {
                     <Icon className="size-6 text-purple" />
                   </div>
                   <h3 className="text-lg font-bold">{b.title}</h3>
-                  <p className="text-sm text-text-secondary leading-relaxed">
-                    {b.description}
-                  </p>
+                  <p className="text-sm text-text-secondary leading-relaxed">{b.description}</p>
                 </Card>
               </motion.div>
             );

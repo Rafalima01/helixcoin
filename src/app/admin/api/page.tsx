@@ -2,7 +2,14 @@
 
 import { KeyRound, Plus, Webhook } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader, DataTable, StatusBadge, SectionCard, DetailRow, type TableColumn } from "@/components/admin/ui";
+import {
+  PageHeader,
+  DataTable,
+  StatusBadge,
+  SectionCard,
+  DetailRow,
+  type TableColumn,
+} from "@/components/admin/ui";
 import { AdminServices } from "@/lib/admin/services";
 import { useAdminData, notImplemented } from "@/lib/admin/use-admin-data";
 import type { ApiKeyDTO } from "@/lib/admin/types";
@@ -27,21 +34,43 @@ export default function AdminApiPage() {
       render: (k) => (
         <div className="flex flex-wrap gap-1">
           {k.scopes.map((s) => (
-            <code key={s} className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-text-secondary">
+            <code
+              key={s}
+              className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-text-secondary"
+            >
               {s}
             </code>
           ))}
         </div>
       ),
     },
-    { key: "status", header: "Status", render: (k) => <StatusBadge tone={k.status === "active" ? "success" : "neutral"}>{k.status === "active" ? "Ativa" : "Revogada"}</StatusBadge> },
-    { key: "used", header: "Último uso", align: "right", render: (k) => <span className="text-xs text-text-muted">{k.lastUsedAt}</span> },
+    {
+      key: "status",
+      header: "Status",
+      render: (k) => (
+        <StatusBadge tone={k.status === "active" ? "success" : "neutral"}>
+          {k.status === "active" ? "Ativa" : "Revogada"}
+        </StatusBadge>
+      ),
+    },
+    {
+      key: "used",
+      header: "Último uso",
+      align: "right",
+      render: (k) => <span className="text-xs text-text-muted">{k.lastUsedAt}</span>,
+    },
     {
       key: "actions",
       header: "",
       align: "right",
       render: (k) => (
-        <Button variant="ghost" size="sm" onClick={notImplemented} disabled={k.status === "revoked"} className="border border-border">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={notImplemented}
+          disabled={k.status === "revoked"}
+          className="border border-border"
+        >
           Revogar
         </Button>
       ),
@@ -63,14 +92,34 @@ export default function AdminApiPage() {
       <DataTable columns={columns} rows={data ?? []} loading={loading} />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard title="Webhooks de saída" description="Eventos enviados aos seus sistemas" actions={<Webhook className="size-4 text-purple" />}>
-          <DetailRow label="payments.deposit.confirmed" value={<StatusBadge tone="success">Ativo</StatusBadge>} />
-          <DetailRow label="payments.withdraw.completed" value={<StatusBadge tone="success">Ativo</StatusBadge>} />
-          <DetailRow label="user.registered" value={<StatusBadge tone="success">Ativo</StatusBadge>} />
-          <DetailRow label="match.resolved" value={<StatusBadge tone="neutral">Inativo</StatusBadge>} />
+        <SectionCard
+          title="Webhooks de saída"
+          description="Eventos enviados aos seus sistemas"
+          actions={<Webhook className="size-4 text-purple" />}
+        >
+          <DetailRow
+            label="payments.deposit.confirmed"
+            value={<StatusBadge tone="success">Ativo</StatusBadge>}
+          />
+          <DetailRow
+            label="payments.withdraw.completed"
+            value={<StatusBadge tone="success">Ativo</StatusBadge>}
+          />
+          <DetailRow
+            label="user.registered"
+            value={<StatusBadge tone="success">Ativo</StatusBadge>}
+          />
+          <DetailRow
+            label="match.resolved"
+            value={<StatusBadge tone="neutral">Inativo</StatusBadge>}
+          />
         </SectionCard>
 
-        <SectionCard title="Limites e uso" description="Consumo agregado das chaves (24h)" actions={<KeyRound className="size-4 text-purple" />}>
+        <SectionCard
+          title="Limites e uso"
+          description="Consumo agregado das chaves (24h)"
+          actions={<KeyRound className="size-4 text-purple" />}
+        >
           <DetailRow label="Requisições" value="1.284.301" />
           <DetailRow label="Taxa de erro" value="0,04%" />
           <DetailRow label="Latência p95" value="142 ms" />

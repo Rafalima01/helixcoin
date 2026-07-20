@@ -27,10 +27,32 @@ export default function AdminPromotionsPage() {
   const { data, loading } = useAdminData(AdminServices.promotions);
 
   const columns: TableColumn<PromotionDTO>[] = [
-    { key: "name", header: "Campanha", render: (p) => <span className="font-semibold">{p.name}</span> },
-    { key: "kind", header: "Tipo", render: (p) => <StatusBadge tone="info">{KIND[p.kind]}</StatusBadge> },
-    { key: "status", header: "Status", render: (p) => <StatusBadge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</StatusBadge> },
-    { key: "period", header: "Período", render: (p) => <span className="text-xs text-text-secondary tabular-nums">{p.startsAt} → {p.endsAt}</span> },
+    {
+      key: "name",
+      header: "Campanha",
+      render: (p) => <span className="font-semibold">{p.name}</span>,
+    },
+    {
+      key: "kind",
+      header: "Tipo",
+      render: (p) => <StatusBadge tone="info">{KIND[p.kind]}</StatusBadge>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (p) => (
+        <StatusBadge tone={STATUS[p.status].tone}>{STATUS[p.status].label}</StatusBadge>
+      ),
+    },
+    {
+      key: "period",
+      header: "Período",
+      render: (p) => (
+        <span className="text-xs text-text-secondary tabular-nums">
+          {p.startsAt} → {p.endsAt}
+        </span>
+      ),
+    },
     {
       key: "budget",
       header: "Orçamento utilizado",
@@ -40,7 +62,10 @@ export default function AdminPromotionsPage() {
             <span className="text-text-muted tabular-nums">{formatCurrency(p.used)}</span>
             <span className="text-text-secondary tabular-nums">{formatCurrency(p.budget)}</span>
           </div>
-          <Meter value={(p.used / p.budget) * 100} tone={p.used / p.budget > 0.85 ? "warning" : "purple"} />
+          <Meter
+            value={(p.used / p.budget) * 100}
+            tone={p.used / p.budget > 0.85 ? "warning" : "purple"}
+          />
         </div>
       ),
     },

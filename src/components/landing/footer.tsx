@@ -37,8 +37,8 @@ export function Footer() {
           <div>
             <Logo />
             <p className="mt-4 text-sm text-text-secondary max-w-xs leading-relaxed">
-              A plataforma de skill game mais premium do Brasil. Habilidade,
-              timing e reflexo — nada de sorte.
+              A plataforma de skill game mais premium do Brasil. Habilidade, timing e reflexo — nada
+              de sorte.
             </p>
             <div className="flex items-center gap-3 mt-6">
               {[AtSign, MessageCircle, Video].map((Icon, i) => (

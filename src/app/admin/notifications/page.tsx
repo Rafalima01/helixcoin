@@ -2,7 +2,13 @@
 
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader, DataTable, StatusBadge, SectionCard, type TableColumn } from "@/components/admin/ui";
+import {
+  PageHeader,
+  DataTable,
+  StatusBadge,
+  SectionCard,
+  type TableColumn,
+} from "@/components/admin/ui";
 import { Input } from "@/components/ui/input";
 import { AdminServices } from "@/lib/admin/services";
 import { useAdminData, notImplemented } from "@/lib/admin/use-admin-data";
@@ -19,20 +25,48 @@ export default function AdminNotificationsPage() {
   const { data, loading } = useAdminData(AdminServices.notifications);
 
   const columns: TableColumn<NotificationCampaignDTO>[] = [
-    { key: "title", header: "Campanha", render: (n) => <span className="font-semibold">{n.title}</span> },
-    { key: "channel", header: "Canal", render: (n) => <StatusBadge tone="info">{CHANNEL[n.channel]}</StatusBadge> },
-    { key: "audience", header: "Audiência", render: (n) => <span className="text-xs text-text-secondary">{n.audience}</span> },
+    {
+      key: "title",
+      header: "Campanha",
+      render: (n) => <span className="font-semibold">{n.title}</span>,
+    },
+    {
+      key: "channel",
+      header: "Canal",
+      render: (n) => <StatusBadge tone="info">{CHANNEL[n.channel]}</StatusBadge>,
+    },
+    {
+      key: "audience",
+      header: "Audiência",
+      render: (n) => <span className="text-xs text-text-secondary">{n.audience}</span>,
+    },
     {
       key: "status",
       header: "Status",
       render: (n) => (
-        <StatusBadge tone={n.status === "sent" ? "success" : n.status === "scheduled" ? "info" : "neutral"}>
+        <StatusBadge
+          tone={n.status === "sent" ? "success" : n.status === "scheduled" ? "info" : "neutral"}
+        >
           {n.status === "sent" ? "Enviada" : n.status === "scheduled" ? "Agendada" : "Rascunho"}
         </StatusBadge>
       ),
     },
-    { key: "sentAt", header: "Envio", align: "right", render: (n) => <span className="text-xs text-text-muted tabular-nums">{n.sentAt}</span> },
-    { key: "open", header: "Abertura", align: "right", render: (n) => <span className="font-semibold tabular-nums">{n.openRate > 0 ? `${n.openRate}%` : "—"}</span> },
+    {
+      key: "sentAt",
+      header: "Envio",
+      align: "right",
+      render: (n) => <span className="text-xs text-text-muted tabular-nums">{n.sentAt}</span>,
+    },
+    {
+      key: "open",
+      header: "Abertura",
+      align: "right",
+      render: (n) => (
+        <span className="font-semibold tabular-nums">
+          {n.openRate > 0 ? `${n.openRate}%` : "—"}
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -42,7 +76,10 @@ export default function AdminNotificationsPage() {
         description="Campanhas por push, e-mail, in-app e SMS. Segmentação e disparo serão executados em filas no Backend."
       />
 
-      <SectionCard title="Novo disparo rápido" description="Compositor (mock — envio na próxima fase)">
+      <SectionCard
+        title="Novo disparo rápido"
+        description="Compositor (mock — envio na próxima fase)"
+      >
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
           <Input label="Título" placeholder="Ex.: Cashback liberado 🎁" />
           <Input label="Audiência" placeholder="Ex.: Jogadores ativos (7d)" />

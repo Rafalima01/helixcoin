@@ -66,7 +66,10 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         />
 
         <div className="flex justify-end -mt-2">
-          <Link href="#" className="text-sm text-purple hover:text-pink transition-colors font-medium">
+          <Link
+            href="#"
+            className="text-sm text-purple hover:text-pink transition-colors font-medium"
+          >
             Esqueceu a senha?
           </Link>
         </div>
@@ -98,7 +101,10 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
 
       <p className="text-center text-sm text-text-secondary">
         Não tem conta?{" "}
-        <Link href="/signup" className="text-purple font-semibold hover:text-pink transition-colors">
+        <Link
+          href="/signup"
+          className="text-purple font-semibold hover:text-pink transition-colors"
+        >
           Criar conta
         </Link>
       </p>

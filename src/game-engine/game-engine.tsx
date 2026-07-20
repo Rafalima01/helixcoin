@@ -68,9 +68,7 @@ export function GameEngine({
   seed: string;
   onDeath: (platformsPassed: number) => void;
 }) {
-  const [rings, setRings] = useState<RingData[]>(() =>
-    generateRings(seed, 0, CFG.initialRings)
-  );
+  const [rings, setRings] = useState<RingData[]>(() => generateRings(seed, 0, CFG.initialRings));
   const [physicsVersion, setPhysicsVersion] = useState(0);
   const ballRef = useRef<RapierRigidBody | null>(null);
   const runtime = useMemo(() => createRuntime(ballRef), []);
@@ -149,10 +147,7 @@ export function GameEngine({
     const nowMs = performance.now();
     const dx = e.clientX - r.lastX;
     const dtMs = Math.max(8, nowMs - r.lastT);
-    const delta = Math.max(
-      -CFG.maxDragDelta,
-      Math.min(CFG.maxDragDelta, dx * CFG.dragSensitivity)
-    );
+    const delta = Math.max(-CFG.maxDragDelta, Math.min(CFG.maxDragDelta, dx * CFG.dragSensitivity));
     r.target += delta;
     // Smoothed fling velocity in rad/s for momentum after release, capped so
     // the kinematic tower never spins at solver-breaking speeds.
@@ -239,11 +234,7 @@ export function GameEngine({
           <pointLight position={[3, -6, -2]} intensity={6} color="#16F2A5" distance={10} />
 
           <Suspense fallback={null}>
-            <Physics
-              gravity={[0, CFG.gravity, 0]}
-              paused={paused}
-              timeStep={1 / 60}
-            >
+            <Physics gravity={[0, CFG.gravity, 0]} paused={paused} timeStep={1 / 60}>
               <Ball runtime={runtime} />
               <TowerPhysics runtime={runtime} windowRings={windowRings} touch={touch} />
               <EngineSystems

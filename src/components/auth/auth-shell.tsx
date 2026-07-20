@@ -40,7 +40,8 @@ export function AuthShell({
         </div>
 
         <blockquote className="relative z-10 text-text-secondary text-lg leading-relaxed max-w-md">
-          {quote ?? "“O multiplicador mais alto que já resgatei foi 34x — o coração dispara toda vez.”"}
+          {quote ??
+            "“O multiplicador mais alto que já resgatei foi 34x — o coração dispara toda vez.”"}
           <footer className="mt-3 text-sm text-text-muted">— Jogador verificado HeliJump</footer>
         </blockquote>
       </div>

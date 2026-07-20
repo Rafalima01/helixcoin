@@ -42,7 +42,12 @@ export default function AdminLogsPage() {
             <Button variant="secondary" size="sm" onClick={notImplemented}>
               <Pause className="size-4" /> Pausar stream
             </Button>
-            <Button variant="ghost" size="sm" onClick={notImplemented} className="border border-border">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={notImplemented}
+              className="border border-border"
+            >
               <Trash2 className="size-4" /> Limpar
             </Button>
           </>
@@ -72,12 +77,16 @@ export default function AdminLogsPage() {
               ))}
             </div>
           ) : rows.length === 0 ? (
-            <p className="py-8 text-center text-text-muted">Nenhuma entrada corresponde aos filtros</p>
+            <p className="py-8 text-center text-text-muted">
+              Nenhuma entrada corresponde aos filtros
+            </p>
           ) : (
             rows.map((l) => (
               <div key={l.id} className="flex gap-3 whitespace-nowrap py-0.5 hover:bg-white/[0.03]">
                 <span className="text-text-muted tabular-nums">{l.createdAt}</span>
-                <span className={cn("w-12 shrink-0 font-bold uppercase", LEVEL_STYLE[l.level])}>{l.level}</span>
+                <span className={cn("w-12 shrink-0 font-bold uppercase", LEVEL_STYLE[l.level])}>
+                  {l.level}
+                </span>
                 <span className="w-32 shrink-0 text-purple">{l.service}</span>
                 <span className="text-text-secondary">{l.message}</span>
               </div>

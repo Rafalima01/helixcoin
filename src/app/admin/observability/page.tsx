@@ -30,7 +30,9 @@ export default function AdminObservabilityPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
         {loading || !data
-          ? Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-36 w-full rounded-2xl" />)
+          ? Array.from({ length: 5 }, (_, i) => (
+              <Skeleton key={i} className="h-36 w-full rounded-2xl" />
+            ))
           : data.map((s) => (
               <Card key={s.id} className="p-4 flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -48,11 +50,22 @@ export default function AdminObservabilityPage() {
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-text-muted">p95</span>
-                  <span className={cn("font-bold tabular-nums", s.latencyP95Ms > 500 ? "text-warning" : "")}>{s.latencyP95Ms} ms</span>
+                  <span
+                    className={cn(
+                      "font-bold tabular-nums",
+                      s.latencyP95Ms > 500 ? "text-warning" : ""
+                    )}
+                  >
+                    {s.latencyP95Ms} ms
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-text-muted">Erros</span>
-                  <span className={cn("font-bold tabular-nums", s.errorRate > 1 ? "text-error" : "")}>{s.errorRate}%</span>
+                  <span
+                    className={cn("font-bold tabular-nums", s.errorRate > 1 ? "text-error" : "")}
+                  >
+                    {s.errorRate}%
+                  </span>
                 </div>
               </Card>
             ))}

@@ -20,7 +20,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <p className="text-[15px] font-extrabold">
             Heli<span className="text-gradient-brand">Jump</span>
           </p>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">Backoffice</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
+            Backoffice
+          </p>
         </div>
       </Link>
 

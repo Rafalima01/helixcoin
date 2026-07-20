@@ -48,7 +48,9 @@ export function KpiCard({ kpi, accent = "#8B5CF6" }: { kpi: KpiDTO; accent?: str
   return (
     <Card className="p-4 flex flex-col gap-2 min-w-0">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted truncate">{kpi.label}</p>
+        <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted truncate">
+          {kpi.label}
+        </p>
         {kpi.delta && (
           <span
             className={cn(
@@ -158,7 +160,11 @@ export function DataTable<T extends { id: string }>({
                   key={c.key}
                   className={cn(
                     "px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-text-muted",
-                    c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"
+                    c.align === "right"
+                      ? "text-right"
+                      : c.align === "center"
+                        ? "text-center"
+                        : "text-left"
                   )}
                 >
                   {c.header}
@@ -191,7 +197,11 @@ export function DataTable<T extends { id: string }>({
                         key={c.key}
                         className={cn(
                           "px-4 py-3 align-middle",
-                          c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"
+                          c.align === "right"
+                            ? "text-right"
+                            : c.align === "center"
+                              ? "text-center"
+                              : "text-left"
                         )}
                       >
                         {c.render(row)}
@@ -212,7 +222,8 @@ export function DataTable<T extends { id: string }>({
       {rows.length > pageSize && (
         <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5">
           <p className="text-xs text-text-muted tabular-nums">
-            {current * pageSize + 1}–{Math.min(rows.length, (current + 1) * pageSize)} de {rows.length}
+            {current * pageSize + 1}–{Math.min(rows.length, (current + 1) * pageSize)} de{" "}
+            {rows.length}
           </p>
           <div className="flex items-center gap-1">
             <button
@@ -404,7 +415,13 @@ export function SectionCard({
   );
 }
 
-export function Meter({ value, tone = "purple" }: { value: number; tone?: "purple" | "green" | "warning" | "error" }) {
+export function Meter({
+  value,
+  tone = "purple",
+}: {
+  value: number;
+  tone?: "purple" | "green" | "warning" | "error";
+}) {
   const colors = {
     purple: "from-purple to-pink",
     green: "from-green to-emerald-400",
@@ -414,7 +431,10 @@ export function Meter({ value, tone = "purple" }: { value: number; tone?: "purpl
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
       <div
-        className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-500", colors[tone])}
+        className={cn(
+          "h-full rounded-full bg-gradient-to-r transition-all duration-500",
+          colors[tone]
+        )}
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>

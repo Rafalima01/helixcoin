@@ -17,8 +17,8 @@ export function MultiplierTable() {
             Quanto mais longe, <span className="text-gradient-brand">maior o prêmio</span>
           </h2>
           <p className="text-text-secondary max-w-xl">
-            A cada plataforma atravessada seu multiplicador cresce. A curva é
-            totalmente configurável e verificável — sem surpresas.
+            A cada plataforma atravessada seu multiplicador cresce. A curva é totalmente
+            configurável e verificável — sem surpresas.
           </p>
         </div>
 

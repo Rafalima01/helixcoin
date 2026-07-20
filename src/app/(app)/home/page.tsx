@@ -12,9 +12,7 @@ export default function HomePage() {
 
       <div className="mx-auto w-full max-w-7xl px-4 md:px-8 py-8 flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-            Bem-vindo de volta
-          </h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Bem-vindo de volta</h1>
           <p className="text-text-secondary mt-1">
             Pronto para girar a torre e multiplicar seu saldo?
           </p>

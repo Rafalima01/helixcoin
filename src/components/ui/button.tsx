@@ -38,8 +38,7 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends Omit<HTMLMotionProps<"button">, "children">,
-    VariantProps<typeof buttonVariants> {
+  extends Omit<HTMLMotionProps<"button">, "children">, VariantProps<typeof buttonVariants> {
   loading?: boolean;
   children?: React.ReactNode;
 }

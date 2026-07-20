@@ -157,9 +157,21 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
 
   return (
     <group>
-      <instancedMesh ref={baseRef} args={[baseGeo, baseMat, CFG.maxInstances]} frustumCulled={false} />
-      <instancedMesh ref={dangerRef} args={[dangerGeo, dangerMat, CFG.maxInstances]} frustumCulled={false} />
-      <instancedMesh ref={bonusRef} args={[baseGeo, bonusMat, CFG.maxInstances]} frustumCulled={false} />
+      <instancedMesh
+        ref={baseRef}
+        args={[baseGeo, baseMat, CFG.maxInstances]}
+        frustumCulled={false}
+      />
+      <instancedMesh
+        ref={dangerRef}
+        args={[dangerGeo, dangerMat, CFG.maxInstances]}
+        frustumCulled={false}
+      />
+      <instancedMesh
+        ref={bonusRef}
+        args={[baseGeo, bonusMat, CFG.maxInstances]}
+        frustumCulled={false}
+      />
 
       <mesh ref={columnRef}>
         <cylinderGeometry args={[CFG.columnRadius, CFG.columnRadius, 64, 24]} />

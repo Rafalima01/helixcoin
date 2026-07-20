@@ -22,9 +22,24 @@ export function AccountSummary() {
   const levelProgress = (xp % 1000) / 1000;
 
   const items = [
-    { label: "Total depositado", icon: ArrowDownToLine, value: centsToReais(stats?.totalDeposited ?? 0), tone: "" },
-    { label: "Total apostado", icon: Gamepad2, value: centsToReais(stats?.totalBet ?? 0), tone: "" },
-    { label: "Lucro líquido", icon: TrendingUp, value: net, tone: net >= 0 ? "text-green" : "text-error" },
+    {
+      label: "Total depositado",
+      icon: ArrowDownToLine,
+      value: centsToReais(stats?.totalDeposited ?? 0),
+      tone: "",
+    },
+    {
+      label: "Total apostado",
+      icon: Gamepad2,
+      value: centsToReais(stats?.totalBet ?? 0),
+      tone: "",
+    },
+    {
+      label: "Lucro líquido",
+      icon: TrendingUp,
+      value: net,
+      tone: net >= 0 ? "text-green" : "text-error",
+    },
   ];
 
   return (
@@ -33,8 +48,7 @@ export function AccountSummary() {
         <h3 className="font-bold text-lg">Resumo da conta</h3>
         <span className="flex items-center gap-1.5 rounded-full border border-purple/30 bg-purple/10 px-3 py-1 text-[11px] font-bold text-purple">
           <Target className="size-3" />
-          Meta atual{" "}
-          {config ? formatMultiplier(config.targetMultiplier) : "—"}
+          Meta atual {config ? formatMultiplier(config.targetMultiplier) : "—"}
         </span>
       </div>
 

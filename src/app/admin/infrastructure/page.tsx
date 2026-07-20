@@ -34,8 +34,20 @@ export default function AdminInfrastructurePage() {
         </div>
       ),
     },
-    { key: "region", header: "Região", render: (n) => <span className="text-xs text-text-secondary">{n.region}</span> },
-    { key: "status", header: "Status", render: (n) => <StatusBadge tone={STATUS[n.status].tone} pulse={n.status === "running"}>{STATUS[n.status].label}</StatusBadge> },
+    {
+      key: "region",
+      header: "Região",
+      render: (n) => <span className="text-xs text-text-secondary">{n.region}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (n) => (
+        <StatusBadge tone={STATUS[n.status].tone} pulse={n.status === "running"}>
+          {STATUS[n.status].label}
+        </StatusBadge>
+      ),
+    },
     { key: "cpu", header: "CPU", render: (n) => <Usage value={n.cpu} /> },
     { key: "mem", header: "Memória", render: (n) => <Usage value={n.memory} /> },
     { key: "disk", header: "Disco", render: (n) => <Usage value={n.disk} /> },

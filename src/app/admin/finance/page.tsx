@@ -37,10 +37,14 @@ export default function AdminFinancePage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {loading
-          ? Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)
+          ? Array.from({ length: 8 }, (_, i) => (
+              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+            ))
           : summaryCards.map((c) => (
               <Card key={c.label} className="p-4">
-                <p className="text-[11px] uppercase tracking-wide text-text-muted mb-1">{c.label}</p>
+                <p className="text-[11px] uppercase tracking-wide text-text-muted mb-1">
+                  {c.label}
+                </p>
                 <p className={cn("text-lg font-extrabold tabular-nums", c.tone)}>
                   {c.value < 0 ? "−" : ""}
                   {formatCurrency(Math.abs(c.value))}
@@ -50,8 +54,17 @@ export default function AdminFinancePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard title="GGR mensal" description="Receita bruta de jogo — 2026" className="xl:col-span-2">
-          <AreaChart data={ggrMonthly} color="#16F2A5" formatValue={(v) => formatCurrency(v)} height={220} />
+        <SectionCard
+          title="GGR mensal"
+          description="Receita bruta de jogo — 2026"
+          className="xl:col-span-2"
+        >
+          <AreaChart
+            data={ggrMonthly}
+            color="#16F2A5"
+            formatValue={(v) => formatCurrency(v)}
+            height={220}
+          />
         </SectionCard>
 
         <SectionCard title="Resultado do dia" description="Composição do lucro (24h)">
@@ -61,10 +74,15 @@ export default function AdminFinancePage() {
               <DetailRow label="(−) Bônus" value={`− ${formatCurrency(data.bonusCost)}`} />
               <DetailRow label="(−) Gateways" value={`− ${formatCurrency(data.gatewayFees)}`} />
               <DetailRow label="(−) Afiliados" value={`− ${formatCurrency(data.affiliateCost)}`} />
-              <DetailRow label="(−) Impostos provisionados" value={`− ${formatCurrency(data.ggr - data.bonusCost - data.gatewayFees - data.affiliateCost - data.netProfit)}`} />
+              <DetailRow
+                label="(−) Impostos provisionados"
+                value={`− ${formatCurrency(data.ggr - data.bonusCost - data.gatewayFees - data.affiliateCost - data.netProfit)}`}
+              />
               <div className="mt-2 rounded-xl border border-green/30 bg-green/10 px-3 py-2.5 flex items-center justify-between">
                 <span className="text-sm font-bold">Lucro líquido</span>
-                <span className="font-extrabold tabular-nums text-green">{formatCurrency(data.netProfit)}</span>
+                <span className="font-extrabold tabular-nums text-green">
+                  {formatCurrency(data.netProfit)}
+                </span>
               </div>
             </>
           )}
@@ -72,7 +90,12 @@ export default function AdminFinancePage() {
       </div>
 
       <SectionCard title="Lucro líquido por dia" description="Últimos 7 dias">
-        <BarChart data={netByDay} color="#8B5CF6" formatValue={(v) => formatCurrency(v)} height={200} />
+        <BarChart
+          data={netByDay}
+          color="#8B5CF6"
+          formatValue={(v) => formatCurrency(v)}
+          height={200}
+        />
       </SectionCard>
     </div>
   );

@@ -96,7 +96,10 @@ export function TransactionsList() {
                 tone: "text-text-secondary",
                 sign: "+" as const,
               };
-              const status = STATUS_META[t.status] ?? { label: t.status, variant: "green" as const };
+              const status = STATUS_META[t.status] ?? {
+                label: t.status,
+                variant: "green" as const,
+              };
               const d = new Date(t.createdAt);
               return (
                 <div

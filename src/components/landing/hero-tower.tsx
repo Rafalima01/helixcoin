@@ -33,7 +33,12 @@ export function HeroTower() {
             opacity: 0.55,
           }}
           animate={{ rotate: ring.reverse ? -360 : 360 }}
-          transition={{ duration: ring.duration, repeat: Infinity, ease: "linear", delay: ring.delay }}
+          transition={{
+            duration: ring.duration,
+            repeat: Infinity,
+            ease: "linear",
+            delay: ring.delay,
+          }}
         />
       ))}
 
@@ -43,7 +48,12 @@ export function HeroTower() {
           className="absolute rounded-full"
           style={{ width: ring.size, height: ring.size }}
           animate={{ rotate: ring.reverse ? -360 : 360 }}
-          transition={{ duration: ring.duration, repeat: Infinity, ease: "linear", delay: ring.delay }}
+          transition={{
+            duration: ring.duration,
+            repeat: Infinity,
+            ease: "linear",
+            delay: ring.delay,
+          }}
         >
           <div
             className="absolute rounded-full"

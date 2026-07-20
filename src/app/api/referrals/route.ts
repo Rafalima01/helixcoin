@@ -47,7 +47,8 @@ export async function GET() {
 
   // Breadth-first walk, one query per level, capped at depth 3.
   const select = { id: true, name: true, createdAt: true, referredById: true };
-  const levelUsers: { id: string; name: string; createdAt: Date; referredById: string | null }[][] = [];
+  const levelUsers: { id: string; name: string; createdAt: Date; referredById: string | null }[][] =
+    [];
   let parentIds = [session.user.id];
   for (let depth = 0; depth < 3; depth++) {
     if (parentIds.length === 0) {

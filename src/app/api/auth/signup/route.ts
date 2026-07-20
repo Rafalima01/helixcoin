@@ -4,7 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { signupSchema } from "@/lib/validation";
 
 function generateReferralCode(name: string) {
-  const base = name.replace(/[^a-zA-Z]/g, "").slice(0, 5).toUpperCase() || "PLAYER";
+  const base =
+    name
+      .replace(/[^a-zA-Z]/g, "")
+      .slice(0, 5)
+      .toUpperCase() || "PLAYER";
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `${base}${suffix}`;
 }

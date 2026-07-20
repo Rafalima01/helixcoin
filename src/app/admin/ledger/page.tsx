@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, type TableColumn } from "@/components/admin/ui";
+import {
+  PageHeader,
+  DataTable,
+  FilterBar,
+  FilterChips,
+  StatusBadge,
+  type TableColumn,
+} from "@/components/admin/ui";
 import { AdminServices } from "@/lib/admin/services";
 import { useAdminData } from "@/lib/admin/use-admin-data";
 import type { LedgerEntryDTO } from "@/lib/admin/types";
@@ -34,22 +41,50 @@ export default function AdminLedgerPage() {
   }, [data, search, type]);
 
   const columns: TableColumn<LedgerEntryDTO>[] = [
-    { key: "ref", header: "Referência", render: (l) => <code className="text-xs text-text-secondary">{l.reference}</code> },
-    { key: "user", header: "Usuário", render: (l) => <span className="font-medium">{l.userName}</span> },
-    { key: "type", header: "Tipo", render: (l) => <StatusBadge tone={l.amount >= 0 ? "success" : "neutral"}>{TYPE_LABEL[l.type]}</StatusBadge> },
+    {
+      key: "ref",
+      header: "Referência",
+      render: (l) => <code className="text-xs text-text-secondary">{l.reference}</code>,
+    },
+    {
+      key: "user",
+      header: "Usuário",
+      render: (l) => <span className="font-medium">{l.userName}</span>,
+    },
+    {
+      key: "type",
+      header: "Tipo",
+      render: (l) => (
+        <StatusBadge tone={l.amount >= 0 ? "success" : "neutral"}>{TYPE_LABEL[l.type]}</StatusBadge>
+      ),
+    },
     {
       key: "amount",
       header: "Valor",
       align: "right",
       render: (l) => (
-        <span className={cn("font-semibold tabular-nums", l.amount >= 0 ? "text-green" : "text-text")}>
+        <span
+          className={cn("font-semibold tabular-nums", l.amount >= 0 ? "text-green" : "text-text")}
+        >
           {l.amount >= 0 ? "+" : "−"}
           {formatCurrency(Math.abs(l.amount))}
         </span>
       ),
     },
-    { key: "after", header: "Saldo após", align: "right", render: (l) => <span className="tabular-nums text-text-secondary">{formatCurrency(l.balanceAfter)}</span> },
-    { key: "at", header: "Data/Hora", align: "right", render: (l) => <span className="text-xs text-text-muted tabular-nums">{l.createdAt}</span> },
+    {
+      key: "after",
+      header: "Saldo após",
+      align: "right",
+      render: (l) => (
+        <span className="tabular-nums text-text-secondary">{formatCurrency(l.balanceAfter)}</span>
+      ),
+    },
+    {
+      key: "at",
+      header: "Data/Hora",
+      align: "right",
+      render: (l) => <span className="text-xs text-text-muted tabular-nums">{l.createdAt}</span>,
+    },
   ];
 
   return (
@@ -58,7 +93,11 @@ export default function AdminLedgerPage() {
         title="Ledger Financeiro"
         description="Livro-razão imutável de todas as movimentações. Cada lançamento terá dupla entrada e trilha de auditoria no Backend."
       />
-      <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por usuário ou referência...">
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Buscar por usuário ou referência..."
+      >
         <FilterChips
           value={type}
           onChange={setType}

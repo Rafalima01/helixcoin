@@ -28,8 +28,7 @@ export function FinalCta() {
               Pronto para <span className="text-gradient-brand">girar a torre?</span>
             </h2>
             <p className="text-text-secondary max-w-lg mx-auto mb-9">
-              Crie sua conta em menos de um minuto e faça sua primeira jogada
-              hoje mesmo.
+              Crie sua conta em menos de um minuto e faça sua primeira jogada hoje mesmo.
             </p>
             <Link href="/signup">
               <Button variant="primary" size="lg">

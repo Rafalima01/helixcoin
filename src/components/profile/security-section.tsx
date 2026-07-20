@@ -95,8 +95,8 @@ export function SecuritySection({ email }: { email: string }) {
         </div>
 
         <p className="text-xs text-text-secondary leading-relaxed">
-          Suas transações e partidas são protegidas e auditadas. Nunca compartilhe sua senha —
-          nossa equipe jamais irá solicitá-la.
+          Suas transações e partidas são protegidas e auditadas. Nunca compartilhe sua senha — nossa
+          equipe jamais irá solicitá-la.
         </p>
       </Card>
     </div>

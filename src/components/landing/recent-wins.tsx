@@ -18,8 +18,7 @@ export function RecentWins() {
             Pessoas reais, <span className="text-gradient-brand">ganhos reais</span>
           </h2>
           <p className="text-text-secondary max-w-xl">
-            Cada card abaixo representa uma partida resgatada com sucesso nos
-            últimos minutos.
+            Cada card abaixo representa uma partida resgatada com sucesso nos últimos minutos.
           </p>
         </div>
 
@@ -43,7 +42,9 @@ export function RecentWins() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-text-muted">{w.name} · {w.city}</p>
+                  <p className="text-xs text-text-muted">
+                    {w.name} · {w.city}
+                  </p>
                   <p className="text-xl font-extrabold text-gradient-green mt-0.5">
                     {formatCurrency(w.amount)}
                   </p>

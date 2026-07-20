@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import prettierConfig from "eslint-config-prettier";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -12,6 +13,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Backend infra ignores:
+    "coverage/**",
+    ".husky/**",
+    // Vendored, unminified-by-us static assets (Swagger UI bundle) — not
+    // source we own or want linted/formatted.
+    "public/swagger-ui/**",
   ]),
   {
     // The React Compiler readiness rules assume components never mutate
@@ -30,6 +37,8 @@ const eslintConfig = defineConfig([
       "react-hooks/refs": "off",
     },
   },
+  // Must be last: disables stylistic rules that would fight Prettier.
+  prettierConfig,
 ]);
 
 export default eslintConfig;

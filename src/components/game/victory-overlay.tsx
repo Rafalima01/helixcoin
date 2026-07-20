@@ -54,7 +54,8 @@ export function VictoryOverlay({ onPlayAgain }: { onPlayAgain: () => void }) {
 
         <div className="flex items-center gap-4 mb-6">
           <span className="text-sm text-text-secondary">
-            Multiplicador <span className="font-bold text-white">{formatMultiplier(multiplier)}</span>
+            Multiplicador{" "}
+            <span className="font-bold text-white">{formatMultiplier(multiplier)}</span>
           </span>
           <span className="size-1 rounded-full bg-text-muted/40" />
           <span className="text-sm text-text-secondary">

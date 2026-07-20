@@ -3,13 +3,24 @@
 import { useMemo, useState } from "react";
 import { CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, KpiGrid, type TableColumn } from "@/components/admin/ui";
+import {
+  PageHeader,
+  DataTable,
+  FilterBar,
+  FilterChips,
+  StatusBadge,
+  KpiGrid,
+  type TableColumn,
+} from "@/components/admin/ui";
 import { AdminServices } from "@/lib/admin/services";
 import { useAdminData, notImplemented } from "@/lib/admin/use-admin-data";
 import type { PaymentRowDTO, PaymentStatus } from "@/lib/admin/types";
 import { formatCurrency } from "@/lib/utils";
 
-const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
+const PAYMENT_STATUS: Record<
+  PaymentStatus,
+  { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }
+> = {
   completed: { label: "Concluído", tone: "success" },
   pending: { label: "Aguardando aprovação", tone: "warning" },
   processing: { label: "Processando", tone: "info" },
@@ -20,7 +31,13 @@ const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: "success" | "
 const KPIS = [
   { id: "vol", label: "Volume (24h)", value: "R$ 512.940", delta: "-3,4%", trend: "down" as const },
   { id: "queue", label: "Fila de aprovação", value: "23", delta: "+8", trend: "up" as const },
-  { id: "sla", label: "SLA médio de pagamento", value: "3m 42s", delta: "-12%", trend: "up" as const },
+  {
+    id: "sla",
+    label: "SLA médio de pagamento",
+    value: "3m 42s",
+    delta: "-12%",
+    trend: "up" as const,
+  },
   { id: "risk", label: "Retidos por risco", value: "4", trend: "flat" as const },
 ];
 
@@ -40,11 +57,36 @@ export default function AdminWithdrawalsPage() {
   }, [data, search, status]);
 
   const columns: TableColumn<PaymentRowDTO>[] = [
-    { key: "id", header: "Solicitação", render: (p) => <code className="text-xs text-text-secondary">{p.id}</code> },
-    { key: "user", header: "Usuário", render: (p) => <span className="font-medium">{p.userName}</span> },
-    { key: "gateway", header: "Gateway", render: (p) => <span className="text-text-secondary">{p.gateway}</span> },
-    { key: "amount", header: "Valor", align: "right", render: (p) => <span className="font-semibold tabular-nums">{formatCurrency(p.amount)}</span> },
-    { key: "status", header: "Status", render: (p) => <StatusBadge tone={PAYMENT_STATUS[p.status].tone}>{PAYMENT_STATUS[p.status].label}</StatusBadge> },
+    {
+      key: "id",
+      header: "Solicitação",
+      render: (p) => <code className="text-xs text-text-secondary">{p.id}</code>,
+    },
+    {
+      key: "user",
+      header: "Usuário",
+      render: (p) => <span className="font-medium">{p.userName}</span>,
+    },
+    {
+      key: "gateway",
+      header: "Gateway",
+      render: (p) => <span className="text-text-secondary">{p.gateway}</span>,
+    },
+    {
+      key: "amount",
+      header: "Valor",
+      align: "right",
+      render: (p) => <span className="font-semibold tabular-nums">{formatCurrency(p.amount)}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (p) => (
+        <StatusBadge tone={PAYMENT_STATUS[p.status].tone}>
+          {PAYMENT_STATUS[p.status].label}
+        </StatusBadge>
+      ),
+    },
     {
       key: "actions",
       header: "Ações",
@@ -52,8 +94,17 @@ export default function AdminWithdrawalsPage() {
       render: (p) =>
         p.status === "pending" ? (
           <div className="flex justify-end gap-1.5">
-            <Button variant="success" size="sm" onClick={notImplemented}>Aprovar</Button>
-            <Button variant="ghost" size="sm" onClick={notImplemented} className="border border-border">Reter</Button>
+            <Button variant="success" size="sm" onClick={notImplemented}>
+              Aprovar
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={notImplemented}
+              className="border border-border"
+            >
+              Reter
+            </Button>
           </div>
         ) : (
           <span className="text-xs text-text-muted tabular-nums">{p.createdAt}</span>
@@ -73,7 +124,11 @@ export default function AdminWithdrawalsPage() {
         }
       />
       <KpiGrid kpis={KPIS} />
-      <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por usuário ou solicitação...">
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Buscar por usuário ou solicitação..."
+      >
         <FilterChips
           value={status}
           onChange={setStatus}

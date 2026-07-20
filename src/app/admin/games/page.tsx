@@ -31,10 +31,34 @@ export default function AdminGamesPage() {
         </div>
       ),
     },
-    { key: "cat", header: "Categoria", render: (g) => <span className="text-text-secondary text-xs">{g.category}</span> },
-    { key: "status", header: "Status", render: (g) => <StatusBadge tone={STATUS[g.status].tone}>{STATUS[g.status].label}</StatusBadge> },
-    { key: "sessions", header: "Sessões (24h)", align: "right", render: (g) => <span className="tabular-nums">{g.sessions24h.toLocaleString("pt-BR")}</span> },
-    { key: "ggr", header: "GGR (24h)", align: "right", render: (g) => <span className="font-semibold tabular-nums text-green">{g.ggr24h > 0 ? formatCurrency(g.ggr24h) : "—"}</span> },
+    {
+      key: "cat",
+      header: "Categoria",
+      render: (g) => <span className="text-text-secondary text-xs">{g.category}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (g) => (
+        <StatusBadge tone={STATUS[g.status].tone}>{STATUS[g.status].label}</StatusBadge>
+      ),
+    },
+    {
+      key: "sessions",
+      header: "Sessões (24h)",
+      align: "right",
+      render: (g) => <span className="tabular-nums">{g.sessions24h.toLocaleString("pt-BR")}</span>,
+    },
+    {
+      key: "ggr",
+      header: "GGR (24h)",
+      align: "right",
+      render: (g) => (
+        <span className="font-semibold tabular-nums text-green">
+          {g.ggr24h > 0 ? formatCurrency(g.ggr24h) : "—"}
+        </span>
+      ),
+    },
     {
       key: "actions",
       header: "",

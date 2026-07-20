@@ -64,11 +64,7 @@ function RingBody({
           <CuboidCollider
             key={k}
             args={[RADIAL_HALF, THICK_HALF, CHORD_HALF]}
-            position={[
-              Math.cos(a) * RING_MID_RADIUS,
-              -THICK_HALF,
-              Math.sin(a) * RING_MID_RADIUS,
-            ]}
+            position={[Math.cos(a) * RING_MID_RADIUS, -THICK_HALF, Math.sin(a) * RING_MID_RADIUS]}
             rotation={[0, -a, 0]}
             restitution={0}
             friction={0.05}

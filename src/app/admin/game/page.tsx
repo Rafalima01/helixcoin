@@ -28,10 +28,19 @@ export default function AdminGamePage() {
         <SectionCard
           title="Meta e resgate"
           description="Regras que controlam quando o jogador pode resgatar"
-          actions={<StatusBadge tone="success" pulse>Em produção</StatusBadge>}
+          actions={
+            <StatusBadge tone="success" pulse>
+              Em produção
+            </StatusBadge>
+          }
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Meta global (multiplicador)" value="5.00x" readOnly hint="Aplicada a todas as novas partidas" />
+            <Input
+              label="Meta global (multiplicador)"
+              value="5.00x"
+              readOnly
+              hint="Aplicada a todas as novas partidas"
+            />
             <Input label="Aposta mínima" value="R$ 1,00" readOnly />
             <Input label="Aposta máxima" value="R$ 500,00" readOnly />
             <Input label="Plataformas máximas" value="160" readOnly />
@@ -49,7 +58,10 @@ export default function AdminGamePage() {
           </p>
         </SectionCard>
 
-        <SectionCard title="Física e dificuldade" description="Curva de gameplay (somente leitura nesta fase)">
+        <SectionCard
+          title="Física e dificuldade"
+          description="Curva de gameplay (somente leitura nesta fase)"
+        >
           <div className="grid gap-3 sm:grid-cols-2">
             {[
               { icon: Gauge, label: "Gravidade", value: "-16 m/s²" },
@@ -57,7 +69,10 @@ export default function AdminGamePage() {
               { icon: Target, label: "Segmentos por anel", value: "12" },
               { icon: Flame, label: "Fire Mode (passes)", value: "3 consecutivos" },
             ].map((f) => (
-              <div key={f.label} className="flex items-center gap-3 rounded-xl border border-border bg-white/[0.02] px-3.5 py-3">
+              <div
+                key={f.label}
+                className="flex items-center gap-3 rounded-xl border border-border bg-white/[0.02] px-3.5 py-3"
+              >
                 <f.icon className="size-4 shrink-0 text-purple" />
                 <div className="min-w-0">
                   <p className="text-[11px] text-text-muted">{f.label}</p>
@@ -68,7 +83,10 @@ export default function AdminGamePage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Modo de manutenção" description="Pausa novas partidas sem afetar as em andamento">
+        <SectionCard
+          title="Modo de manutenção"
+          description="Pausa novas partidas sem afetar as em andamento"
+        >
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white/[0.02] px-4 py-3.5">
             <div className="flex items-center gap-3">
               <ShieldAlert className="size-4 text-warning" />

@@ -116,5 +116,4 @@ export const ENGINE_CONFIG = {
 export type EngineConfig = typeof ENGINE_CONFIG;
 
 export const SEGMENT_ANGLE = (Math.PI * 2) / ENGINE_CONFIG.segmentsPerRing;
-export const RING_MID_RADIUS =
-  (ENGINE_CONFIG.ringInnerRadius + ENGINE_CONFIG.ringOuterRadius) / 2;
+export const RING_MID_RADIUS = (ENGINE_CONFIG.ringInnerRadius + ENGINE_CONFIG.ringOuterRadius) / 2;

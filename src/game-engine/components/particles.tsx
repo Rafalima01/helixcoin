@@ -30,10 +30,18 @@ interface Particle {
 class ParticleBus {
   pool: Particle[] = Array.from({ length: POOL_SIZE }, () => ({
     alive: false,
-    x: 0, y: 0, z: 0,
-    vx: 0, vy: 0, vz: 0,
-    life: 0, ttl: 1, size: 0.05,
-    r: 1, g: 1, b: 1,
+    x: 0,
+    y: 0,
+    z: 0,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+    life: 0,
+    ttl: 1,
+    size: 0.05,
+    r: 1,
+    g: 1,
+    b: 1,
     gravity: -6,
   }));
   private cursor = 0;
@@ -44,7 +52,14 @@ class ParticleBus {
     y: number,
     z: number,
     colorHex: string,
-    opts: { count?: number; speed?: number; upward?: number; size?: number; ttl?: number; gravity?: number } = {}
+    opts: {
+      count?: number;
+      speed?: number;
+      upward?: number;
+      size?: number;
+      ttl?: number;
+      gravity?: number;
+    } = {}
   ) {
     const { count = 14, speed = 2.6, upward = 1.6, size = 0.055, ttl = 0.55, gravity = -7 } = opts;
     this.color.set(colorHex);
@@ -54,14 +69,18 @@ class ParticleBus {
       const angle = Math.random() * Math.PI * 2;
       const radial = (0.3 + Math.random() * 0.7) * speed;
       p.alive = true;
-      p.x = x; p.y = y; p.z = z;
+      p.x = x;
+      p.y = y;
+      p.z = z;
       p.vx = Math.cos(angle) * radial;
       p.vz = Math.sin(angle) * radial;
       p.vy = upward * (0.4 + Math.random() * 0.9);
       p.life = 0;
       p.ttl = ttl * (0.7 + Math.random() * 0.6);
       p.size = size * (0.7 + Math.random() * 0.8);
-      p.r = this.color.r; p.g = this.color.g; p.b = this.color.b;
+      p.r = this.color.r;
+      p.g = this.color.g;
+      p.b = this.color.b;
       p.gravity = gravity;
     }
   }
@@ -131,10 +150,6 @@ export function Particles() {
   });
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geometry, material, POOL_SIZE]}
-      frustumCulled={false}
-    />
+    <instancedMesh ref={meshRef} args={[geometry, material, POOL_SIZE]} frustumCulled={false} />
   );
 }

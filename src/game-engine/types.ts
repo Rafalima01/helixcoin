@@ -57,9 +57,7 @@ export interface EngineRuntime {
   goalCelebrated: boolean;
 }
 
-export function createRuntime(
-  ballRef: RefObject<RapierRigidBody | null>
-): EngineRuntime {
+export function createRuntime(ballRef: RefObject<RapierRigidBody | null>): EngineRuntime {
   return {
     ballRef,
     rings: [],

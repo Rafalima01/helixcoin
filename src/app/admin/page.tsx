@@ -32,15 +32,36 @@ const eventColumns: TableColumn<AuditEntryDTO>[] = [
     key: "severity",
     header: "Nível",
     render: (r) => (
-      <StatusBadge tone={r.severity === "critical" ? "danger" : r.severity === "warning" ? "warning" : "neutral"}>
+      <StatusBadge
+        tone={
+          r.severity === "critical" ? "danger" : r.severity === "warning" ? "warning" : "neutral"
+        }
+      >
         {r.severity === "critical" ? "Crítico" : r.severity === "warning" ? "Atenção" : "Info"}
       </StatusBadge>
     ),
   },
-  { key: "action", header: "Evento", render: (r) => <span className="font-medium">{r.action}</span> },
-  { key: "actor", header: "Autor", render: (r) => <span className="text-text-secondary">{r.actor}</span> },
-  { key: "target", header: "Alvo", render: (r) => <code className="text-xs text-text-muted">{r.target}</code> },
-  { key: "createdAt", header: "Quando", align: "right", render: (r) => <span className="text-xs text-text-muted">{r.createdAt}</span> },
+  {
+    key: "action",
+    header: "Evento",
+    render: (r) => <span className="font-medium">{r.action}</span>,
+  },
+  {
+    key: "actor",
+    header: "Autor",
+    render: (r) => <span className="text-text-secondary">{r.actor}</span>,
+  },
+  {
+    key: "target",
+    header: "Alvo",
+    render: (r) => <code className="text-xs text-text-muted">{r.target}</code>,
+  },
+  {
+    key: "createdAt",
+    header: "Quando",
+    align: "right",
+    render: (r) => <span className="text-xs text-text-muted">{r.createdAt}</span>,
+  },
 ];
 
 export default function AdminDashboardPage() {
@@ -84,7 +105,10 @@ export default function AdminDashboardPage() {
           <AreaChart data={revenueSeries} formatValue={(v) => formatCurrency(v)} height={210} />
         </SectionCard>
 
-        <SectionCard title="Volume por gateway (24h)" description="Depósitos processados por provedor">
+        <SectionCard
+          title="Volume por gateway (24h)"
+          description="Depósitos processados por provedor"
+        >
           <DonutChart data={gatewayVolume} formatValue={(v) => formatCurrency(v)} />
           <div className="mt-4 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-border bg-white/[0.02] p-3">
@@ -104,7 +128,11 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard title="Depósitos por dia" description="Volume bruto — últimos 7 dias" className="xl:col-span-2">
+        <SectionCard
+          title="Depósitos por dia"
+          description="Volume bruto — últimos 7 dias"
+          className="xl:col-span-2"
+        >
           <BarChart data={depositsByDay} formatValue={(v) => formatCurrency(v)} height={210} />
         </SectionCard>
 
@@ -133,7 +161,11 @@ export default function AdminDashboardPage() {
                     <AlertTriangle
                       className={cn(
                         "mt-0.5 size-4 shrink-0",
-                        a.severity === "critical" ? "text-error" : a.severity === "warning" ? "text-warning" : "text-text-muted"
+                        a.severity === "critical"
+                          ? "text-error"
+                          : a.severity === "warning"
+                            ? "text-warning"
+                            : "text-text-muted"
                       )}
                     />
                     <div className="min-w-0">
@@ -153,22 +185,32 @@ export default function AdminDashboardPage() {
         title="Eventos críticos e logs recentes"
         description="Últimas ações administrativas e eventos do sistema"
         actions={
-          <Button variant="ghost" size="sm" onClick={notImplemented} className="border border-border">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={notImplemented}
+            className="border border-border"
+          >
             Ver auditoria completa
           </Button>
         }
         className="p-0 [&>div:first-child]:px-5 [&>div:first-child]:pt-5"
       >
         <div className="-mx-0">
-          <DataTable columns={eventColumns} rows={events ?? []} loading={eventsLoading} pageSize={5} />
+          <DataTable
+            columns={eventColumns}
+            rows={events ?? []}
+            loading={eventsLoading}
+            pageSize={5}
+          />
         </div>
       </SectionCard>
 
       <Card className="p-4">
         <p className="text-xs text-text-muted">
-          <span className="font-semibold text-text-secondary">Fase 1 — Mockup navegável.</span> Todos os
-          números desta tela são simulados e serão substituídos por dados reais via camada de serviços
-          (WebSockets + API) nas próximas fases, sem alteração de interface.
+          <span className="font-semibold text-text-secondary">Fase 1 — Mockup navegável.</span>{" "}
+          Todos os números desta tela são simulados e serão substituídos por dados reais via camada
+          de serviços (WebSockets + API) nas próximas fases, sem alteração de interface.
         </p>
       </Card>
     </div>

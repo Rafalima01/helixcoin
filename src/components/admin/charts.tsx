@@ -30,7 +30,12 @@ export function Sparkline({
   const path = `M${points.join(" L")}`;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={cn("h-8 w-full", className)} aria-hidden>
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      className={cn("h-8 w-full", className)}
+      aria-hidden
+    >
       <defs>
         <linearGradient id={`sp-${id}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.35" />
@@ -38,7 +43,14 @@ export function Sparkline({
         </linearGradient>
       </defs>
       <path d={`${path} L${w},${h} L0,${h} Z`} fill={`url(#sp-${id})`} />
-      <path d={path} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <path
+        d={path}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -91,7 +103,14 @@ export function AreaChart({
           />
         ))}
         <path d={`${path} L${w},${h - padB} L0,${h - padB} Z`} fill={`url(#ar-${id})`} />
-        <path d={path} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        <path
+          d={path}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
         {values.map((v, i) => (
           <circle key={i} cx={i * step} cy={y(v)} r="2.4" fill={color}>
             <title>{`${data[i].label}: ${formatValue(v)}`}</title>
@@ -193,8 +212,19 @@ export function DonutChart({
 
   return (
     <div className={cn("flex items-center gap-5", className)}>
-      <svg viewBox="0 0 100 100" style={{ width: size, height: size }} className="shrink-0 -rotate-90">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="12" />
+      <svg
+        viewBox="0 0 100 100"
+        style={{ width: size, height: size }}
+        className="shrink-0 -rotate-90"
+      >
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          stroke="rgba(255,255,255,0.06)"
+          strokeWidth="12"
+        />
         {data.map((d, i) => {
           const frac = d.value / total;
           const dash = `${frac * c} ${c}`;

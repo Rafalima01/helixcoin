@@ -7,7 +7,11 @@ import { PageHeader, DataTable, StatusBadge, type TableColumn } from "@/componen
 import { notImplemented } from "@/lib/admin/use-admin-data";
 
 const REPORTS = [
-  { icon: FileBarChart, title: "Financeiro diário", desc: "GGR, NGR, depósitos, saques e custos por dia." },
+  {
+    icon: FileBarChart,
+    title: "Financeiro diário",
+    desc: "GGR, NGR, depósitos, saques e custos por dia.",
+  },
   { icon: FileSpreadsheet, title: "Jogadores", desc: "Base completa com KYC, saldos e atividade." },
   { icon: FileText, title: "Afiliados", desc: "Comissões, CPA e RevShare por rede." },
   { icon: FileBarChart, title: "Partidas", desc: "Todas as rodadas com multiplicadores e metas." },
@@ -25,22 +29,69 @@ interface ExportRow {
 }
 
 const EXPORTS: ExportRow[] = [
-  { id: "ex_1", name: "Financeiro diário", period: "01/07 – 18/07", requestedBy: "Carla Nunes", status: "ready", size: "2,4 MB" },
-  { id: "ex_2", name: "Afiliados", period: "Junho/2026", requestedBy: "Aline Barros", status: "ready", size: "890 KB" },
-  { id: "ex_3", name: "Partidas", period: "19/07", requestedBy: "Rafael Lima", status: "processing", size: "—" },
+  {
+    id: "ex_1",
+    name: "Financeiro diário",
+    period: "01/07 – 18/07",
+    requestedBy: "Carla Nunes",
+    status: "ready",
+    size: "2,4 MB",
+  },
+  {
+    id: "ex_2",
+    name: "Afiliados",
+    period: "Junho/2026",
+    requestedBy: "Aline Barros",
+    status: "ready",
+    size: "890 KB",
+  },
+  {
+    id: "ex_3",
+    name: "Partidas",
+    period: "19/07",
+    requestedBy: "Rafael Lima",
+    status: "processing",
+    size: "—",
+  },
 ];
 
 const columns: TableColumn<ExportRow>[] = [
-  { key: "name", header: "Relatório", render: (r) => <span className="font-semibold">{r.name}</span> },
-  { key: "period", header: "Período", render: (r) => <span className="text-xs text-text-secondary tabular-nums">{r.period}</span> },
-  { key: "by", header: "Solicitado por", render: (r) => <span className="text-text-secondary">{r.requestedBy}</span> },
-  { key: "status", header: "Status", render: (r) => <StatusBadge tone={r.status === "ready" ? "success" : "info"}>{r.status === "ready" ? "Pronto" : "Processando"}</StatusBadge> },
+  {
+    key: "name",
+    header: "Relatório",
+    render: (r) => <span className="font-semibold">{r.name}</span>,
+  },
+  {
+    key: "period",
+    header: "Período",
+    render: (r) => <span className="text-xs text-text-secondary tabular-nums">{r.period}</span>,
+  },
+  {
+    key: "by",
+    header: "Solicitado por",
+    render: (r) => <span className="text-text-secondary">{r.requestedBy}</span>,
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (r) => (
+      <StatusBadge tone={r.status === "ready" ? "success" : "info"}>
+        {r.status === "ready" ? "Pronto" : "Processando"}
+      </StatusBadge>
+    ),
+  },
   {
     key: "dl",
     header: "",
     align: "right",
     render: (r) => (
-      <Button variant="ghost" size="sm" onClick={notImplemented} disabled={r.status !== "ready"} className="border border-border">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={notImplemented}
+        disabled={r.status !== "ready"}
+        className="border border-border"
+      >
         <Download className="size-3.5" /> {r.size}
       </Button>
     ),
@@ -66,7 +117,12 @@ export default function AdminReportsPage() {
             <r.icon className="size-4 text-purple" />
             <p className="font-bold text-sm">{r.title}</p>
             <p className="text-xs text-text-secondary leading-relaxed flex-1">{r.desc}</p>
-            <Button variant="secondary" size="sm" onClick={notImplemented} className="mt-2 self-start">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={notImplemented}
+              className="mt-2 self-start"
+            >
               <Download className="size-3.5" /> Exportar
             </Button>
           </Card>

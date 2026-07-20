@@ -10,7 +10,9 @@ class AudioManagerImpl {
   init() {
     if (typeof window === "undefined") return;
     if (!this.ctx) {
-      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const Ctx =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
       this.ctx = new Ctx({ latencyHint: "interactive" });
       this.master = this.ctx.createGain();

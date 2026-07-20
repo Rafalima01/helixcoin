@@ -1,6 +1,13 @@
 "use client";
 
-import { PageHeader, DataTable, StatusBadge, KpiGrid, Meter, type TableColumn } from "@/components/admin/ui";
+import {
+  PageHeader,
+  DataTable,
+  StatusBadge,
+  KpiGrid,
+  Meter,
+  type TableColumn,
+} from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { AdminServices } from "@/lib/admin/services";
 import { useAdminData, notImplemented } from "@/lib/admin/use-admin-data";
@@ -9,17 +16,37 @@ import { cn } from "@/lib/utils";
 
 const KPIS = [
   { id: "open", label: "Casos abertos", value: "7", delta: "+2", trend: "up" as const },
-  { id: "blocked", label: "Bloqueios automáticos (24h)", value: "18", delta: "-4", trend: "down" as const },
+  {
+    id: "blocked",
+    label: "Bloqueios automáticos (24h)",
+    value: "18",
+    delta: "-4",
+    trend: "down" as const,
+  },
   { id: "chargeback", label: "Taxa de chargeback", value: "0,21%", trend: "flat" as const },
-  { id: "risk", label: "Risco médio da base", value: "12/100", delta: "-1", trend: "down" as const },
+  {
+    id: "risk",
+    label: "Risco médio da base",
+    value: "12/100",
+    delta: "-1",
+    trend: "down" as const,
+  },
 ];
 
 export default function AdminSecurityPage() {
   const { data, loading } = useAdminData(AdminServices.securityEvents);
 
   const columns: TableColumn<SecurityEventDTO>[] = [
-    { key: "kind", header: "Ocorrência", render: (s) => <span className="font-semibold">{s.kind}</span> },
-    { key: "user", header: "Usuário", render: (s) => <code className="text-xs text-text-secondary">{s.user}</code> },
+    {
+      key: "kind",
+      header: "Ocorrência",
+      render: (s) => <span className="font-semibold">{s.kind}</span>,
+    },
+    {
+      key: "user",
+      header: "Usuário",
+      render: (s) => <code className="text-xs text-text-secondary">{s.user}</code>,
+    },
     {
       key: "ip",
       header: "IP / Local",
@@ -35,10 +62,22 @@ export default function AdminSecurityPage() {
       header: "Risco",
       render: (s) => (
         <div className="min-w-[110px]">
-          <p className={cn("mb-1 text-xs font-bold tabular-nums", s.riskScore >= 80 ? "text-error" : s.riskScore >= 60 ? "text-warning" : "text-text-secondary")}>
+          <p
+            className={cn(
+              "mb-1 text-xs font-bold tabular-nums",
+              s.riskScore >= 80
+                ? "text-error"
+                : s.riskScore >= 60
+                  ? "text-warning"
+                  : "text-text-secondary"
+            )}
+          >
             {s.riskScore}/100
           </p>
-          <Meter value={s.riskScore} tone={s.riskScore >= 80 ? "error" : s.riskScore >= 60 ? "warning" : "purple"} />
+          <Meter
+            value={s.riskScore}
+            tone={s.riskScore >= 80 ? "error" : s.riskScore >= 60 ? "warning" : "purple"}
+          />
         </div>
       ),
     },
@@ -46,7 +85,9 @@ export default function AdminSecurityPage() {
       key: "status",
       header: "Status",
       render: (s) => (
-        <StatusBadge tone={s.status === "open" ? "danger" : s.status === "reviewing" ? "warning" : "success"}>
+        <StatusBadge
+          tone={s.status === "open" ? "danger" : s.status === "reviewing" ? "warning" : "success"}
+        >
           {s.status === "open" ? "Aberto" : s.status === "reviewing" ? "Em análise" : "Resolvido"}
         </StatusBadge>
       ),

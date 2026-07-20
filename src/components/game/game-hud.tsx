@@ -34,9 +34,7 @@ export function GameHud({
   const goalValue =
     goalAmountCents > 0 ? centsToReais(goalAmountCents) : betReais * targetMultiplier;
   const progress =
-    targetMultiplier > 1
-      ? Math.min(1, Math.max(0, (multiplier - 1) / (targetMultiplier - 1)))
-      : 0;
+    targetMultiplier > 1 ? Math.min(1, Math.max(0, (multiplier - 1) / (targetMultiplier - 1))) : 0;
   const isPlaying = status === "playing";
   const canCashout = isPlaying && goalReached;
 
@@ -100,7 +98,11 @@ export function GameHud({
           <div className="flex-1 glass-card px-3 py-2.5 flex flex-col items-center">
             <span className="text-[11px] text-text-muted">Valor atual</span>
             <span className="font-bold text-[15px] text-green tabular-nums">
-              <AnimatedNumber value={currentValue} format={(v) => formatCurrency(v)} duration={0.3} />
+              <AnimatedNumber
+                value={currentValue}
+                format={(v) => formatCurrency(v)}
+                duration={0.3}
+              />
             </span>
           </div>
           <div className="flex-1 glass-card px-3 py-2.5 flex flex-col items-center">
@@ -136,7 +138,12 @@ export function GameHud({
                 Progresso da meta
               </span>
             )}
-            <span className={cn("font-bold tabular-nums", goalReached ? "text-green" : "text-text-secondary")}>
+            <span
+              className={cn(
+                "font-bold tabular-nums",
+                goalReached ? "text-green" : "text-text-secondary"
+              )}
+            >
               {Math.round(progress * 100)}%
             </span>
           </div>
@@ -163,9 +170,7 @@ export function GameHud({
         {/* Cashout — locked until the goal is reached */}
         <div
           className="w-full"
-          title={
-            isPlaying && !goalReached ? "Atinja a meta para liberar o resgate." : undefined
-          }
+          title={isPlaying && !goalReached ? "Atinja a meta para liberar o resgate." : undefined}
         >
           <Button
             variant={canCashout ? "success" : "secondary"}
@@ -181,11 +186,7 @@ export function GameHud({
                 : "opacity-60 cursor-not-allowed border border-border"
             )}
           >
-            {canCashout ? (
-              <Unlock className="size-4" />
-            ) : (
-              <Lock className="size-4" />
-            )}
+            {canCashout ? <Unlock className="size-4" /> : <Lock className="size-4" />}
             Resgatar {formatCurrency(currentValue)}
           </Button>
         </div>

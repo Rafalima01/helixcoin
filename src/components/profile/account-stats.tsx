@@ -20,12 +20,32 @@ export function AccountStats() {
 
   const net = centsToReais(data?.netProfit ?? 0);
   const stats = [
-    { label: "Total depositado", icon: ArrowDownToLine, value: centsToReais(data?.totalDeposited ?? 0), tone: "" },
-    { label: "Total retirado", icon: ArrowUpFromLine, value: centsToReais(data?.totalWithdrawn ?? 0), tone: "" },
+    {
+      label: "Total depositado",
+      icon: ArrowDownToLine,
+      value: centsToReais(data?.totalDeposited ?? 0),
+      tone: "",
+    },
+    {
+      label: "Total retirado",
+      icon: ArrowUpFromLine,
+      value: centsToReais(data?.totalWithdrawn ?? 0),
+      tone: "",
+    },
     { label: "Cashback recebido", icon: Coins, value: centsToReais(data?.cashback ?? 0), tone: "" },
-    { label: "Saldo disponível", icon: Wallet, value: centsToReais(data?.balance ?? 0), tone: "text-green" },
+    {
+      label: "Saldo disponível",
+      icon: Wallet,
+      value: centsToReais(data?.balance ?? 0),
+      tone: "text-green",
+    },
     { label: "Total apostado", icon: Gamepad2, value: centsToReais(data?.totalBet ?? 0), tone: "" },
-    { label: "Lucro líquido", icon: TrendingUp, value: net, tone: net >= 0 ? "text-green" : "text-error" },
+    {
+      label: "Lucro líquido",
+      icon: TrendingUp,
+      value: net,
+      tone: net >= 0 ? "text-green" : "text-error",
+    },
   ];
 
   return (

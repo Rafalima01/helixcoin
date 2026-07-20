@@ -32,7 +32,9 @@ export default function AdminGatewaysPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
         {loading || !data
-          ? Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-56 w-full rounded-2xl" />)
+          ? Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-56 w-full rounded-2xl" />
+            ))
           : data.map((g) => (
               <Card key={g.id} className="p-5">
                 <div className="mb-4 flex items-start justify-between gap-3">
@@ -50,18 +52,29 @@ export default function AdminGatewaysPage() {
                     <span className="text-text-muted">Taxa de sucesso</span>
                     <span className="font-bold tabular-nums">{g.successRate.toFixed(1)}%</span>
                   </div>
-                  <Meter value={g.successRate} tone={g.successRate > 97 ? "green" : g.successRate > 90 ? "warning" : "error"} />
+                  <Meter
+                    value={g.successRate}
+                    tone={g.successRate > 97 ? "green" : g.successRate > 90 ? "warning" : "error"}
+                  />
                 </div>
 
                 <DetailRow label="Volume (24h)" value={formatCurrency(g.volume24h)} />
-                <DetailRow label="Latência média" value={g.avgLatencyMs > 0 ? `${g.avgLatencyMs} ms` : "—"} />
+                <DetailRow
+                  label="Latência média"
+                  value={g.avgLatencyMs > 0 ? `${g.avgLatencyMs} ms` : "—"}
+                />
                 <DetailRow label="Tarifa" value={g.fee} />
 
                 <div className="mt-4 flex gap-2">
                   <Button variant="secondary" size="sm" onClick={notImplemented} className="flex-1">
                     <Settings2 className="size-3.5" /> Configurar
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={notImplemented} className="border border-border flex-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={notImplemented}
+                    className="border border-border flex-1"
+                  >
                     Ver transações
                   </Button>
                 </div>

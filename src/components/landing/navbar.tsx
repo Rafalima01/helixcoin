@@ -29,7 +29,9 @@ export function Navbar() {
     <header
       className={cn(
         "fixed top-0 inset-x-0 z-50 transition-all duration-300",
-        scrolled ? "glass-panel border-b border-border" : "bg-transparent border-b border-transparent"
+        scrolled
+          ? "glass-panel border-b border-border"
+          : "bg-transparent border-b border-transparent"
       )}
     >
       <nav className="mx-auto max-w-7xl px-5 md:px-8 h-16 md:h-20 flex items-center justify-between">

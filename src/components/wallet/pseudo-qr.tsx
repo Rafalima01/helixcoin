@@ -19,18 +19,16 @@ export function PseudoQr({ data, size = 200 }: { data: string; size?: number }) 
     >
       <div
         className="grid w-full h-full"
-        style={{ gridTemplateColumns: `repeat(${cells}, 1fr)`, gridTemplateRows: `repeat(${cells}, 1fr)` }}
+        style={{
+          gridTemplateColumns: `repeat(${cells}, 1fr)`,
+          gridTemplateRows: `repeat(${cells}, 1fr)`,
+        }}
       >
         {grid.map((filled, i) => {
           const r = Math.floor(i / cells);
           const c = i % cells;
           const finder = isFinder(r, c);
-          return (
-            <div
-              key={i}
-              className={finder || filled ? "bg-[#0B0815]" : "bg-transparent"}
-            />
-          );
+          return <div key={i} className={finder || filled ? "bg-[#0B0815]" : "bg-transparent"} />;
         })}
       </div>
     </div>

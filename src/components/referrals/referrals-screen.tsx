@@ -48,16 +48,24 @@ const STEPS = [
 ];
 
 const LEVEL_STYLES = [
-  { chip: "text-purple bg-purple/15 border-purple/25", bar: "from-purple/25 to-purple/5 border-purple/30" },
+  {
+    chip: "text-purple bg-purple/15 border-purple/25",
+    bar: "from-purple/25 to-purple/5 border-purple/30",
+  },
   { chip: "text-pink bg-pink/15 border-pink/25", bar: "from-pink/25 to-pink/5 border-pink/30" },
-  { chip: "text-green bg-green/15 border-green/25", bar: "from-green/25 to-green/5 border-green/30" },
+  {
+    chip: "text-green bg-green/15 border-green/25",
+    bar: "from-green/25 to-green/5 border-green/30",
+  },
 ];
 
 /** The single referral link card — one code, one link, per user. */
 function MyLinkCard({ code, linkPath }: { code: string; linkPath: string }) {
   const [copied, setCopied] = useState<"link" | "code" | null>(null);
   const link =
-    typeof window !== "undefined" ? `${window.location.origin}${linkPath}` : `helijump.gg${linkPath}`;
+    typeof window !== "undefined"
+      ? `${window.location.origin}${linkPath}`
+      : `helijump.gg${linkPath}`;
 
   const copy = async (value: string, kind: "link" | "code") => {
     await navigator.clipboard.writeText(value);
@@ -84,7 +92,10 @@ function MyLinkCard({ code, linkPath }: { code: string; linkPath: string }) {
   };
 
   return (
-    <Card glow="purple" className="p-6 md:p-8 bg-gradient-to-br from-purple/15 via-transparent to-pink/10">
+    <Card
+      glow="purple"
+      className="p-6 md:p-8 bg-gradient-to-br from-purple/15 via-transparent to-pink/10"
+    >
       <div className="flex items-center gap-3 mb-5">
         <span className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-purple to-pink text-white">
           <Gift className="size-5" />
@@ -177,7 +188,9 @@ function TreeNode({ node }: { node: NetworkNode }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <p className="text-sm font-semibold truncate">{node.name}</p>
-            <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", style.chip)}>
+            <span
+              className={cn("rounded-full border px-2 py-0.5 text-[10px] font-bold", style.chip)}
+            >
               Nível {node.level}
             </span>
             <Badge variant={node.active ? "green" : "neutral"} size="sm">
@@ -186,7 +199,9 @@ function TreeNode({ node }: { node: NetworkNode }) {
           </div>
           <p className="text-[11px] text-text-muted tabular-nums">
             Cadastro {new Date(node.createdAt).toLocaleDateString("pt-BR")} ·{" "}
-            {node.deposited ? `${node.depositCount} depósito${node.depositCount > 1 ? "s" : ""}` : "Sem depósitos"}
+            {node.deposited
+              ? `${node.depositCount} depósito${node.depositCount > 1 ? "s" : ""}`
+              : "Sem depósitos"}
           </p>
         </div>
 
@@ -233,8 +248,8 @@ export function ReferralsScreen() {
           Indique e <span className="text-gradient-brand">Ganhe</span>
         </h1>
         <p className="text-text-secondary mt-2 max-w-xl leading-relaxed">
-          Convide seus amigos para jogar no HeliJump. Quanto mais amigos você indicar, maiores
-          serão suas recompensas.
+          Convide seus amigos para jogar no HeliJump. Quanto mais amigos você indicar, maiores serão
+          suas recompensas.
         </p>
       </div>
 
@@ -280,7 +295,12 @@ export function ReferralsScreen() {
                   <Card key={l.level} className={cn("p-5 bg-gradient-to-br border", style.bar)}>
                     <div className="flex items-center justify-between gap-3 mb-4">
                       <p className="font-bold">Nível {l.level}</p>
-                      <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-bold", style.chip)}>
+                      <span
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[11px] font-bold",
+                          style.chip
+                        )}
+                      >
                         Comissão {l.ratePct}%
                       </span>
                     </div>
@@ -368,7 +388,10 @@ export function ReferralsScreen() {
       </div>
 
       {/* Tip */}
-      <Card glow="purple" className="p-5 md:p-6 bg-gradient-to-br from-purple/15 via-transparent to-pink/10">
+      <Card
+        glow="purple"
+        className="p-5 md:p-6 bg-gradient-to-br from-purple/15 via-transparent to-pink/10"
+      >
         <div className="flex items-start gap-4">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-warning/15 text-warning">
             <Lightbulb className="size-5" />

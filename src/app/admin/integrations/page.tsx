@@ -31,7 +31,9 @@ export default function AdminIntegrationsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         {loading || !data
-          ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-36 w-full rounded-2xl" />)
+          ? Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="h-36 w-full rounded-2xl" />
+            ))
           : data.map((it) => (
               <Card key={it.id} className="p-5 flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
@@ -44,7 +46,12 @@ export default function AdminIntegrationsPage() {
                   </StatusBadge>
                 </div>
                 <p className="text-xs text-text-secondary">Última sincronização: {it.lastSyncAt}</p>
-                <Button variant="secondary" size="sm" onClick={notImplemented} className="self-start">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={notImplemented}
+                  className="self-start"
+                >
                   <Settings2 className="size-3.5" /> Configurar
                 </Button>
               </Card>

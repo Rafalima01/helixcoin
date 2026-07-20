@@ -1,11 +1,32 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" for local dev, the musl target for the Alpine-based Docker
+  // image (see Dockerfile) — both are generated so `prisma generate` works
+  // identically on a dev machine and inside the build container.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ============================================================================
+// Conventions (Phase 2 — backend foundation)
+// ============================================================================
+// - Primary keys: String @id @default(uuid()) everywhere. No auto-increment
+//   ints — avoids leaking row counts/order and matches distributed-system
+//   friendly ID generation (safe to generate client-side, before insert).
+// - Timestamps: `createdAt` on every append-only/event-like row. Mutable
+//   entities also carry `updatedAt @updatedAt`.
+// - Soft delete: NOT applied to existing player-facing tables in this phase
+//   (adding the column without threading `deletedAt: null` through every
+//   query would be a half-finished feature, worse than not having it). The
+//   pattern is demonstrated in src/modules/_template's repository base class
+//   for the module that adopts it first.
+// - Money: always integer cents (Int), never Float — see Transaction.amount,
+//   Wallet.balance, Match.betAmount/payout.
+// ============================================================================
 
 /// Platform-wide game settings, controlled exclusively by the backend/admin.
 /// Single row with id "global" — the frontend only ever reads it.
@@ -20,19 +41,19 @@ model GameConfig {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
+  id            String    @id @default(uuid())
+  name          String
+  email         String    @unique
   emailVerified DateTime?
-  passwordHash String?
-  image        String?
-  referralCode String   @unique
-  referredById String?
-  referredBy   User?    @relation("Referrals", fields: [referredById], references: [id])
-  referrals    User[]   @relation("Referrals")
-  xp           Int      @default(0)
-  level        Int      @default(1)
-  createdAt    DateTime @default(now())
+  passwordHash  String?
+  image         String?
+  referralCode  String    @unique
+  referredById  String?
+  referredBy    User?     @relation("Referrals", fields: [referredById], references: [id])
+  referrals     User[]    @relation("Referrals")
+  xp            Int       @default(0)
+  level         Int       @default(1)
+  createdAt     DateTime  @default(now())
 
   wallet        Wallet?
   matches       Match[]
@@ -41,10 +62,12 @@ model User {
   notifications Notification[]
   accounts      Account[]
   sessions      Session[]
+
+  @@index([referredById])
 }
 
 model Wallet {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   balance   Int      @default(0)
@@ -65,16 +88,19 @@ enum TransactionStatus {
 }
 
 model Transaction {
-  id        String             @id @default(cuid())
+  id        String            @id @default(uuid())
   userId    String
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      TransactionType
   amount    Int
-  status    TransactionStatus  @default(COMPLETED)
+  status    TransactionStatus @default(COMPLETED)
   method    String?
   pixKey    String?
   matchId   String?
-  createdAt DateTime           @default(now())
+  createdAt DateTime          @default(now())
+
+  @@index([userId, type])
+  @@index([createdAt])
 }
 
 enum MatchStatus {
@@ -84,24 +110,27 @@ enum MatchStatus {
 }
 
 model Match {
-  id              String      @id @default(cuid())
-  userId          String
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  betAmount       Int
-  status          MatchStatus @default(ACTIVE)
-  platformsPassed Int         @default(0)
-  multiplier      Float       @default(1.0)
+  id               String      @id @default(uuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  betAmount        Int
+  status           MatchStatus @default(ACTIVE)
+  platformsPassed  Int         @default(0)
+  multiplier       Float       @default(1.0)
   /// Goal multiplier snapshotted from GameConfig at match start. Cashout is
   /// rejected server-side while the current multiplier is below this value.
-  targetMultiplier Float      @default(5)
-  payout          Int?
-  seed            String
-  createdAt       DateTime    @default(now())
-  resolvedAt      DateTime?
+  targetMultiplier Float       @default(5)
+  payout           Int?
+  seed             String
+  createdAt        DateTime    @default(now())
+  resolvedAt       DateTime?
+
+  @@index([userId, status])
+  @@index([createdAt])
 }
 
 model Achievement {
-  id          String            @id @default(cuid())
+  id          String            @id @default(uuid())
   key         String            @unique
   title       String
   description String
@@ -110,7 +139,7 @@ model Achievement {
 }
 
 model UserAchievement {
-  id            String      @id @default(cuid())
+  id            String      @id @default(uuid())
   userId        String
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   achievementId String
@@ -121,7 +150,7 @@ model UserAchievement {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      String
@@ -129,10 +158,12 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, read])
 }
 
 model Account {
-  id                String  @id @default(cuid())
+  id                String  @id @default(uuid())
   userId            String
   type              String
   provider          String
@@ -150,7 +181,7 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(uuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
@@ -163,4 +194,56 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ============================================================================
+// Backend infrastructure (Phase 2) — no business logic reads/writes these
+// yet. AuditService (src/server/audit) is the only writer, by convention.
+// ============================================================================
+
+/// Staff/admin RBAC roles. Not yet attached to any table (no admin-account
+/// model exists — Phase 2 is infrastructure only). JWT access tokens issued
+/// by src/server/auth encode this as a claim once a real admin-account
+/// module assigns it to a user.
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE
+  OPERATOR
+  MODERATOR
+  SUPPORT
+  COMPLIANCE
+  AUDIT
+}
+
+enum AuditActorType {
+  SYSTEM
+  USER
+  ADMIN
+}
+
+/// Immutable audit trail. Append-only by convention — no update/delete path
+/// is exposed anywhere in the codebase. Written exclusively through
+/// AuditService.record() (src/server/audit/audit.service.ts) so every
+/// mutation call site has one obvious place to log from.
+model AuditLog {
+  id         String         @id @default(uuid())
+  actorId    String?
+  actorType  AuditActorType
+  actorRole  Role?
+  action     String
+  entityType String
+  entityId   String?
+  /// State before the change, or null for creations.
+  before     Json?
+  /// State after the change, or null for deletions.
+  after      Json?
+  ip         String?
+  userAgent  String?
+  sessionId  String?
+  createdAt  DateTime       @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

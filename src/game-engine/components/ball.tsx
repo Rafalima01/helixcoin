@@ -69,8 +69,7 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
         shadow.position.set(CFG.ballOrbitRadius, ringY + 0.012, 0);
         const spread = 1 + dist * 0.35;
         shadow.scale.setScalar(spread);
-        (shadow.material as THREE.MeshBasicMaterial).opacity =
-          Math.max(0, 0.4 - dist * 0.09);
+        (shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.4 - dist * 0.09);
       } else {
         shadow.visible = false;
       }

@@ -80,7 +80,14 @@ export function BottomNav() {
             >
               <Plus className="size-7" strokeWidth={2.6} />
             </span>
-            <span className={cn("truncate", pathname === "/deposit" ? "text-green" : "text-text-secondary group-hover:text-green")}>
+            <span
+              className={cn(
+                "truncate",
+                pathname === "/deposit"
+                  ? "text-green"
+                  : "text-text-secondary group-hover:text-green"
+              )}
+            >
               Depositar
             </span>
           </Link>

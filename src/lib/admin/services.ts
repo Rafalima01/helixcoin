@@ -31,7 +31,7 @@ import type {
   WalletRowDTO,
 } from "@/lib/admin/types";
 
-const resolve = <T,>(data: T): Promise<T> => Promise.resolve(data);
+const resolve = <T>(data: T): Promise<T> => Promise.resolve(data);
 
 export const AdminServices = {
   dashboardKpis: (): Promise<KpiDTO[]> => resolve(mock.dashboardKpis),

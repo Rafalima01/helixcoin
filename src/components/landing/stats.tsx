@@ -11,7 +11,10 @@ export function Stats() {
 
   return (
     <section className="relative py-16 md:py-20 border-y border-border glass-panel">
-      <div ref={ref} className="mx-auto max-w-7xl px-5 md:px-8 grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div
+        ref={ref}
+        className="mx-auto max-w-7xl px-5 md:px-8 grid grid-cols-2 md:grid-cols-4 gap-8"
+      >
         {STATS.map((s) => (
           <div key={s.label} className="flex flex-col items-center text-center">
             <p className="text-3xl md:text-5xl font-extrabold text-gradient-brand tabular-nums">
@@ -20,9 +23,7 @@ export function Stats() {
                 value={inView ? s.value : 0}
                 duration={1.6}
                 format={(v) =>
-                  s.decimals
-                    ? v.toFixed(s.decimals)
-                    : Math.round(v).toLocaleString("pt-BR")
+                  s.decimals ? v.toFixed(s.decimals) : Math.round(v).toLocaleString("pt-BR")
                 }
               />
               {s.suffix}

@@ -13,7 +13,8 @@ export const BENEFITS = [
   {
     icon: "gauge",
     title: "100% Habilidade",
-    description: "Sem sorte, sem aleatoriedade escondida. Seu timing e reflexo definem o resultado.",
+    description:
+      "Sem sorte, sem aleatoriedade escondida. Seu timing e reflexo definem o resultado.",
   },
   {
     icon: "zap",
@@ -34,9 +35,21 @@ export const BENEFITS = [
 
 export const HOW_IT_WORKS = [
   { step: "01", title: "Deposite", description: "Adicione saldo via PIX em segundos." },
-  { step: "02", title: "Aposte", description: "Escolha o valor da sua aposta antes de girar a torre." },
-  { step: "03", title: "Jogue", description: "Gire a torre, desvie dos buracos e atravesse plataformas." },
-  { step: "04", title: "Resgate", description: "Saque a qualquer momento antes de cair para garantir seu multiplicador." },
+  {
+    step: "02",
+    title: "Aposte",
+    description: "Escolha o valor da sua aposta antes de girar a torre.",
+  },
+  {
+    step: "03",
+    title: "Jogue",
+    description: "Gire a torre, desvie dos buracos e atravesse plataformas.",
+  },
+  {
+    step: "04",
+    title: "Resgate",
+    description: "Saque a qualquer momento antes de cair para garantir seu multiplicador.",
+  },
 ];
 
 export const STATS = [

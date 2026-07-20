@@ -97,7 +97,9 @@ function Field({
         <Icon className="size-3 shrink-0" />
         <span className="truncate">{label}</span>
       </span>
-      <span className={cn("text-[13px] font-semibold tabular-nums truncate", className)}>{value}</span>
+      <span className={cn("text-[13px] font-semibold tabular-nums truncate", className)}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -107,9 +109,7 @@ function MatchCard({ match }: { match: Match }) {
   const date = new Date(match.createdAt);
   const goalPct =
     match.targetMultiplier > 1
-      ? Math.round(
-          Math.min(1, (match.multiplier - 1) / (match.targetMultiplier - 1)) * 100
-        )
+      ? Math.round(Math.min(1, (match.multiplier - 1) / (match.targetMultiplier - 1)) * 100)
       : 0;
 
   return (
@@ -145,7 +145,11 @@ function MatchCard({ match }: { match: Match }) {
           label="Hora"
           value={date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
         />
-        <Field icon={Wallet} label="Apostado" value={formatCurrency(centsToReais(match.betAmount))} />
+        <Field
+          icon={Wallet}
+          label="Apostado"
+          value={formatCurrency(centsToReais(match.betAmount))}
+        />
         <Field
           icon={TrendingUp}
           label="Multiplicador"

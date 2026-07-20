@@ -53,9 +53,7 @@ export function Modal({ open, onClose, title, description, children, className }
             <div className="flex items-start justify-between mb-5">
               <div>
                 <h2 className="text-xl font-bold">{title}</h2>
-                {description && (
-                  <p className="text-sm text-text-secondary mt-1">{description}</p>
-                )}
+                {description && <p className="text-sm text-text-secondary mt-1">{description}</p>}
               </div>
               <button
                 onClick={onClose}

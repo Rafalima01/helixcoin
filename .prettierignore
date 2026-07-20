@@ -1,0 +1,11 @@
+.next/
+node_modules/
+coverage/
+build/
+out/
+prisma/migrations/
+public/
+.vitest-uploads/
+*.db
+pnpm-lock.yaml
+package-lock.json
