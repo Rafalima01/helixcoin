@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { affiliateContainer } from "@/modules/affiliate/container";
 import { managerContainer } from "@/modules/manager/container";
+import { zoneUrl } from "@/config/domains";
 
 /**
  * Short referral link — the ONLY link a user shares: /r/CODE. Redirects to
@@ -20,7 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const url = new URL(req.url);
   const slug = url.searchParams.get("l");
 
-  const signupUrl = new URL(`/signup?ref=${encodeURIComponent(code)}`, req.url);
+  const signupUrl = new URL(zoneUrl("player", `/signup?ref=${encodeURIComponent(code)}`));
 
   if (slug) {
     const link = await affiliateContainer.affiliateLinkService.findActiveBySlug(slug);

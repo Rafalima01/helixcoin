@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { managerContainer } from "@/modules/manager/container";
+import { zoneUrl } from "@/config/domains";
 
 /**
  * A Manager's "Convidar Afiliados" link (see AGENTS.md's "Refinamento Fase
@@ -11,12 +12,12 @@ import { managerContainer } from "@/modules/manager/container";
  * standalone; redirects into the "Indique" tab (/referrals) — the platform's
  * one and only affiliate entry point — with the manager code pre-filled.
  */
-export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
 
   const manager = await managerContainer.managerRepository.findByInviteCode(code);
   if (manager) await managerContainer.managerRepository.incrementInviteLinkClicks(code);
 
-  const applyUrl = new URL(`/referrals?manager=${encodeURIComponent(code)}`, req.url);
+  const applyUrl = zoneUrl("player", `/referrals?manager=${encodeURIComponent(code)}`);
   return NextResponse.redirect(applyUrl);
 }

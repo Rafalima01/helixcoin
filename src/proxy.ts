@@ -17,8 +17,21 @@ import type { Role } from "@prisma/client";
  * Location header silently relativized by Next's own redirect normalizer
  * (getRelativeURL) — breaking exactly the role-mismatch redirect
  * `loginUrlForRole` exists to produce. See src/config/domains.ts for the
- * canonical source of PLAYER_URL/ADMIN_URL/MANAGER_URL; production is
- * unaffected by this quirk (every zone is already a distinct real domain).
+ * canonical source of PLAYER_URL/ADMIN_URL/MANAGER_URL.
+ *
+ * The dev collision above is one symptom of a broader rule this whole file
+ * follows: every `NextResponse.redirect()` target is built from
+ * PLAYER_URL/ADMIN_URL/MANAGER_URL (or a role/prefix derived from those),
+ * NEVER from `req.nextUrl.origin`/`req.url`. That request-derived origin is
+ * unreliable in production too — the standalone server (see Dockerfile)
+ * sets `HOSTNAME=0.0.0.0`/`PORT=3000` for binding, and this Next.js build
+ * uses those same two values to compute a request's "origin" instead of the
+ * real `Host` header, so a redirect built from it resolves to
+ * `http://0.0.0.0:3000/...` — unreachable from a real browser. Confirmed in
+ * production via a generated invite link before this file's redirects were
+ * all switched to explicit zone origins. `NextResponse.rewrite()` calls
+ * (see `handleZone`) are unaffected — rewrites never reach the browser as a
+ * Location header, so their origin doesn't matter.
  */
 
 const PLAYER_AUTH_PREFIXES = ["/home", "/play", "/wallet", "/profile"];
@@ -78,7 +91,7 @@ export default async function proxy(req: NextRequest) {
 
   if (PLAYER_AUTH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     const auth = await getAuthContext(req);
-    if (!auth) return redirectToLogin(req, pathname);
+    if (!auth) return redirectToLogin(PLAYER_URL, pathname);
   }
   return NextResponse.next();
 }
@@ -97,9 +110,10 @@ export default async function proxy(req: NextRequest) {
 async function handleZone(req: NextRequest, prefix: "/admin" | "/manager") {
   const pathname = req.nextUrl.pathname;
   const loginTarget = prefix === "/admin" ? "/admin-login" : "/manager-login";
+  const zoneOrigin = prefix === "/admin" ? ADMIN_URL : MANAGER_URL;
 
   if (pathname === "/signup") {
-    return NextResponse.redirect(new URL("/login", req.nextUrl.origin));
+    return NextResponse.redirect(new URL("/login", zoneOrigin));
   }
 
   let target: string;
@@ -118,7 +132,7 @@ async function handleZone(req: NextRequest, prefix: "/admin" | "/manager") {
   const isPublic = target === loginTarget || target.startsWith("/manager-invite/");
   if (!isPublic) {
     const auth = await getAuthContext(req);
-    if (!auth) return redirectToLogin(req, pathname);
+    if (!auth) return redirectToLogin(zoneOrigin, pathname);
 
     const roleAllowed = prefix === "/admin" ? hasRole(auth.role, ROLE_HIERARCHY) : auth.role === "MANAGER";
     if (!roleAllowed) return NextResponse.redirect(loginUrlForRole(auth.role));
@@ -129,8 +143,18 @@ async function handleZone(req: NextRequest, prefix: "/admin" | "/manager") {
   return NextResponse.rewrite(url);
 }
 
-function redirectToLogin(req: NextRequest, callbackPathname: string) {
-  const loginUrl = new URL("/login", req.nextUrl.origin);
+/**
+ * `origin` is always one of PLAYER_URL/ADMIN_URL/MANAGER_URL from the call
+ * site — never derived from the request. `req.nextUrl.origin` cannot be
+ * trusted for this in either dev (this Next.js build's router resolves it
+ * from the dev server's own bind address, not the real `Host` header — see
+ * this file's top-of-file comment) or production (the standalone server
+ * does the same using `HOSTNAME`/`PORT`, which the Dockerfile sets to
+ * `0.0.0.0`/`3000` for binding purposes — confirmed in production via a
+ * generated invite link that redirected to `https://0.0.0.0:3000/...`).
+ */
+function redirectToLogin(origin: string, callbackPathname: string) {
+  const loginUrl = new URL("/login", origin);
   loginUrl.searchParams.set("callbackUrl", callbackPathname);
   return NextResponse.redirect(loginUrl);
 }
