@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:permissions": "tsx scripts/seed-permissions.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
