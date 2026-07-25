@@ -57,3 +57,28 @@ prisma/dev.db-journal
 # vitest coverage
 coverage/
 .vitest-cache/
+
+# production build output (alternate names some tooling expects)
+/dist
+
+# prisma generated client (already covered by /node_modules, kept explicit)
+.prisma/client
+
+# logs
+*.log
+
+# editors / OS
+.vscode/settings.json
+.idea/
+
+# temp files
+tmp/
+temp/
+
+# sqlite (alternate extension — see the *.db rule above for the one this repo actually uses)
+*.sqlite
+
+# test artifacts (not currently produced by this repo's toolchain, ignored defensively)
+playwright-report/
+test-results/
+.cache/
