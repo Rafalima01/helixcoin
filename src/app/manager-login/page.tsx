@@ -3,7 +3,12 @@ import { Suspense } from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
 
-export const metadata: Metadata = { title: "Acesso do Gerente — HeliJump" };
+export const metadata: Metadata = {
+  title: "Acesso do Gerente — HeliJump",
+  // Outside src/app/manager/, so it doesn't inherit that layout's noindex —
+  // set it here too (see this file's own doc comment for why it's outside).
+  robots: { index: false, follow: false },
+};
 
 /**
  * Reached only via manager.{domain} (see src/proxy.ts's host rewrite, which
