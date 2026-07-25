@@ -14,6 +14,25 @@ RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# `next build` imports src/server/config/env.ts (fail-fast env validation)
+# while statically analyzing route modules, so the 5 vars with no `.default()`
+# there must merely be *present* at build time — their real values come from
+# docker-compose's `env_file: .env` at container run time and completely
+# replace these build-only placeholders (Dockerfile ENV is stage-scoped and
+# is overridden by runtime env either way). Never baked into the final
+# `runner` stage — that stage starts fresh and only COPYs specific files.
+ARG DATABASE_URL="postgresql://build:build@build:5432/build"
+ARG REDIS_URL="redis://build:6379"
+ARG JWT_ACCESS_SECRET="build-time-placeholder"
+ARG JWT_REFRESH_SECRET="build-time-placeholder"
+ARG ENCRYPTION_KEY="build-time-placeholder"
+ENV DATABASE_URL=$DATABASE_URL
+ENV REDIS_URL=$REDIS_URL
+ENV JWT_ACCESS_SECRET=$JWT_ACCESS_SECRET
+ENV JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET
+ENV ENCRYPTION_KEY=$ENCRYPTION_KEY
+
 RUN npx prisma generate
 RUN npm run build
 
