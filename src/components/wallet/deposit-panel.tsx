@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PseudoQr } from "@/components/wallet/pseudo-qr";
-import { useCreateDeposit, useConfirmDeposit } from "@/hooks/use-wallet";
+import { useCreateDeposit, useSimulateDepositPayment } from "@/hooks/use-wallet";
 import { formatCurrency, cn } from "@/lib/utils";
 
 const QUICK_AMOUNTS = [50, 100, 200, 500];
@@ -16,11 +16,11 @@ const QUICK_AMOUNTS = [50, 100, 200, 500];
 export function DepositPanel() {
   const [amount, setAmount] = useState<number | "">(100);
   const [step, setStep] = useState<"amount" | "pix">("amount");
-  const [pix, setPix] = useState<{ transactionId: string; pixCode: string } | null>(null);
+  const [pix, setPix] = useState<{ depositId: string; pixCode: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const createDeposit = useCreateDeposit();
-  const confirmDeposit = useConfirmDeposit();
+  const simulateDeposit = useSimulateDepositPayment(pix?.depositId ?? null);
 
   const reset = () => {
     setStep("amount");
@@ -36,7 +36,7 @@ export function DepositPanel() {
     }
     try {
       const res = await createDeposit.mutateAsync(amount);
-      setPix({ transactionId: res.transactionId, pixCode: res.pixCode });
+      setPix({ depositId: res.depositId, pixCode: res.pixCode });
       setStep("pix");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar PIX");
@@ -54,7 +54,7 @@ export function DepositPanel() {
   const handleConfirm = async () => {
     if (!pix) return;
     try {
-      await confirmDeposit.mutateAsync(pix.transactionId);
+      await simulateDeposit.mutateAsync();
       toast.success(`Depósito de ${formatCurrency(Number(amount))} confirmado!`);
       reset();
     } catch (e) {
@@ -146,7 +146,7 @@ export function DepositPanel() {
             <Button
               variant="success"
               size="lg"
-              loading={confirmDeposit.isPending}
+              loading={simulateDeposit.isPending}
               onClick={handleConfirm}
               className="w-full"
             >

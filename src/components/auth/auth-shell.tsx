@@ -10,11 +10,14 @@ export function AuthShell({
   title,
   subtitle,
   quote,
+  hideHero = false,
 }: {
   children: React.ReactNode;
   title: string;
   subtitle: string;
   quote?: string;
+  /** Drops the game hero/testimonial panel — used by the admin/manager logins, which shouldn't feel like the player app. */
+  hideHero?: boolean;
 }) {
   return (
     <div className="min-h-dvh w-full grid lg:grid-cols-2">
@@ -35,15 +38,19 @@ export function AuthShell({
           <Logo />
         </Link>
 
-        <div className="relative z-10 flex items-center justify-center flex-1">
-          <HeroTower />
-        </div>
+        {!hideHero && (
+          <>
+            <div className="relative z-10 flex items-center justify-center flex-1">
+              <HeroTower />
+            </div>
 
-        <blockquote className="relative z-10 text-text-secondary text-lg leading-relaxed max-w-md">
-          {quote ??
-            "“O multiplicador mais alto que já resgatei foi 34x — o coração dispara toda vez.”"}
-          <footer className="mt-3 text-sm text-text-muted">— Jogador verificado HeliJump</footer>
-        </blockquote>
+            <blockquote className="relative z-10 text-text-secondary text-lg leading-relaxed max-w-md">
+              {quote ??
+                "“O multiplicador mais alto que já resgatei foi 34x — o coração dispara toda vez.”"}
+              <footer className="mt-3 text-sm text-text-muted">— Jogador verificado HeliJump</footer>
+            </blockquote>
+          </>
+        )}
       </div>
 
       <div className="flex flex-col justify-center items-center px-6 py-12 sm:px-12 relative">

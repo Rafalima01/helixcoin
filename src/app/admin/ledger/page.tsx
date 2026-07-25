@@ -1,89 +1,72 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  PageHeader,
-  DataTable,
-  FilterBar,
-  FilterChips,
-  StatusBadge,
-  type TableColumn,
-} from "@/components/admin/ui";
-import { AdminServices } from "@/lib/admin/services";
-import { useAdminData } from "@/lib/admin/use-admin-data";
-import type { LedgerEntryDTO } from "@/lib/admin/types";
-import { formatCurrency, cn } from "@/lib/utils";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { PageHeader, DataTable, FilterBar, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
+import { LedgerAdminApi } from "@/lib/admin/ledger-api";
+import type { LedgerEntryDto } from "@/modules/ledger/dto/ledger.dto";
+import { formatCurrency } from "@/lib/utils";
 
-const TYPE_LABEL: Record<LedgerEntryDTO["type"], string> = {
-  deposit: "Depósito",
-  withdraw: "Saque",
-  bet: "Aposta",
-  payout: "Resgate",
-  bonus: "Bônus",
-  cashback: "Cashback",
-  commission: "Comissão",
-  adjustment: "Ajuste",
-};
+function formatCents(cents: number) {
+  return formatCurrency(cents / 100);
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR");
+}
 
 export default function AdminLedgerPage() {
-  const { data, loading } = useAdminData(AdminServices.ledger);
   const [search, setSearch] = useState("");
-  const [type, setType] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
-    let out = data ?? [];
-    if (type !== "all") out = out.filter((l) => l.type === type);
-    if (search) {
-      const q = search.toLowerCase();
-      out = out.filter((l) => l.userName.toLowerCase().includes(q) || l.reference.includes(q));
-    }
-    return out;
-  }, [data, search, type]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "ledger", search],
+    queryFn: () =>
+      LedgerAdminApi.listEntries({
+        debitAccount: search || undefined,
+        page: 1,
+        pageSize: 100,
+      }),
+  });
 
-  const columns: TableColumn<LedgerEntryDTO>[] = [
+  const rows = data?.data ?? [];
+
+  const columns: TableColumn<LedgerEntryDto>[] = [
     {
-      key: "ref",
-      header: "Referência",
-      render: (l) => <code className="text-xs text-text-secondary">{l.reference}</code>,
+      key: "debit",
+      header: "Débito",
+      render: (l) => <code className="text-xs text-text-secondary">{l.debitAccount}</code>,
     },
     {
-      key: "user",
-      header: "Usuário",
-      render: (l) => <span className="font-medium">{l.userName}</span>,
-    },
-    {
-      key: "type",
-      header: "Tipo",
-      render: (l) => (
-        <StatusBadge tone={l.amount >= 0 ? "success" : "neutral"}>{TYPE_LABEL[l.type]}</StatusBadge>
-      ),
+      key: "credit",
+      header: "Crédito",
+      render: (l) => <code className="text-xs text-text-secondary">{l.creditAccount}</code>,
     },
     {
       key: "amount",
       header: "Valor",
       align: "right",
       render: (l) => (
-        <span
-          className={cn("font-semibold tabular-nums", l.amount >= 0 ? "text-green" : "text-text")}
-        >
-          {l.amount >= 0 ? "+" : "−"}
-          {formatCurrency(Math.abs(l.amount))}
+        <span className="font-semibold tabular-nums">
+          {formatCents(l.amount)} {l.currency}
         </span>
       ),
     },
     {
-      key: "after",
-      header: "Saldo após",
-      align: "right",
-      render: (l) => (
-        <span className="tabular-nums text-text-secondary">{formatCurrency(l.balanceAfter)}</span>
-      ),
+      key: "reference",
+      header: "Referência",
+      render: (l) => <span className="text-xs text-text-secondary">{l.reference ?? "—"}</span>,
     },
     {
-      key: "at",
-      header: "Data/Hora",
+      key: "referenceType",
+      header: "Origem",
+      render: (l) => <span className="text-xs text-text-muted">{l.referenceType ?? "—"}</span>,
+    },
+    {
+      key: "createdAt",
+      header: "Timestamp",
       align: "right",
-      render: (l) => <span className="text-xs text-text-muted tabular-nums">{l.createdAt}</span>,
+      render: (l) => <span className="text-xs text-text-muted tabular-nums">{formatDate(l.createdAt)}</span>,
     },
   ];
 
@@ -91,29 +74,49 @@ export default function AdminLedgerPage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Ledger Financeiro"
-        description="Livro-razão imutável de todas as movimentações. Cada lançamento terá dupla entrada e trilha de auditoria no Backend."
+        description="Livro-razão de dupla entrada, imutável — dados reais via src/modules/ledger. Nenhuma edição manual é permitida em nenhum lugar da plataforma."
       />
-      <FilterBar
-        search={search}
-        onSearch={setSearch}
-        placeholder="Buscar por usuário ou referência..."
-      >
-        <FilterChips
-          value={type}
-          onChange={setType}
-          options={[
-            { value: "all", label: "Tudo" },
-            { value: "deposit", label: "Depósitos" },
-            { value: "withdraw", label: "Saques" },
-            { value: "bet", label: "Apostas" },
-            { value: "payout", label: "Resgates" },
-            { value: "bonus", label: "Bônus" },
-            { value: "commission", label: "Comissões" },
-            { value: "adjustment", label: "Ajustes" },
-          ]}
-        />
-      </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={loading} pageSize={10} />
+      <FilterBar search={search} onSearch={setSearch} placeholder="Filtrar por conta de débito (ex: PLATFORM)..." />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={isLoading}
+        onRowClick={(l) => setSelectedId(l.id)}
+        emptyMessage="Nenhum lançamento encontrado"
+      />
+
+      {selectedId && <LedgerEntryDrawer id={selectedId} onClose={() => setSelectedId(null)} />}
     </div>
+  );
+}
+
+function LedgerEntryDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "ledger-entry", id],
+    queryFn: () => LedgerAdminApi.getEntry(id),
+  });
+  const entry = data?.data;
+
+  return (
+    <Drawer open onClose={onClose} title="Lançamento">
+      {isLoading || !entry ? (
+        <p className="text-sm text-text-muted">Carregando...</p>
+      ) : (
+        <div>
+          <DetailRow label="ID" value={<code className="text-xs">{entry.id}</code>} />
+          <DetailRow label="Transação" value={<code className="text-xs">{entry.transactionId}</code>} />
+          <DetailRow label="Conta de débito" value={<code className="text-xs">{entry.debitAccount}</code>} />
+          <DetailRow label="Conta de crédito" value={<code className="text-xs">{entry.creditAccount}</code>} />
+          <DetailRow label="Valor" value={`${formatCents(entry.amount)} ${entry.currency}`} />
+          <DetailRow label="Referência" value={entry.reference ?? "—"} />
+          <DetailRow label="Tipo de referência" value={entry.referenceType ?? "—"} />
+          <DetailRow label="Descrição" value={entry.description ?? "—"} />
+          <DetailRow label="Criado em" value={formatDate(entry.createdAt)} />
+          <p className="mt-4 text-[11px] text-text-muted">
+            Lançamentos são append-only — não existe rota de edição ou exclusão em nenhuma camada da API.
+          </p>
+        </div>
+      )}
+    </Drawer>
   );
 }

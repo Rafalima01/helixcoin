@@ -9,7 +9,7 @@ export class PrismaPlayerEconomySnapshotRepository implements IPlayerEconomySnap
     const [user, wallet, withdrawSum] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { tags: true } }),
       prisma.wallet.findUnique({ where: { userId } }),
-      prisma.transaction.aggregate({
+      prisma.walletTransaction.aggregate({
         where: { userId, type: "WITHDRAW", status: "COMPLETED" },
         _sum: { amount: true },
       }),

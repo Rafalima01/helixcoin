@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers/providers";
+import { PLAYER_URL } from "@/config/domains";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -9,14 +10,42 @@ const inter = Inter({
   weight: ["400", "500", "600", "700", "800", "900"],
 });
 
+const title = "HeliJump — Gire e Ganhe";
+const description =
+  "A plataforma de skill game mais premium do Brasil. Controle a torre, atravesse plataformas e multiplique seu saldo com habilidade e timing.";
+
 export const metadata: Metadata = {
-  title: "HeliJump — Gire e Ganhe",
-  description:
-    "A plataforma de skill game mais premium do Brasil. Controle a torre, atravesse plataformas e multiplique seu saldo com habilidade e timing.",
+  // Base for every relative URL below (openGraph.url, canonical, twitter
+  // images) — see AGENTS.md "Fase Deploy" (SEO). Only the player zone gets
+  // full SEO metadata; admin./manager. set their own `robots: { index:
+  // false }` in their layouts instead (src/app/admin/layout.tsx,
+  // src/app/manager/layout.tsx).
+  metadataBase: new URL(PLAYER_URL),
+  title,
+  description,
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
+  robots: { index: true, follow: true },
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "/",
+    siteName: "HeliJump",
+    title,
+    description,
+    images: [{ url: "/logo-full.png", alt: "HeliJump" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: ["/logo-full.png"],
   },
 };
 

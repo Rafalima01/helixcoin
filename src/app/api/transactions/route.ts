@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const limit = Math.min(500, Math.max(1, Number(searchParams.get("limit")) || 200));
 
-  const transactions = await prisma.transaction.findMany({
+  const transactions = await prisma.walletTransaction.findMany({
     where: { userId: auth.userId },
     orderBy: { createdAt: "desc" },
     take: limit,

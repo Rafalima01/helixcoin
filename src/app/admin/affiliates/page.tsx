@@ -1,111 +1,76 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 import {
   PageHeader,
   DataTable,
   FilterBar,
+  FilterChips,
   StatusBadge,
-  KpiGrid,
+  Drawer,
+  DetailRow,
   type TableColumn,
 } from "@/components/admin/ui";
-import { AdminServices } from "@/lib/admin/services";
-import { useAdminData } from "@/lib/admin/use-admin-data";
-import type { AffiliateRowDTO } from "@/lib/admin/types";
-import { formatCurrency } from "@/lib/utils";
+import { AffiliateApplicationsAdminApi, ManagersAdminApi, ApiError, type AffiliateDecisionAction } from "@/lib/admin/affiliate-api";
+import type { AffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
 
-const KPIS = [
-  { id: "actives", label: "Afiliados ativos", value: "128", delta: "+6", trend: "up" as const },
-  {
-    id: "network",
-    label: "Jogadores na rede",
-    value: "2.860",
-    delta: "+4,2%",
-    trend: "up" as const,
-  },
-  { id: "cpa", label: "CPA pago (mês)", value: "R$ 214.300", delta: "+9%", trend: "up" as const },
-  {
-    id: "rev",
-    label: "RevShare pago (mês)",
-    value: "R$ 388.120",
-    delta: "+7%",
-    trend: "up" as const,
-  },
-];
+function formatDate(iso: string | null) {
+  return iso ? new Date(iso).toLocaleString("pt-BR") : "—";
+}
+
+const STATUS: Record<string, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
+  PENDING: { label: "Pendente", tone: "warning" },
+  APPROVED: { label: "Aprovado", tone: "success" },
+  REJECTED: { label: "Recusado", tone: "danger" },
+  BLOCKED: { label: "Bloqueado", tone: "danger" },
+  DOCUMENTS_REQUESTED: { label: "Documentos pendentes", tone: "info" },
+};
 
 export default function AdminAffiliatesPage() {
-  const { data, loading } = useAdminData(AdminServices.affiliates);
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
-    if (!search) return data ?? [];
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "affiliate", "applications", status],
+    queryFn: () => AffiliateApplicationsAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
+  });
+
+  const rows = (data?.data ?? []).filter((a) => {
+    if (!search) return true;
     const q = search.toLowerCase();
-    return (data ?? []).filter(
-      (a) => a.name.toLowerCase().includes(q) || a.code.toLowerCase().includes(q)
-    );
-  }, [data, search]);
+    return a.userName.toLowerCase().includes(q) || a.userEmail.toLowerCase().includes(q);
+  });
 
-  const columns: TableColumn<AffiliateRowDTO>[] = [
+  const columns: TableColumn<AffiliateProfileAdminDto>[] = [
     {
-      key: "name",
+      key: "status",
+      header: "Status",
+      render: (a) => <StatusBadge tone={STATUS[a.status]?.tone ?? "neutral"}>{STATUS[a.status]?.label ?? a.status}</StatusBadge>,
+    },
+    {
+      key: "user",
       header: "Afiliado",
       render: (a) => (
         <div className="min-w-0">
-          <p className="font-semibold truncate">{a.name}</p>
-          <code className="text-xs text-purple">{a.code}</code>
+          <p className="font-semibold truncate">{a.userName}</p>
+          <p className="text-xs text-text-muted truncate">{a.userEmail}</p>
         </div>
       ),
     },
     {
-      key: "network",
-      header: "Rede",
-      align: "right",
-      render: (a) => <span className="tabular-nums">{a.network.toLocaleString("pt-BR")}</span>,
+      key: "manager",
+      header: "Gerente",
+      render: (a) => <span className="text-text-secondary">{a.managerName ?? "—"}</span>,
     },
     {
-      key: "dep",
-      header: "Depositantes",
+      key: "requestedAt",
+      header: "Solicitado",
       align: "right",
-      render: (a) => <span className="tabular-nums">{a.depositors.toLocaleString("pt-BR")}</span>,
-    },
-    {
-      key: "vol",
-      header: "Volume gerado",
-      align: "right",
-      render: (a) => (
-        <span className="tabular-nums text-text-secondary">{formatCurrency(a.volume)}</span>
-      ),
-    },
-    {
-      key: "cpa",
-      header: "CPA",
-      align: "right",
-      render: (a) => <span className="tabular-nums">{formatCurrency(a.cpa)}</span>,
-    },
-    {
-      key: "rev",
-      header: "RevShare",
-      align: "right",
-      render: (a) => <span className="tabular-nums">{formatCurrency(a.revshare)}</span>,
-    },
-    {
-      key: "com",
-      header: "Comissão total",
-      align: "right",
-      render: (a) => (
-        <span className="font-semibold tabular-nums text-green">
-          {formatCurrency(a.commission)}
-        </span>
-      ),
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (a) => (
-        <StatusBadge tone={a.status === "active" ? "success" : "neutral"}>
-          {a.status === "active" ? "Ativo" : "Pausado"}
-        </StatusBadge>
-      ),
+      render: (a) => <span className="text-xs text-text-muted tabular-nums">{formatDate(a.requestedAt)}</span>,
     },
   ];
 
@@ -113,11 +78,166 @@ export default function AdminAffiliatesPage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Afiliados"
-        description="Programa multinível (3 níveis), CPA e RevShare. Percentuais são definidos nas Configurações e aplicados pelo Backend."
+        description="Cadastros, aprovações e vínculo com gerentes — dados reais via src/modules/affiliate."
       />
-      <KpiGrid kpis={KPIS} />
-      <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por nome ou código..." />
-      <DataTable columns={columns} rows={rows} loading={loading} />
+      <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por nome ou email...">
+        <FilterChips
+          value={status}
+          onChange={setStatus}
+          options={[
+            { value: "all", label: "Todos" },
+            { value: "PENDING", label: "Pendentes" },
+            { value: "APPROVED", label: "Aprovados" },
+            { value: "REJECTED", label: "Recusados" },
+            { value: "BLOCKED", label: "Bloqueados" },
+          ]}
+        />
+      </FilterBar>
+      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} onRowClick={(a) => setSelectedId(a.id)} />
+
+      {selectedId && <AffiliateDrawer id={selectedId} onClose={() => setSelectedId(null)} />}
     </div>
+  );
+}
+
+function AffiliateDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [deciding, setDeciding] = useState<AffiliateDecisionAction | null>(null);
+  const [reason, setReason] = useState("");
+  const [managerId, setManagerId] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "affiliate", "application", id],
+    queryFn: () => AffiliateApplicationsAdminApi.get(id),
+  });
+  const affiliate = data?.data;
+
+  const { data: managersData } = useQuery({
+    queryKey: ["admin", "manager", "list-for-assign"],
+    queryFn: () => ManagersAdminApi.list({ page: 1, pageSize: 100 }),
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin", "affiliate", "application", id] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "affiliate", "applications"] });
+  };
+
+  const decide = useMutation({
+    mutationFn: (input: { action: AffiliateDecisionAction; reason?: string }) =>
+      AffiliateApplicationsAdminApi.decide(id, input.action, input.reason),
+    onSuccess: () => {
+      toast.success("Decisão aplicada");
+      setDeciding(null);
+      setReason("");
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao processar decisão"),
+  });
+
+  const assignManager = useMutation({
+    mutationFn: (mid: string | null) => AffiliateApplicationsAdminApi.assignManager(id, mid),
+    onSuccess: () => {
+      toast.success("Gerente atualizado");
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao atribuir gerente"),
+  });
+
+  const needsReason = deciding === "REJECT" || deciding === "BLOCK" || deciding === "REQUEST_DOCUMENTS";
+  const canDecide = affiliate && (affiliate.status !== "APPROVED" || deciding === "BLOCK");
+
+  return (
+    <Drawer open onClose={onClose} title={affiliate ? "Afiliado" : "Carregando..."}>
+      {isLoading || !affiliate ? (
+        <p className="text-sm text-text-muted">Carregando...</p>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <div>
+            <DetailRow label="ID" value={<code className="text-xs">{affiliate.id}</code>} />
+            <DetailRow label="Status" value={<StatusBadge tone={STATUS[affiliate.status]?.tone ?? "neutral"}>{STATUS[affiliate.status]?.label ?? affiliate.status}</StatusBadge>} />
+            <DetailRow label="Nome" value={affiliate.userName} />
+            <DetailRow label="Email" value={affiliate.userEmail} />
+            <DetailRow label="Gerente" value={affiliate.managerName ?? "—"} />
+            <DetailRow label="Solicitado em" value={formatDate(affiliate.requestedAt)} />
+            <DetailRow label="Aprovado em" value={formatDate(affiliate.approvedAt)} />
+            {affiliate.rejectionReason && <DetailRow label="Motivo da recusa" value={affiliate.rejectionReason} />}
+            {affiliate.blockedReason && <DetailRow label="Motivo do bloqueio" value={affiliate.blockedReason} />}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-text-secondary">Atribuir gerente</label>
+            <div className="flex gap-2">
+              <select
+                value={managerId}
+                onChange={(e) => setManagerId(e.target.value)}
+                className="flex-1 rounded-xl border border-border bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-purple/60"
+              >
+                <option value="">Nenhum</option>
+                {(managersData?.data ?? []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.userName} ({m.inviteCode})
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={assignManager.isPending}
+                onClick={() => assignManager.mutate(managerId || null)}
+              >
+                Atribuir
+              </Button>
+            </div>
+          </div>
+
+          {canDecide && !deciding && (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="success" size="sm" onClick={() => decide.mutate({ action: "APPROVE" })} loading={decide.isPending}>
+                Aprovar
+              </Button>
+              <Button variant="ghost" size="sm" className="border border-border" onClick={() => setDeciding("REJECT")}>
+                Recusar
+              </Button>
+              <Button variant="ghost" size="sm" className="border border-border" onClick={() => setDeciding("REQUEST_DOCUMENTS")}>
+                Pedir documentos
+              </Button>
+              {affiliate.status === "APPROVED" && (
+                <Button variant="danger" size="sm" onClick={() => setDeciding("BLOCK")}>
+                  Bloquear
+                </Button>
+              )}
+            </div>
+          )}
+
+          {needsReason && (
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-text-secondary">Motivo</label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                placeholder="Descreva o motivo"
+                className="w-full rounded-xl border border-border bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-purple/60"
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={decide.isPending}
+                  disabled={reason.trim().length < 3}
+                  onClick={() => decide.mutate({ action: deciding!, reason: reason.trim() })}
+                  className="flex-1"
+                >
+                  Confirmar
+                </Button>
+                <Button variant="ghost" size="sm" className="border border-border" onClick={() => setDeciding(null)}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   );
 }

@@ -18,6 +18,7 @@ import {
 } from "@/modules/identity/constants/identity.constants";
 import { ValidationError } from "@/server/errors";
 import { identityContainer } from "@/modules/identity/container";
+import { affiliateContainer } from "@/modules/affiliate/container";
 
 const { authService, userManagementService } = identityContainer;
 
@@ -25,9 +26,19 @@ export async function handleRegister(req: NextRequest) {
   const body = registerSchema.parse(await req.json());
   const meta = extractRequestMeta(req);
 
+  // Cross-module resolution happens here (the HTTP boundary), not inside
+  // AuthService — see auth.service.ts's register() doc comment. A bad/
+  // paused/missing slug just means no analytics tag, never blocks signup.
+  let affiliateLinkId: string | null = null;
+  if (body.affiliateLinkSlug) {
+    const link = await affiliateContainer.affiliateLinkService.findActiveBySlug(body.affiliateLinkSlug);
+    if (link) affiliateLinkId = link.id;
+  }
+
   const user = await authService.register(
     { ...body, referralCode: body.referralCode || undefined },
-    meta
+    meta,
+    affiliateLinkId
   );
 
   return created({ user: toUserResponseDto(user) });

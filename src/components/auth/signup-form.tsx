@@ -33,6 +33,7 @@ export function SignupForm() {
     resolver: zodResolver(signupFormSchema),
     defaultValues: {
       referralCode: searchParams.get("ref") ?? "",
+      affiliateLinkSlug: searchParams.get("l") ?? "",
       terms: false,
     },
   });
@@ -50,6 +51,7 @@ export function SignupForm() {
           email: data.email,
           password: data.password,
           referralCode: data.referralCode,
+          affiliateLinkSlug: data.affiliateLinkSlug,
         }),
       });
       const json = await res.json();

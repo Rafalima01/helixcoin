@@ -39,6 +39,7 @@ export class PrismaUserRepository implements IUserRepository {
         status: data.status ?? "PENDING",
         referralCode: data.referralCode,
         referredById: data.referredById ?? null,
+        affiliateLinkId: data.affiliateLinkId ?? null,
         wallet: { create: { balance: 0 } },
       },
     });

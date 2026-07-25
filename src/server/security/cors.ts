@@ -1,11 +1,18 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "@/server/config/env";
+import { PLAYER_URL, ADMIN_URL, MANAGER_URL } from "@/config/domains";
 import type { RouteHandler } from "@/server/http/handler";
 
-const allowedOrigins = env.CORS_ALLOWED_ORIGINS.split(",")
+// Explicit `CORS_ALLOWED_ORIGINS` wins when set (e.g. a deployment whose
+// real zone domains differ from PLAYER_URL/ADMIN_URL/MANAGER_URL, or a
+// fourth cross-origin consumer). Otherwise default to exactly the three
+// zone origins — see AGENTS.md "Fase Deploy" ("Permitir comunicação apenas
+// entre Player/Admin/Manager e API") — never "*".
+const configuredOrigins = env.CORS_ALLOWED_ORIGINS.split(",")
   .map((o) => o.trim())
   .filter(Boolean);
+const allowedOrigins = configuredOrigins.length > 0 ? configuredOrigins : [PLAYER_URL, ADMIN_URL, MANAGER_URL];
 
 function resolveOrigin(req: NextRequest): string | null {
   const origin = req.headers.get("origin");
@@ -22,9 +29,10 @@ function applyCorsHeaders(res: NextResponse, origin: string | null): void {
 
 /**
  * CORS for Route Handlers meant to be called cross-origin (mobile apps,
- * partner integrations) — same-origin requests from the Next.js app itself
- * never need this. `CORS_ALLOWED_ORIGINS` is empty by default (allowlist
- * nothing) until a real cross-origin consumer is identified.
+ * partner integrations, or a zone's client-side JS calling the API cross-
+ * origin) — same-origin requests from the Next.js app itself never need
+ * this. Allowlist defaults to the three zone origins (see `allowedOrigins`
+ * above); `CORS_ALLOWED_ORIGINS` overrides it. Never falls back to `*`.
  */
 export function withCors<Ctx = unknown>(handler: RouteHandler<Ctx>): RouteHandler<Ctx> {
   return async (req, ctx) => {

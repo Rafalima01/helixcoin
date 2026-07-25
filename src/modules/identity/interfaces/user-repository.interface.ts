@@ -12,6 +12,8 @@ export interface CreateUserRecord {
   status?: UserEntity["status"];
   referralCode: string;
   referredById?: string | null;
+  /** Phase 8 — analytics-only tag, see AffiliateLink's schema doc comment. Never used for attribution. */
+  affiliateLinkId?: string | null;
 }
 
 export type UpdateUserRecord = Partial<

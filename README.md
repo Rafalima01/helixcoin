@@ -9,12 +9,12 @@ tudo servido por uma única aplicação Next.js dividida em 3 domínios
 
 ## Visão geral
 
-- **Player** (`helixcoin.bet` / `player.localhost:3000` em dev) — o jogo:
+- **Player** (`helixcoin.fun` / `player.localhost:3000` em dev) — o jogo:
   cadastro, carteira, depósito/saque via PIX, partidas, indicações.
-- **Admin** (`admin.helixcoin.bet` / `admin.localhost:3000`) — backoffice:
+- **Admin** (`admin.helixcoin.fun` / `admin.localhost:3000`) — backoffice:
   usuários, RBAC, RTP/economia do jogo, financeiro, pagamentos, comercial
   (afiliados/gerentes), auditoria.
-- **Manager** (`manager.helixcoin.bet` / `manager.localhost:3000`) — portal
+- **Manager** (`manager.helixcoin.fun` / `manager.localhost:3000`) — portal
   comercial para gerentes acompanharem e aprovarem sua rede de afiliados.
 
 As três zonas são a **mesma aplicação Next.js** — a separação é feita por
@@ -84,7 +84,7 @@ Guias completos e específicos por provedor:
   CORS, CSP, CSRF, SEO, DNS, SSL, e configuração recomendada tanto para
   Vercel quanto para Hostinger/VPS, incluindo rolling deploy.
 - **[`HOSTINGER_DEPLOY.md`](HOSTINGER_DEPLOY.md)** — passo a passo
-  específico para publicar na Hostinger usando o domínio `helixcoin.bet`.
+  específico para publicar na Hostinger usando o domínio `helixcoin.fun`.
 - **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — fundação de backend: stack,
   layout de `src/server/*`, convenção de módulo, convenções de banco.
 

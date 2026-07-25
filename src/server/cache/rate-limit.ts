@@ -68,6 +68,8 @@ export const RateLimiters = {
   api: createRateLimiter({ prefix: "rl:api", windowSeconds: 60, max: 120 }),
   admin: createRateLimiter({ prefix: "rl:admin", windowSeconds: 60, max: 300 }),
   webhooks: createRateLimiter({ prefix: "rl:webhooks", windowSeconds: 60, max: 600 }),
+  /** src/modules/match-engine's /progress checkpoint — called every few seconds during active play, keyed by IP (see `identify` limitation noted at `withRateLimit`). */
+  matchProgress: createRateLimiter({ prefix: "rl:match-progress", windowSeconds: 10, max: 30 }),
 };
 
 /**

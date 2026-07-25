@@ -1,124 +1,144 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  PageHeader,
-  DataTable,
-  FilterBar,
-  FilterChips,
-  StatusBadge,
-  KpiGrid,
-  type TableColumn,
-} from "@/components/admin/ui";
-import { AdminServices } from "@/lib/admin/services";
-import { useAdminData } from "@/lib/admin/use-admin-data";
-import type { PaymentRowDTO, PaymentStatus } from "@/lib/admin/types";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
+import { DepositsAdminApi } from "@/lib/admin/payments-api";
+import type { DepositAdminDto } from "@/modules/payments/dto/payments.dto";
 import { formatCurrency } from "@/lib/utils";
 
-const PAYMENT_STATUS: Record<
-  PaymentStatus,
-  { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }
-> = {
-  completed: { label: "Concluído", tone: "success" },
-  pending: { label: "Pendente", tone: "warning" },
-  processing: { label: "Processando", tone: "info" },
-  failed: { label: "Falhou", tone: "danger" },
-  refunded: { label: "Estornado", tone: "neutral" },
+function formatCents(cents: number) {
+  return formatCurrency(cents / 100);
+}
+
+function formatDate(iso: string | null) {
+  return iso ? new Date(iso).toLocaleString("pt-BR") : "—";
+}
+
+const STATUS: Record<string, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
+  PENDING: { label: "Aguardando pagamento", tone: "warning" },
+  PROCESSING: { label: "Processando", tone: "info" },
+  PAID: { label: "Pago", tone: "success" },
+  FAILED: { label: "Falhou", tone: "danger" },
+  CANCELLED: { label: "Cancelado", tone: "neutral" },
+  REFUNDED: { label: "Estornado", tone: "neutral" },
+  EXPIRED: { label: "Expirado", tone: "danger" },
 };
 
-const KPIS = [
-  { id: "vol", label: "Volume (24h)", value: "R$ 842.310", delta: "+15,2%", trend: "up" as const },
-  { id: "count", label: "Transações (24h)", value: "6.481", delta: "+11%", trend: "up" as const },
-  {
-    id: "rate",
-    label: "Taxa de aprovação",
-    value: "96,4%",
-    delta: "-1,1 pp",
-    trend: "down" as const,
-  },
-  { id: "avg", label: "Ticket médio", value: "R$ 129,97", delta: "+3,2%", trend: "up" as const },
-];
-
 export default function AdminDepositsPage() {
-  const { data, loading } = useAdminData(AdminServices.deposits);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
-    let out = data ?? [];
-    if (status !== "all") out = out.filter((p) => p.status === status);
-    if (search) {
-      const q = search.toLowerCase();
-      out = out.filter((p) => p.userName.toLowerCase().includes(q) || p.id.includes(q));
-    }
-    return out;
-  }, [data, search, status]);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "payments", "deposits", status],
+    queryFn: () => DepositsAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
+  });
 
-  const columns: TableColumn<PaymentRowDTO>[] = [
+  const rows = (data?.data ?? []).filter((d) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return d.userName.toLowerCase().includes(q) || d.userEmail.toLowerCase().includes(q) || d.id.includes(q);
+  });
+
+  const columns: TableColumn<DepositAdminDto>[] = [
     {
-      key: "id",
-      header: "Transação",
-      render: (p) => <code className="text-xs text-text-secondary">{p.id}</code>,
+      key: "status",
+      header: "Status",
+      render: (d) => <StatusBadge tone={STATUS[d.status]?.tone ?? "neutral"}>{STATUS[d.status]?.label ?? d.status}</StatusBadge>,
     },
     {
       key: "user",
-      header: "Usuário",
-      render: (p) => <span className="font-medium">{p.userName}</span>,
-    },
-    {
-      key: "gateway",
-      header: "Gateway",
-      render: (p) => <span className="text-text-secondary">{p.gateway}</span>,
+      header: "Jogador",
+      render: (d) => (
+        <div className="min-w-0">
+          <p className="font-semibold truncate">{d.userName}</p>
+          <p className="text-xs text-text-muted truncate">{d.userEmail}</p>
+        </div>
+      ),
     },
     {
       key: "amount",
       header: "Valor",
       align: "right",
-      render: (p) => (
-        <span className="font-semibold tabular-nums text-green">{formatCurrency(p.amount)}</span>
-      ),
+      render: (d) => <span className="font-semibold tabular-nums text-green">{formatCents(d.amountCents)}</span>,
     },
     {
-      key: "status",
-      header: "Status",
-      render: (p) => (
-        <StatusBadge tone={PAYMENT_STATUS[p.status].tone}>
-          {PAYMENT_STATUS[p.status].label}
-        </StatusBadge>
-      ),
+      key: "gateway",
+      header: "Gateway",
+      render: (d) => <span className="text-text-secondary">{d.gatewayName}</span>,
     },
     {
-      key: "at",
-      header: "Data/Hora",
+      key: "transactionId",
+      header: "ID do provedor",
+      render: (d) => <code className="text-xs text-text-muted">{d.providerTransactionId ?? "—"}</code>,
+    },
+    {
+      key: "createdAt",
+      header: "Criado",
       align: "right",
-      render: (p) => <span className="text-xs text-text-muted tabular-nums">{p.createdAt}</span>,
+      render: (d) => <span className="text-xs text-text-muted tabular-nums">{formatDate(d.createdAt)}</span>,
+    },
+    {
+      key: "confirmedAt",
+      header: "Confirmado",
+      align: "right",
+      render: (d) => <span className="text-xs text-text-muted tabular-nums">{formatDate(d.confirmedAt)}</span>,
     },
   ];
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Depósitos"
-        description="Monitoramento de entradas via PIX em todos os gateways."
-      />
-      <KpiGrid kpis={KPIS} />
-      <FilterBar
-        search={search}
-        onSearch={setSearch}
-        placeholder="Buscar por usuário ou transação..."
-      >
+      <PageHeader title="Depósitos" description="Monitoramento de entradas via PIX em todos os gateways — dados reais via src/modules/payments." />
+      <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por jogador, email ou ID...">
         <FilterChips
           value={status}
           onChange={setStatus}
           options={[
             { value: "all", label: "Todos" },
-            { value: "completed", label: "Concluídos" },
-            { value: "pending", label: "Pendentes" },
-            { value: "failed", label: "Falhas" },
+            { value: "PENDING", label: "Aguardando" },
+            { value: "PAID", label: "Pagos" },
+            { value: "FAILED", label: "Falhas" },
+            { value: "EXPIRED", label: "Expirados" },
           ]}
         />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={loading} pageSize={10} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} onRowClick={(d) => setSelectedId(d.id)} />
+
+      {selectedId && <DepositDrawer id={selectedId} onClose={() => setSelectedId(null)} />}
     </div>
+  );
+}
+
+function DepositDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "payments", "deposit", id],
+    queryFn: () => DepositsAdminApi.get(id),
+  });
+  const deposit = data?.data;
+
+  return (
+    <Drawer open onClose={onClose} title={deposit ? "Depósito" : "Carregando..."}>
+      {isLoading || !deposit ? (
+        <p className="text-sm text-text-muted">Carregando...</p>
+      ) : (
+        <div>
+          <DetailRow label="ID" value={<code className="text-xs">{deposit.id}</code>} />
+          <DetailRow label="Status" value={<StatusBadge tone={STATUS[deposit.status]?.tone ?? "neutral"}>{STATUS[deposit.status]?.label ?? deposit.status}</StatusBadge>} />
+          <DetailRow label="Jogador" value={`${deposit.userName} (${deposit.userEmail})`} />
+          <DetailRow label="Valor" value={<span className="text-green font-bold">{formatCents(deposit.amountCents)}</span>} />
+          <DetailRow label="Gateway" value={`${deposit.gatewayName} (${deposit.gatewayProvider})`} />
+          <DetailRow label="ID do provedor" value={<code className="text-xs">{deposit.providerTransactionId ?? "—"}</code>} />
+          <DetailRow label="Código PIX" value={<code className="text-[10px] break-all">{deposit.pixCode ?? "—"}</code>} />
+          <DetailRow label="Expira em" value={formatDate(deposit.expiresAt)} />
+          <DetailRow label="Criado em" value={formatDate(deposit.createdAt)} />
+          <DetailRow label="Confirmado em" value={formatDate(deposit.confirmedAt)} />
+          {deposit.failureReason && <DetailRow label="Motivo da falha" value={deposit.failureReason} />}
+          <p className="mt-4 text-[11px] text-text-muted">
+            Toda confirmação passa pelo webhook assinado do gateway → PaymentService → WalletService. Nenhum saldo é alterado diretamente.
+          </p>
+        </div>
+      )}
+    </Drawer>
   );
 }

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   }
 
   const [sums, wallet] = await Promise.all([
-    prisma.transaction.groupBy({
+    prisma.walletTransaction.groupBy({
       by: ["type"],
       where: { userId: auth.userId, status: "COMPLETED" },
       _sum: { amount: true },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Match } from "@prisma/client";
+import type { MatchSummaryDto } from "@/modules/match-engine/dto/match.dto";
 import {
   Gamepad2,
   Trophy,
@@ -72,7 +72,7 @@ function rangeFor(filter: FilterKey, from: string, to: string): [Date, Date] | n
   }
 }
 
-function duration(match: Match): string {
+function duration(match: MatchSummaryDto): string {
   if (!match.resolvedAt) return "—";
   const ms = new Date(match.resolvedAt).getTime() - new Date(match.createdAt).getTime();
   const s = Math.max(0, Math.round(ms / 1000));
@@ -104,7 +104,7 @@ function Field({
   );
 }
 
-function MatchCard({ match }: { match: Match }) {
+function MatchCard({ match }: { match: MatchSummaryDto }) {
   const won = match.status === "CASHED_OUT";
   const date = new Date(match.createdAt);
   const goalPct =
@@ -177,7 +177,7 @@ export function GameHistory() {
   const [to, setTo] = useState("");
 
   const matches = useMemo(() => {
-    const all = data?.matches ?? [];
+    const all = data ?? [];
     const range = rangeFor(filter, from, to);
     if (!range) return all;
     const [start, end] = range;

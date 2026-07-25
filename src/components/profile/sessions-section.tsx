@@ -14,26 +14,32 @@ function formatDate(iso: string) {
 
 function SessionRow({ session, onRevoke, revoking }: { session: SessionInfo; onRevoke: () => void; revoking: boolean }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-white/[0.02] px-4 py-3">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-border bg-white/[0.02] px-4 py-3">
       <div className="flex items-start gap-3 min-w-0">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-purple/15 text-purple">
           <Laptop className="size-4" />
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold truncate">
+          <p className="text-sm font-semibold break-words">
             {session.browser ?? "Navegador"} · {session.os ?? "SO desconhecido"}
-            {session.current && (
-              <span className="ml-2 rounded-full bg-green/15 border border-green/25 px-2 py-0.5 text-[10px] font-bold text-green">
-                Este dispositivo
-              </span>
-            )}
           </p>
+          {session.current && (
+            <span className="mt-1 inline-block rounded-full bg-green/15 border border-green/25 px-2 py-0.5 text-[10px] font-bold text-green">
+              Este dispositivo
+            </span>
+          )}
           <p className="text-xs text-text-muted truncate">{session.ip ?? "IP desconhecido"}</p>
           <p className="text-xs text-text-muted">Ativo em {formatDate(session.lastActivityAt)}</p>
         </div>
       </div>
       {!session.current && session.active && (
-        <Button variant="secondary" size="sm" loading={revoking} onClick={onRevoke}>
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={revoking}
+          onClick={onRevoke}
+          className="w-full sm:w-auto shrink-0"
+        >
           <MonitorX className="size-4" /> Encerrar
         </Button>
       )}
@@ -74,13 +80,19 @@ export function SessionsSection() {
 
   return (
     <Card className="p-6 flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="font-bold">Sessões ativas</p>
           <p className="text-xs text-text-secondary">Dispositivos conectados à sua conta.</p>
         </div>
         {otherActive.length > 0 && (
-          <Button variant="danger" size="sm" loading={revokeAll.isPending} onClick={handleRevokeAll}>
+          <Button
+            variant="danger"
+            size="sm"
+            loading={revokeAll.isPending}
+            onClick={handleRevokeAll}
+            className="w-full sm:w-auto shrink-0"
+          >
             <LogOut className="size-4" /> Sair de todos os outros
           </Button>
         )}

@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Users } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 
 export function OnlineWidget() {
@@ -17,21 +15,19 @@ export function OnlineWidget() {
   }, []);
 
   return (
-    <Card className="p-6 flex items-center gap-4">
-      <div className="relative flex size-12 items-center justify-center rounded-2xl bg-green/15 border border-green/25">
-        <Users className="size-5 text-green" />
+    <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-green/25 bg-green/10 px-3 py-1.5 text-xs font-semibold text-green">
+      <span className="relative flex size-1.5">
         <motion.span
-          className="absolute -top-1 -right-1 size-3 rounded-full bg-green"
-          animate={{ scale: [1, 1.3, 1] }}
+          className="absolute inline-flex size-full rounded-full bg-green"
+          animate={{ scale: [1, 1.8, 1], opacity: [1, 0, 1] }}
           transition={{ duration: 1.6, repeat: Infinity }}
         />
-      </div>
-      <div>
-        <p className="text-2xl font-extrabold tabular-nums">
-          <AnimatedNumber value={count} format={(v) => Math.round(v).toLocaleString("pt-BR")} />
-        </p>
-        <p className="text-xs text-text-secondary">jogadores online agora</p>
-      </div>
-    </Card>
+        <span className="relative inline-flex size-1.5 rounded-full bg-green" />
+      </span>
+      <span className="tabular-nums">
+        <AnimatedNumber value={count} format={(v) => Math.round(v).toLocaleString("pt-BR")} />
+      </span>
+      online agora
+    </div>
   );
 }

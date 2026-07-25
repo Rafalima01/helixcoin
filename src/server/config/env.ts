@@ -60,6 +60,28 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
 
   FEATURE_FLAGS: z.string().optional().default(""),
+
+  /**
+   * Zone base URLs (src/proxy.ts's host-based routing, src/config/domains.ts)
+   * — public on purpose, see AGENTS.md "Fase Deploy: Domínios/Subdomínios/
+   * Produção". Declared and Zod-validated here so a malformed URL fails the
+   * boot fast; application code should import the parsed values from
+   * `@/config/domains` instead (that module also works client-side, this
+   * one doesn't).
+   */
+  NEXT_PUBLIC_PLAYER_URL: z.string().url().default("http://player.localhost:3000"),
+  NEXT_PUBLIC_ADMIN_URL: z.string().url().default("http://admin.localhost:3000"),
+  NEXT_PUBLIC_MANAGER_URL: z.string().url().default("http://manager.localhost:3000"),
+  NEXT_PUBLIC_API_URL: z.string().url().default("http://api.localhost:3000"),
+
+  /**
+   * Auth cookie `Domain` attribute — empty (default) means host-only
+   * cookies, so a session from one zone is never sent to another. See
+   * src/config/domains.ts's `COOKIE_DOMAIN` doc comment for the full
+   * rationale. Deliberately NOT a `z.string().url()` — this is a bare
+   * hostname suffix like `.helixcoin.bet`, not a URL.
+   */
+  NEXT_PUBLIC_COOKIE_DOMAIN: z.string().optional().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;

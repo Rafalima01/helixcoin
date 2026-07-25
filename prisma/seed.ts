@@ -1,10 +1,20 @@
 import { PrismaClient, Prisma, type Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes, createHash } from "node:crypto";
+
+/** Seed-only stand-ins for src/modules/match-engine's real generators (Phase 5). */
+function seedMatchNumber(): string {
+  return `HJ-${randomBytes(4).toString("hex").toUpperCase()}`;
+}
+function seedTokenHash(): string {
+  return createHash("sha256").update(randomBytes(24)).digest("hex");
+}
 import {
   buildDefaultGeneral,
   buildDefaultModes,
   buildDefaultAntiCheat,
 } from "@/modules/game-config/utils/config-defaults.util";
+import { encrypt } from "@/server/security/crypto-utils";
 
 const prisma = new PrismaClient();
 
@@ -51,13 +61,30 @@ const PERMISSIONS = [
   { key: "audit.read", description: "Visualizar trilha de auditoria" },
   { key: "wallet.read", description: "Visualizar carteiras" },
   { key: "wallet.update", description: "Ajustar carteiras" },
+  { key: "ledger.read", description: "Visualizar livro-razão (ledger)" },
   { key: "game.manage", description: "Gerenciar configurações do jogo" },
   { key: "rtp.manage", description: "Gerenciar RTP" },
+  { key: "matches.read", description: "Visualizar partidas" },
   { key: "affiliate.read", description: "Visualizar afiliados" },
   { key: "affiliate.update", description: "Editar afiliados" },
   { key: "settings.manage", description: "Gerenciar configurações da plataforma" },
   { key: "finance.read", description: "Visualizar dados financeiros" },
   { key: "reports.export", description: "Exportar relatórios" },
+  { key: "payments.deposits.read", description: "Visualizar depósitos" },
+  { key: "payments.withdrawals.read", description: "Visualizar saques" },
+  { key: "payments.withdrawals.approve", description: "Aprovar/rejeitar saques" },
+  { key: "payments.gateways.read", description: "Visualizar gateways de pagamento" },
+  { key: "payments.gateways.manage", description: "Gerenciar gateways de pagamento" },
+  { key: "payments.webhooks.read", description: "Visualizar webhooks de pagamento" },
+  { key: "payments.webhooks.manage", description: "Reprocessar webhooks de pagamento" },
+  { key: "payments.logs.read", description: "Visualizar logs de gateway" },
+  { key: "affiliate.applications.read", description: "Visualizar solicitações de afiliados" },
+  { key: "affiliate.applications.approve", description: "Aprovar/rejeitar/bloquear afiliados" },
+  { key: "affiliate.commissions.read", description: "Visualizar comissões de afiliados" },
+  { key: "affiliate.commissions.approve", description: "Aprovar/rejeitar comissões de afiliados" },
+  { key: "affiliate.settings.manage", description: "Gerenciar configurações comerciais (CPA/RevShare/níveis)" },
+  { key: "manager.read", description: "Visualizar gerentes" },
+  { key: "manager.manage", description: "Criar/editar gerentes" },
 ] as const;
 
 /** Default role → permission grants. SUPER_ADMIN bypasses this entirely at runtime (see server/auth/rbac.ts) — listed here only so the backoffice's Permissions screen shows it as "all". */
@@ -74,22 +101,115 @@ const ROLE_GRANTS: Record<Role, readonly (typeof PERMISSIONS)[number]["key"][]> 
     "permissions.read",
     "audit.read",
     "wallet.read",
+    "ledger.read",
     "game.manage",
     "rtp.manage",
     "affiliate.read",
     "affiliate.update",
     "settings.manage",
     "reports.export",
+    "matches.read",
+    "payments.deposits.read",
+    "payments.withdrawals.read",
+    "payments.withdrawals.approve",
+    "payments.gateways.read",
+    "payments.gateways.manage",
+    "payments.webhooks.read",
+    "payments.webhooks.manage",
+    "payments.logs.read",
+    "affiliate.applications.read",
+    "affiliate.applications.approve",
+    "affiliate.commissions.read",
+    "affiliate.commissions.approve",
+    "affiliate.settings.manage",
+    "manager.read",
+    "manager.manage",
   ],
-  FINANCE: ["wallet.read", "wallet.update", "finance.read", "reports.export", "audit.read"],
-  OPERATOR: ["game.manage", "rtp.manage", "wallet.read"],
+  FINANCE: [
+    "wallet.read",
+    "wallet.update",
+    "ledger.read",
+    "finance.read",
+    "reports.export",
+    "audit.read",
+    "payments.deposits.read",
+    "payments.withdrawals.read",
+    "payments.withdrawals.approve",
+  ],
+  OPERATOR: ["game.manage", "rtp.manage", "wallet.read", "matches.read"],
   MODERATOR: ["users.read", "users.block", "sessions.read", "sessions.revoke"],
   SUPPORT: ["users.read", "sessions.read", "sessions.revoke"],
-  COMPLIANCE: ["users.read", "audit.read", "reports.export", "finance.read"],
-  AUDIT: ["audit.read", "users.read", "reports.export"],
+  COMPLIANCE: [
+    "users.read",
+    "audit.read",
+    "reports.export",
+    "finance.read",
+    "matches.read",
+    "ledger.read",
+    "payments.deposits.read",
+    "payments.withdrawals.read",
+    "payments.gateways.read",
+    "payments.webhooks.read",
+    "payments.logs.read",
+    "affiliate.applications.read",
+    "affiliate.commissions.read",
+    "manager.read",
+  ],
+  AUDIT: [
+    "audit.read",
+    "users.read",
+    "reports.export",
+    "matches.read",
+    "ledger.read",
+    "payments.deposits.read",
+    "payments.withdrawals.read",
+    "payments.gateways.read",
+    "payments.webhooks.read",
+    "payments.logs.read",
+    "affiliate.applications.read",
+    "affiliate.commissions.read",
+    "manager.read",
+  ],
   USER: [],
   AFFILIATE: ["affiliate.read"],
+  // Manager's own portal (src/modules/manager) guards routes by role==="MANAGER"
+  // directly, not the PermissionService catalog — managers have no
+  // staff/backoffice permission grants of their own (see AGENTS.md Phase 8
+  // decision: zero financial/platform visibility).
+  MANAGER: [],
 };
+
+/**
+ * Bootstraps one active MOCK gateway credential + the global PaymentSettings
+ * row pointing at it — without this, PaymentService.withFailover has no
+ * routable candidate and every deposit/withdraw fails immediately. Real
+ * gateways are registered later through the admin Gateways screen; this is
+ * only what's needed for the Mock demo flow to work out of the box.
+ * Idempotent — skipped if a MOCK credential already exists.
+ */
+async function seedDefaultMockGateway(createdById: string) {
+  const existing = await prisma.gatewayCredential.findFirst({ where: { provider: "MOCK" } });
+  const credential =
+    existing ??
+    (await prisma.gatewayCredential.create({
+      data: {
+        name: "Mock Gateway (dev)",
+        provider: "MOCK",
+        mode: "SANDBOX",
+        active: true,
+        priority: 0,
+        credentialsEncrypted: encrypt("{}"),
+        webhookSecretEncrypted: encrypt("dev-mock-webhook-secret"),
+        createdById,
+      },
+    }));
+
+  await prisma.paymentSettings.upsert({
+    where: { id: "global" },
+    update: { defaultGatewayCredentialId: credential.id },
+    create: { id: "global", defaultGatewayCredentialId: credential.id },
+  });
+}
 
 async function seedPermissions() {
   const byKey = new Map<string, string>();
@@ -194,6 +314,7 @@ async function main() {
   });
 
   await seedGameEconomyConfig(adminUser.id);
+  await seedDefaultMockGateway(adminUser.id);
 
   const existingMatches = await prisma.match.count({ where: { userId: demoUser.id } });
   if (existingMatches === 0) {
@@ -201,7 +322,11 @@ async function main() {
       data: [
         {
           userId: demoUser.id,
+          matchNumber: seedMatchNumber(),
+          tokenHash: seedTokenHash(),
           betAmount: 1000,
+          goalAmount: 5000,
+          balanceBefore: 0,
           status: "CASHED_OUT",
           platformsPassed: 14,
           multiplier: 3.1,
@@ -211,7 +336,11 @@ async function main() {
         },
         {
           userId: demoUser.id,
+          matchNumber: seedMatchNumber(),
+          tokenHash: seedTokenHash(),
           betAmount: 500,
+          goalAmount: 2500,
+          balanceBefore: 0,
           status: "LOST",
           platformsPassed: 6,
           multiplier: 1.7,
@@ -221,7 +350,11 @@ async function main() {
         },
         {
           userId: demoUser.id,
+          matchNumber: seedMatchNumber(),
+          tokenHash: seedTokenHash(),
           betAmount: 2000,
+          goalAmount: 10000,
+          balanceBefore: 0,
           status: "CASHED_OUT",
           platformsPassed: 32,
           multiplier: 8.4,

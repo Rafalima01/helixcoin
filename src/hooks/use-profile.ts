@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { Transaction, Match } from "@prisma/client";
+import type { WalletTransaction } from "@prisma/client";
+import type { MatchSummaryDto } from "@/modules/match-engine/dto/match.dto";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -33,54 +34,15 @@ export function useAccountStats() {
 export function useTransactionsList() {
   return useQuery({
     queryKey: ["transactions"],
-    queryFn: () => fetchJson<{ transactions: Transaction[] }>("/api/transactions"),
+    queryFn: () => fetchJson<{ transactions: WalletTransaction[] }>("/api/transactions"),
   });
 }
 
+/** /api/matches (src/modules/match-engine) returns the standard `{ data }` envelope, unlike this file's other legacy routes. */
 export function useMatchesList() {
   return useQuery({
     queryKey: ["matches-history"],
-    queryFn: () => fetchJson<{ matches: Match[] }>("/api/matches"),
-  });
-}
-
-export interface NetworkNode {
-  id: string;
-  name: string;
-  level: 1 | 2 | 3;
-  createdAt: string;
-  active: boolean;
-  deposited: boolean;
-  depositCount: number;
-  commissionCents: number;
-  children: NetworkNode[];
-}
-
-export interface ReferralLevel {
-  level: number;
-  ratePct: number;
-  invited: number;
-  depositors: number;
-  commissionCents: number;
-}
-
-export interface ReferralStats {
-  referralCode: string;
-  linkPath: string;
-  levels: ReferralLevel[];
-  tree: NetworkNode[];
-  totals: {
-    invited: number;
-    networkSize: number;
-    depositors: number;
-    commissionCents: number;
-  };
-}
-
-export function useReferralStats() {
-  return useQuery({
-    queryKey: ["referral-stats"],
-    queryFn: () => fetchJson<ReferralStats>("/api/referrals"),
+    queryFn: () => fetchJson<{ data: MatchSummaryDto[] }>("/api/matches").then((json) => json.data),
   });
 }
 

@@ -25,7 +25,7 @@ export default function AdminGamePage() {
         description="Meta, apostas, modos Demo/Normal/Hard, física, geração de plataformas e anti-cheat"
       >
         <Link
-          href="/admin/rtp"
+          href="/rtp"
           className="flex items-center gap-3 rounded-xl border border-purple/25 bg-purple/5 px-4 py-3.5 text-sm font-semibold text-purple transition-colors hover:bg-purple/10"
         >
           <Sliders className="size-4" /> Ir para o módulo RTP

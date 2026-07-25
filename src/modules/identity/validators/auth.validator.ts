@@ -20,6 +20,7 @@ export const registerSchema = z
     email: z.string().trim().toLowerCase().email("Email inválido"),
     password: passwordSchema,
     referralCode: z.string().trim().optional().or(z.literal("")),
+    affiliateLinkSlug: z.string().trim().optional().or(z.literal("")),
   })
   .strict();
 

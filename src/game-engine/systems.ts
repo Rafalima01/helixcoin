@@ -165,7 +165,7 @@ export function handleTouch(
   }
 
   body.setLinvel({ x: 0, y: bounce, z: 0 }, true);
-  store.registerTouch();
+  store.registerTouch(Math.abs(runtime.lastVy));
   AudioManager.impact();
   runtime.trauma = Math.min(1, runtime.trauma + CFG.trauma.bounce);
 

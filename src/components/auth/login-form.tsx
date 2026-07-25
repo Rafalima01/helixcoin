@@ -11,7 +11,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { loginSchema, type LoginInput } from "@/modules/identity/validators/auth.validator";
 
-export function LoginForm() {
+export function LoginForm({
+  showSignupLink = true,
+  fallbackPath = "/home",
+}: {
+  /** Admin/manager logins hide this — those roles are never self-registered. */
+  showSignupLink?: boolean;
+  /** Where to land when there's no `callbackUrl` (e.g. visiting /login directly instead of being redirected). */
+  fallbackPath?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +46,7 @@ export function LoginForm() {
     }
 
     toast.success("Bem-vindo de volta!");
-    router.push(searchParams.get("callbackUrl") ?? "/home");
+    router.push(searchParams.get("callbackUrl") ?? fallbackPath);
     router.refresh();
   };
 
@@ -86,15 +94,17 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-text-secondary">
-        Não tem conta?{" "}
-        <Link
-          href="/signup"
-          className="text-purple font-semibold hover:text-pink transition-colors"
-        >
-          Criar conta
-        </Link>
-      </p>
+      {showSignupLink && (
+        <p className="text-center text-sm text-text-secondary">
+          Não tem conta?{" "}
+          <Link
+            href="/signup"
+            className="text-purple font-semibold hover:text-pink transition-colors"
+          >
+            Criar conta
+          </Link>
+        </p>
+      )}
     </div>
   );
 }

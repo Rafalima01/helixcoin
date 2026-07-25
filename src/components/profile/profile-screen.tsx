@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { User, ShieldCheck, Monitor, Receipt, Gamepad2, Gift, ArrowRight, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
+import { User, ShieldCheck, Monitor, Receipt, Gamepad2, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWallet } from "@/hooks/use-wallet";
 import { AccountStats } from "@/components/profile/account-stats";
@@ -14,45 +12,64 @@ import { TransactionsList } from "@/components/profile/transactions-list";
 import { GameHistory } from "@/components/profile/game-history";
 import { cn } from "@/lib/utils";
 
-type TabKey = "conta" | "seguranca" | "sessoes" | "transacoes" | "historico" | "afiliados";
+type TabKey = "conta" | "seguranca" | "sessoes" | "transacoes" | "historico";
 
-const TABS: { key: TabKey; label: string; icon: typeof User }[] = [
+const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "conta", label: "Conta", icon: User },
   { key: "seguranca", label: "Segurança", icon: ShieldCheck },
   { key: "sessoes", label: "Sessões", icon: Monitor },
   { key: "transacoes", label: "Transações", icon: Receipt },
   { key: "historico", label: "Histórico de jogo", icon: Gamepad2 },
-  { key: "afiliados", label: "Afiliados", icon: Gift },
 ];
 
-function AffiliateCard() {
+/**
+ * Horizontally scrollable tab row that fades the edge whenever there's more
+ * to scroll to — a hard-cropped last tab gives no hint it's swipeable
+ * otherwise.
+ */
+function TabScroller({ tab, onChange }: { tab: TabKey; onChange: (key: TabKey) => void }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState({ left: false, right: true });
+
+  const updateFade = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    setFade({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  };
+
   return (
-    <Card
-      glow="purple"
-      className="p-6 md:p-8 bg-gradient-to-br from-purple/15 via-transparent to-pink/10"
-    >
-      <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple to-pink text-white">
-          <Gift className="size-6" />
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-lg mb-1 flex items-center gap-2">
-            Programa de Afiliados
-            <Sparkles className="size-4 text-warning" />
-          </p>
-          <p className="text-sm text-text-secondary leading-relaxed max-w-lg">
-            Convide amigos com seus links exclusivos de três níveis e receba comissões conforme eles
-            se tornam jogadores ativos e realizam depósitos.
-          </p>
-        </div>
-        <Link href="/referrals" className="shrink-0">
-          <Button variant="primary" size="lg">
-            Ir para Indicações
-            <ArrowRight className="size-4" />
-          </Button>
-        </Link>
+    <div className="relative -mx-4">
+      {fade.left && (
+        <div className="pointer-events-none absolute left-4 top-0 bottom-1 w-8 bg-gradient-to-r from-bg to-transparent z-10" />
+      )}
+      {fade.right && (
+        <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-bg to-transparent z-10" />
+      )}
+      <div
+        ref={scrollerRef}
+        onScroll={updateFade}
+        className="flex gap-2 overflow-x-auto pb-1 px-4 scrollbar-none"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            className={cn(
+              "flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all",
+              tab === t.key
+                ? "border-purple bg-purple/15 text-purple shadow-[0_0_18px_rgba(139,92,246,0.25)]"
+                : "border-border bg-white/[0.02] text-text-secondary hover:border-border-strong hover:text-white"
+            )}
+          >
+            <t.icon className="size-4" />
+            {t.label}
+          </button>
+        ))}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -102,24 +119,8 @@ export function ProfileScreen() {
         </div>
       </Card>
 
-      {/* Tab nav */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all",
-              tab === t.key
-                ? "border-purple bg-purple/15 text-purple shadow-[0_0_18px_rgba(139,92,246,0.25)]"
-                : "border-border bg-white/[0.02] text-text-secondary hover:border-border-strong hover:text-white"
-            )}
-          >
-            <t.icon className="size-4" />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Tab nav — scrolls on mobile; fades hint that there's more. */}
+      <TabScroller tab={tab} onChange={setTab} />
 
       {/* Tab content */}
       {tab === "conta" && <AccountStats />}
@@ -127,7 +128,6 @@ export function ProfileScreen() {
       {tab === "sessoes" && <SessionsSection />}
       {tab === "transacoes" && <TransactionsList />}
       {tab === "historico" && <GameHistory />}
-      {tab === "afiliados" && <AffiliateCard />}
     </div>
   );
 }

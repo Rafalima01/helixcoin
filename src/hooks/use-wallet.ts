@@ -1,11 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Transaction, Match } from "@prisma/client";
+import type { WalletTransaction, Match } from "@prisma/client";
 
 interface WalletResponse {
   balance: number;
-  recentTransactions: Transaction[];
+  recentTransactions: WalletTransaction[];
   recentMatches: Match[];
   user: {
     name: string;
@@ -17,6 +17,7 @@ interface WalletResponse {
   } | null;
 }
 
+/** GET /api/wallet stays on the plain bare-JSON shape (a read, never touched by the "route through WalletService" rule). */
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -25,6 +26,19 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Erro na requisição");
   return json as T;
+}
+
+/** Payments routes (src/modules/payments) go through createRouteHandler, which uses the standard `{ data }` / `{ error: { code, message } }` envelope — same as every other post-Phase-2 route. */
+async function envelopeFetch<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(json?.error?.message ?? "Erro na requisição");
+  }
+  return json.data as T;
 }
 
 export const WALLET_QUERY_KEY = ["wallet"];
@@ -36,33 +50,53 @@ export function useWallet() {
   });
 }
 
+export interface CreateDepositResult {
+  depositId: string;
+  pixCode: string;
+  qrCodeUrl: string | null;
+  expiresAt: string | null;
+  amountCents: number;
+  status: string;
+}
+
+/** POST /api/payments/deposits — the backend picks the gateway (routing/failover); the frontend never learns which one. */
 export function useCreateDeposit() {
   return useMutation({
     mutationFn: (amount: number) =>
-      fetchJson<{ transactionId: string; pixCode: string; amount: number }>("/api/wallet/deposit", {
+      envelopeFetch<CreateDepositResult>("/api/payments/deposits", {
         method: "POST",
         body: JSON.stringify({ amount }),
       }),
   });
 }
 
-export function useConfirmDeposit() {
+/** POST /api/payments/deposits/{id}/simulate — Mock-only demo action, replaces the old useConfirmDeposit. */
+export function useSimulateDepositPayment(depositId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (transactionId: string) =>
-      fetchJson<{ balance: number }>("/api/wallet/deposit/confirm", {
+    mutationFn: () => {
+      if (!depositId) throw new Error("Nenhum depósito em andamento");
+      return envelopeFetch<{ status: number }>(`/api/payments/deposits/${depositId}/simulate`, {
         method: "POST",
-        body: JSON.stringify({ transactionId }),
-      }),
+        body: JSON.stringify({ outcome: "PAID" }),
+      });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: WALLET_QUERY_KEY }),
   });
 }
 
+export interface RequestWithdrawResult {
+  withdrawId: string;
+  status: string;
+  amountCents: number;
+}
+
+/** POST /api/payments/withdrawals — funds are locked immediately; `status` is always "PENDING" here, never an assumed-final balance. */
 export function useWithdraw() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: { amount: number; pixKey: string }) =>
-      fetchJson<{ balance: number }>("/api/wallet/withdraw", {
+      envelopeFetch<RequestWithdrawResult>("/api/payments/withdrawals", {
         method: "POST",
         body: JSON.stringify(data),
       }),

@@ -1,22 +1,5 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getAuthContext } from "@/server/auth";
-import { prisma } from "@/lib/prisma";
+import { createRouteHandler } from "@/server/http";
+import { withAuth } from "@/server/auth";
+import { handleListMyMatches } from "@/modules/match-engine/controllers/match-engine.controller";
 
-export async function GET(req: NextRequest) {
-  const auth = await getAuthContext(req);
-  if (!auth) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const limit = Math.min(500, Math.max(1, Number(searchParams.get("limit")) || 200));
-
-  const matches = await prisma.match.findMany({
-    where: { userId: auth.userId, status: { not: "ACTIVE" } },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
-
-  return NextResponse.json({ matches });
-}
+export const GET = createRouteHandler(withAuth((req, _ctx, auth) => handleListMyMatches(req, auth)));

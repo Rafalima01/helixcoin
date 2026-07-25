@@ -46,7 +46,14 @@ export class AuthService {
     private readonly sessions: IUserSessionRepository
   ) {}
 
-  async register(input: RegisterInput, meta: RequestMeta): Promise<UserEntity> {
+  /**
+   * `affiliateLinkId` is resolved by the CALLER (auth.controller.ts), not
+   * here — this service stays interface-only (no direct Prisma access, no
+   * cross-module container imports), so cross-module orchestration
+   * (Phase 8's slug -> AffiliateLink.id lookup) happens at the HTTP
+   * boundary instead. Analytics-only, never used for attribution.
+   */
+  async register(input: RegisterInput, meta: RequestMeta, affiliateLinkId?: string | null): Promise<UserEntity> {
     if (await this.users.findByEmail(input.email)) {
       throw new ConflictError("Este email já está cadastrado");
     }
@@ -76,6 +83,7 @@ export class AuthService {
       passwordHash,
       referralCode,
       referredById,
+      affiliateLinkId: affiliateLinkId ?? null,
       status: "PENDING",
       role: "USER",
     });

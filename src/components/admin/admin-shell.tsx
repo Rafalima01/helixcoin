@@ -14,7 +14,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col">
-      <Link href="/admin" className="flex items-center gap-2.5 px-4 pt-5 pb-4" onClick={onNavigate}>
+      <Link href="/" className="flex items-center gap-2.5 px-4 pt-5 pb-4" onClick={onNavigate}>
         <Logo iconOnly />
         <div className="leading-tight">
           <p className="text-[15px] font-extrabold">

@@ -11,8 +11,11 @@ import { VictoryOverlay } from "@/components/game/victory-overlay";
 import { DefeatOverlay } from "@/components/game/defeat-overlay";
 import { useBetStore } from "@/store/bet-store";
 import { useGameStore } from "@/store/game-store";
-import { useStartMatch, useResolveMatch } from "@/hooks/use-match";
+import { useStartMatch, useResolveMatch, useBeginMatch, useReportMatchProgress } from "@/hooks/use-match";
 import { formatCurrency } from "@/lib/utils";
+
+/** How often the client checkpoints aggregate telemetry to the backend while a match is live. */
+const PROGRESS_REPORT_INTERVAL_MS = 5000;
 
 export function PlayScreen() {
   const router = useRouter();
@@ -20,6 +23,8 @@ export function PlayScreen() {
   const gameStatus = useGameStore((s) => s.status);
   const startMatch = useStartMatch();
   const resolveMatch = useResolveMatch();
+  const beginMatch = useBeginMatch();
+  const reportProgress = useReportMatchProgress();
   const [seed, setSeed] = useState<string | null>(null);
   const [engineParams, setEngineParams] = useState<Record<string, number | boolean> | undefined>(undefined);
   const [startError, setStartError] = useState<string | null>(null);
@@ -33,7 +38,7 @@ export function PlayScreen() {
   // mutation observer's state doesn't reliably settle across that). Awaiting
   // the promise directly and tracking success/failure in local state isn't
   // affected by that, since neither depends on the observer's lifecycle.
-  const beginMatch = useCallback(async () => {
+  const startNewMatch = useCallback(async () => {
     setSeed(null);
     setEngineParams(undefined);
     setStartError(null);
@@ -42,12 +47,15 @@ export function PlayScreen() {
       const data = await startMatch.mutateAsync(betAmount);
       useGameStore
         .getState()
-        .startMatch(data.matchId, data.betAmount, data.targetMultiplier, data.goalAmount);
+        .startMatch(data.matchId, data.token, data.betAmount, data.targetMultiplier, data.goalAmount);
       setEngineParams(data.engineParams);
       setSeed(data.seed);
+      // AWAITING_START → IN_PROGRESS — deliberately not awaited, doesn't block render.
+      beginMatch.mutate({ matchId: data.matchId, token: data.token });
     } catch (err) {
       setStartError(err instanceof Error ? err.message : "Não foi possível iniciar a partida.");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [betAmount, startMatch]);
 
   useEffect(() => {
@@ -55,26 +63,63 @@ export function PlayScreen() {
     // each extra call debits a real bet and leaks an ACTIVE match.
     if (began.current) return;
     began.current = true;
-    beginMatch();
+    startNewMatch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Periodic aggregate telemetry checkpoint while the match is live.
+  useEffect(() => {
+    if (gameStatus !== "playing") return;
+    const interval = window.setInterval(() => {
+      const { matchId, matchToken, platformsPassed, collisionCount, maxCombo, maxVerticalSpeed } =
+        useGameStore.getState();
+      if (!matchId || !matchToken) return;
+      reportProgress.mutate({
+        matchId,
+        token: matchToken,
+        platformsPassed,
+        collisionCount,
+        longestStreak: maxCombo,
+        maxVerticalSpeed,
+      });
+    }, PROGRESS_REPORT_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameStatus]);
+
   const handleDeath = useCallback(
     (platformsPassed: number) => {
-      const matchId = useGameStore.getState().matchId;
-      if (!matchId) return;
-      resolveMatch.mutate({ matchId, action: "loss", platformsPassed });
+      const { matchId, matchToken, collisionCount, maxCombo, maxVerticalSpeed } = useGameStore.getState();
+      if (!matchId || !matchToken) return;
+      resolveMatch.mutate({
+        matchId,
+        token: matchToken,
+        action: "loss",
+        platformsPassed,
+        collisionCount,
+        longestStreak: maxCombo,
+        maxVerticalSpeed,
+      });
     },
     [resolveMatch]
   );
 
   const handleCashout = () => {
-    const { matchId, platformsPassed, goalReached } = useGameStore.getState();
+    const { matchId, matchToken, platformsPassed, goalReached, collisionCount, maxCombo, maxVerticalSpeed } =
+      useGameStore.getState();
     // The server enforces this too — the guard just avoids a pointless request.
-    if (!matchId || !goalReached) return;
+    if (!matchId || !matchToken || !goalReached) return;
     useGameStore.getState().setResolving();
     resolveMatch.mutate(
-      { matchId, action: "cashout", platformsPassed },
+      {
+        matchId,
+        token: matchToken,
+        action: "cashout",
+        platformsPassed,
+        collisionCount,
+        longestStreak: maxCombo,
+        maxVerticalSpeed,
+      },
       {
         onSuccess: (data) => {
           useGameStore.getState().resolveWon(data.payout, data.multiplier);
@@ -88,7 +133,7 @@ export function PlayScreen() {
   };
 
   const handlePlayAgain = () => {
-    beginMatch();
+    startNewMatch();
   };
 
   if (startError) {
@@ -100,7 +145,7 @@ export function PlayScreen() {
           <Button variant="secondary" onClick={() => router.push("/home")}>
             Voltar
           </Button>
-          <Button variant="primary" onClick={beginMatch}>
+          <Button variant="primary" onClick={startNewMatch}>
             Tentar novamente
           </Button>
         </div>

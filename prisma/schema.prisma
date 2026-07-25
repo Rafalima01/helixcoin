@@ -23,8 +23,8 @@ datasource db {
 //   Every query against a soft-deletable model MUST filter `deletedAt: null`
 //   explicitly — Prisma has no global default-scope mechanism, so this is a
 //   repository-layer discipline (see modules/identity's UserRepository).
-// - Money: always integer cents (Int), never Float — see Transaction.amount,
-//   Wallet.balance, Match.betAmount/payout.
+// - Money: always integer cents (Int), never Float — see WalletTransaction.
+//   amount, Wallet.balance, Match.betAmount/payout.
 // ============================================================================
 
 /// Platform-wide game settings, controlled exclusively by the backend/admin.
@@ -138,31 +138,53 @@ model User {
   xp           Int     @default(0)
   level        Int     @default(1)
 
+  /// Phase 8 — which AffiliateLink (campaign-tagged variant of the referrer's
+  /// single referralCode) was used at signup, for analytics only. Never used
+  /// for attribution — `referredById` above is the one and only relationship
+  /// the commission engine walks.
+  affiliateLinkId String?
+  attributedLink  AffiliateLink? @relation(fields: [affiliateLinkId], references: [id])
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime? // soft delete — repositories must filter this explicitly
 
-  wallet                  Wallet?
-  matches                 Match[]
-  transactions            Transaction[]
-  createdGameConfigs      GameEconomyConfig[]
-  achievements            UserAchievement[]
-  notifications           Notification[]
-  sessions                Session[]
-  passwordResetTokens     PasswordResetToken[]
-  emailVerificationTokens EmailVerificationToken[]
-  mfaMethods              MfaMethod[]
-  mfaRecoveryCodes        MfaRecoveryCode[]
+  wallet                    Wallet?
+  matches                   Match[]
+  transactions              WalletTransaction[]
+  createdGameConfigs        GameEconomyConfig[]
+  achievements              UserAchievement[]
+  notifications             Notification[]
+  sessions                  Session[]
+  passwordResetTokens       PasswordResetToken[]
+  emailVerificationTokens   EmailVerificationToken[]
+  mfaMethods                MfaMethod[]
+  mfaRecoveryCodes          MfaRecoveryCode[]
+  deposits                  Deposit[]
+  withdraws                 Withdraw[]
+  gatewayCredentialsCreated GatewayCredential[]
+  managerProfile            ManagerProfile?
+  affiliateProfile          AffiliateProfile?
+  commissionsAsOrigin       Commission[]             @relation("CommissionOrigin")
+  commissionsAsPayee        Commission[]             @relation("CommissionPayee")
+  managerInvitesCreated     ManagerInvite[]          @relation("ManagerInviteCreatedBy")
+  managerInviteAccepted     ManagerInvite?           @relation("ManagerInviteAcceptedBy")
+  managerInvitesRevoked     ManagerInvite[]          @relation("ManagerInviteRevokedBy")
+  managerInvitesApproved    ManagerInvite[]          @relation("ManagerInviteApprovedBy")
+  managerInvitesRejected    ManagerInvite[]          @relation("ManagerInviteRejectedBy")
 
   @@index([referredById])
+  @@index([affiliateLinkId])
   @@index([status])
   @@index([role])
   @@index([deletedAt])
 }
 
 /// Staff/player RBAC roles. `USER` is the default for players; `AFFILIATE`
-/// is a player additionally enrolled in the affiliate program. The rest are
-/// staff/backoffice roles.
+/// is a player additionally enrolled in the affiliate program; `MANAGER`
+/// (Phase 8) oversees a set of affiliates but has zero financial/platform
+/// visibility (no Wallet/Ledger/Gateway access) — see src/modules/manager.
+/// The rest are staff/backoffice roles.
 enum Role {
   SUPER_ADMIN
   ADMIN
@@ -174,6 +196,7 @@ enum Role {
   AUDIT
   USER
   AFFILIATE
+  MANAGER
 }
 
 /// Permission catalog — independent of roles. A role is just a named group
@@ -295,19 +318,68 @@ model MfaRecoveryCode {
   @@index([userId])
 }
 
+// ============================================================================
+// Wallet + Ledger (Phase 6) — src/modules/wallet and src/modules/ledger are
+// the ONLY writers of Wallet/WalletTransaction/LedgerEntry. No endpoint or
+// other module may mutate a balance directly — every movement goes through
+// WalletService (credit/debit/lock/unlock/transfer/refund/adjust/reverse),
+// which always produces a matching double-entry LedgerEntry in the same DB
+// transaction as the balance change. See those modules' README/service
+// files for the account-code convention and idempotency/concurrency design.
+// ============================================================================
+
 model Wallet {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  balance   Int      @default(0)
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Saldo Principal — column name kept as `balance` (not renamed) to avoid
+  /// touching every pre-existing read call site; WalletService's public DTO
+  /// exposes this as `main`.
+  balance       Int @default(0)
+  /// Saldo Bloqueado — funds reserved (e.g. a withdrawal in flight) but not
+  /// spendable. Moved to/from `balance` exclusively via WalletService.lock/
+  /// unlock().
+  lockedBalance Int @default(0)
+  /// Saldo Bônus — separate bucket, not yet fed by any real flow this phase
+  /// (no automatic bonuses implemented), but modeled now so BONUS-type
+  /// transactions have somewhere real to land later.
+  bonusBalance  Int @default(0)
+
   updatedAt DateTime @updatedAt
+
+  transactions WalletTransaction[]
+}
+
+/// Which of the wallet's 3 buckets a given WalletTransaction moved.
+enum WalletAccount {
+  MAIN
+  LOCKED
+  BONUS
 }
 
 enum TransactionType {
-  DEPOSIT
-  WITHDRAW
   BET
+  BET_REFUND
   PAYOUT
+  DEPOSIT
+  DEPOSIT_PENDING
+  DEPOSIT_FAILED
+  WITHDRAW
+  WITHDRAW_PENDING
+  WITHDRAW_REJECTED
+  WITHDRAW_APPROVED
+  BONUS
+  CASHBACK
+  COMMISSION
+  ADJUSTMENT
+  REVERSAL
+  SYSTEM
+  MANUAL
+  TRANSFER
+  LOCK
+  UNLOCK
+  EXPIRATION
 }
 
 enum TransactionStatus {
@@ -316,42 +388,506 @@ enum TransactionStatus {
   FAILED
 }
 
-model Transaction {
-  id        String            @id @default(uuid())
-  userId    String
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      TransactionType
-  amount    Int
-  status    TransactionStatus @default(COMPLETED)
-  method    String?
-  pixKey    String?
-  matchId   String?
-  createdAt DateTime          @default(now())
+/// One row per wallet-side money movement. Every COMPLETED row that actually
+/// changed a balance has a matching LedgerEntry (via `ledgerId`) recording
+/// the double-entry pair — see LedgerEntry below. Rows that only register
+/// intent (DEPOSIT_PENDING/WITHDRAW_PENDING-as-lock) may have `ledgerId`
+/// null only when they genuinely moved no money; anything that touched a
+/// balance always has one.
+model WalletTransaction {
+  id       String @id @default(uuid())
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id])
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The double-entry pair for this movement (see LedgerEntry.transactionId
+  /// for the reverse pointer — that one is a plain string, not a relation,
+  /// to break the creation-order cycle; this FK is the real one, added once
+  /// the LedgerEntry already exists).
+  ledgerId    String?
+  ledgerEntry LedgerEntry? @relation(fields: [ledgerId], references: [id])
+
+  type    TransactionType
+  /// Which balance bucket this row moved — see WalletAccount.
+  account WalletAccount   @default(MAIN)
+  amount  Int
+
+  /// Bucket balance immediately before/after this row, for the `account`
+  /// bucket specifically — audit/display only, nullable for historical rows
+  /// migrated before this column existed.
+  balanceBefore Int?
+  balanceAfter  Int?
+
+  /// Where this movement originated — e.g. "match-engine", "wallet-api",
+  /// "admin".
+  origin   String
+  /// Origin-specific correlation id — e.g. a matchId, a pending-deposit id.
+  originId String?
+
+  description String?
+  status      TransactionStatus @default(COMPLETED)
+
+  /// Caller-supplied idempotency key. Unique when present (Postgres allows
+  /// multiple NULLs under a unique index) — replaying the same key always
+  /// returns the original row instead of moving money twice.
+  idempotencyKey String? @unique
+
+  /// Free-form context — e.g. { method: "PIX", pixKey } for deposits, or
+  /// { reason, observation, adminId } for manual adjustments.
+  metadata Json?
+
+  createdAt DateTime @default(now())
 
   @@index([userId, type])
+  @@index([walletId])
+  @@index([createdAt])
+  @@index([originId])
+}
+
+/// Double-entry ledger — append-only. No update/delete path is exposed
+/// anywhere in the codebase (LedgerService, src/modules/ledger, only ever
+/// exposes read methods). Every real balance movement produces exactly one
+/// row here (transfer() produces one row shared by both sides'
+/// WalletTransaction rows via their `ledgerId`).
+model LedgerEntry {
+  id String @id @default(uuid())
+
+  /// The WalletTransaction this entry belongs to. Plain string, not a
+  /// Prisma relation: this row is always inserted BEFORE its
+  /// WalletTransaction (both ids are pre-generated client-side), so the
+  /// referenced row doesn't exist yet at insert time. The real FK lives on
+  /// WalletTransaction.ledgerId, pointing back here.
+  transactionId String
+
+  /// Logical account codes — see src/modules/ledger/constants for the exact
+  /// convention (`WALLET:{userId}:MAIN|LOCKED|BONUS` for player wallets,
+  /// fixed system codes like `PLATFORM`/`BONUS_POOL`/`CASHBACK_POOL`/
+  /// `COMMISSION_POOL`/`ADJUSTMENT` otherwise). Plain strings rather than a
+  /// normalized Account table — deliberately minimal for the flows that are
+  /// real this phase.
+  debitAccount  String
+  creditAccount String
+
+  amount   Int
+  /// Plain string, not an enum — BRL only in practice this phase, but no
+  /// migration needed when a second currency lands.
+  currency String @default("BRL")
+
+  reference     String?
+  referenceType String?
+  description   String?
+
+  createdAt DateTime @default(now())
+
+  walletTransactions WalletTransaction[]
+
+  @@index([transactionId])
+  @@index([debitAccount])
+  @@index([creditAccount])
   @@index([createdAt])
 }
 
+// ============================================================================
+// Payments / Gateway (Phase 7) — src/modules/payments is the ONLY writer of
+// GatewayCredential/Deposit/Withdraw/PaymentWebhook/GatewayHealth/GatewayLog/
+// PaymentSettings. It never moves a balance itself — every confirmed deposit
+// or approved/rejected withdraw calls into WalletService (credit/debit/lock/
+// unlock), which is still the sole place a Wallet balance can change. See
+// that module's services/payment.service.ts for the settlement/idempotency
+// scheme and providers/ for the PaymentProvider abstraction gateways
+// implement (only MOCK is functional this phase).
+// ============================================================================
+
+enum GatewayProvider {
+  MOCK
+  CARTPANDA
+  CARTWAVEHUB
+  MERCADO_PAGO
+  PAY4FUN
+  BSPAY
+  PAY2M
+  OPENPIX
+  OUTROS
+}
+
+enum GatewayMode {
+  SANDBOX
+  PRODUCTION
+}
+
+enum RoutingMode {
+  SINGLE
+  ROUND_ROBIN
+  WEIGHTED
+  FAILOVER
+}
+
+enum DepositStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+  EXPIRED
+}
+
+enum WithdrawStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+  FAILED
+  CANCELLED
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  ERROR
+  REPROCESSED
+}
+
+enum GatewayHealthStatus {
+  ONLINE
+  DEGRADED
+  OFFLINE
+}
+
+enum PaymentRelatedType {
+  DEPOSIT
+  WITHDRAW
+}
+
+/// One registered gateway configuration. Multiple rows may share the same
+/// `provider` (e.g. two MOCK credentials with different `simulatedHealth`,
+/// used to exercise failover) — routing picks among `active` rows via
+/// PaymentSettings.routingMode. Credentials/webhook secrets are always
+/// AES-256-GCM encrypted at rest (src/server/security/crypto-utils) — never
+/// stored or logged in plain text.
+model GatewayCredential {
+  id       String          @id @default(uuid())
+  name     String
+  provider GatewayProvider
+  mode     GatewayMode     @default(SANDBOX)
+  active   Boolean         @default(false)
+
+  /// Failover order (lower = tried first) and weighted-routing share.
+  priority   Int @default(0)
+  weight     Int @default(1)
+  timeoutMs  Int @default(15000)
+  maxRetries Int @default(2)
+
+  /// AES-256-GCM ("iv:authTag:ciphertext") — provider-specific JSON blob.
+  /// For MOCK this is just "{}".
+  credentialsEncrypted   String
+  /// AES-256-GCM — the HMAC secret used to sign/verify this gateway's
+  /// webhooks.
+  webhookSecretEncrypted String
+
+  /// Mock-only test lever: forces provider.health() to report this status
+  /// regardless of real reachability, so the admin "Gateways" screen and the
+  /// failover browser test can force a candidate offline on demand. Null
+  /// means "report real health" (always ONLINE for Mock).
+  simulatedHealth GatewayHealthStatus?
+
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deposits           Deposit[]
+  withdraws          Withdraw[]
+  health             GatewayHealth[]
+  logs               GatewayLog[]
+  webhooks           PaymentWebhook[]
+  defaultForSettings PaymentSettings[]
+
+  @@index([provider])
+  @@index([active])
+}
+
+/// One PIX deposit charge. `id` is pre-generated client-side
+/// (crypto.randomUUID(), before the provider call) — same reasoning as
+/// Match.id — so it can be handed to provider.createPixDeposit() and later
+/// reused as WalletTransaction.originId once WalletService.credit() runs.
+/// PaymentService is the only writer; it never credits the wallet itself
+/// until a webhook confirms payment.
+model Deposit {
+  id String @id
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  gatewayCredentialId String
+  gatewayCredential   GatewayCredential @relation(fields: [gatewayCredentialId], references: [id])
+
+  amountCents Int
+  status      DepositStatus @default(PENDING)
+
+  /// The gateway's own charge id — webhooks key on this to find the row.
+  providerTransactionId String?   @unique
+  pixCode               String?
+  qrCodeUrl             String?
+  expiresAt             DateTime?
+
+  /// Set once WalletService.credit() actually runs for this deposit.
+  walletTransactionId String?   @unique
+  confirmedAt         DateTime?
+  failureReason       String?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([gatewayCredentialId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// One withdrawal request. Same client-side `id` pre-generation as Deposit.
+/// The requested amount is moved to the LOCKED bucket (WalletService.lock())
+/// the instant the request is accepted — before the gateway even
+/// acknowledges it — and only ever leaves LOCKED via an approve (debit) or
+/// reject/failure (unlock), never silently.
+model Withdraw {
+  id String @id
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  gatewayCredentialId String
+  gatewayCredential   GatewayCredential @relation(fields: [gatewayCredentialId], references: [id])
+
+  amountCents Int
+  status      WithdrawStatus @default(PENDING)
+
+  /// PIX key is personal data — encrypted like gateway credentials.
+  pixKeyEncrypted String
+  pixKeyType      String?
+
+  providerTransactionId String? @unique
+
+  /// The WalletTransaction that locked the funds at request time.
+  lockWalletTransactionId   String? @unique
+  /// The WalletTransaction that settled the request (debit on approve, or
+  /// null on reject — reject only unlocks, it never creates a settle row).
+  settleWalletTransactionId String? @unique
+
+  requestedAt     DateTime  @default(now())
+  processedAt     DateTime?
+  rejectionReason String?
+  failureReason   String?
+
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([gatewayCredentialId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// One row per inbound gateway webhook delivery. Points at the Deposit/
+/// Withdraw it settles via a discriminated (relatedType, relatedId) pair —
+/// same "plain correlation, not a real FK" convention as
+/// WalletTransaction.originId — rather than two nullable FK columns.
+/// Append-only except for the processing-result fields; a "reprocess" only
+/// re-runs settlement, it never rewrites `payload`.
+model PaymentWebhook {
+  id String @id @default(uuid())
+
+  gatewayCredentialId String
+  gatewayCredential   GatewayCredential @relation(fields: [gatewayCredentialId], references: [id])
+  /// Denormalized from gatewayCredential.provider for filterable queries
+  /// without a join.
+  provider            GatewayProvider
+
+  relatedType PaymentRelatedType
+  relatedId   String
+
+  /// e.g. "deposit.paid", "withdraw.approved".
+  eventType String
+  status    WebhookStatus @default(RECEIVED)
+
+  /// The gateway's own event id, when it supplies one — the primary
+  /// idempotency key. Falls back to payloadHash when absent.
+  providerEventId String? @unique
+  /// sha256Hex of the raw request body — fallback dedup key and a tamper
+  /// record even when providerEventId is present.
+  payloadHash     String
+  /// Full raw payload, for the admin viewer and reprocess.
+  payload         Json
+
+  responseStatus Int?
+  responseBody   Json?
+  signatureValid Boolean @default(false)
+  errorMessage   String?
+
+  receivedAt     DateTime  @default(now())
+  processedAt    DateTime?
+  reprocessedAt  DateTime?
+  reprocessCount Int       @default(0)
+  processingMs   Int?
+
+  @@index([gatewayCredentialId])
+  @@index([relatedType, relatedId])
+  @@index([payloadHash])
+  @@index([status])
+  @@index([receivedAt])
+}
+
+/// Append-only health-check history — one row per check, never mutated.
+/// GatewayRouterService reads the latest row per credential (findFirst
+/// orderBy checkedAt desc) to decide routing eligibility.
+model GatewayHealth {
+  id String @id @default(uuid())
+
+  gatewayCredentialId String
+  gatewayCredential   GatewayCredential @relation(fields: [gatewayCredentialId], references: [id])
+
+  status    GatewayHealthStatus
+  latencyMs Int?
+  message   String?
+  checkedAt DateTime            @default(now())
+
+  @@index([gatewayCredentialId, checkedAt])
+}
+
+/// One row per outbound provider call or inbound webhook — the admin "Logs
+/// de Pagamento" screen. `requestSummary`/`responseSummary` are always
+/// pre-sanitized at the call site (the logging helper only ever receives a
+/// credential's id/provider, never the row itself), so no code path can leak
+/// a secret into this table.
+model GatewayLog {
+  id String @id @default(uuid())
+
+  gatewayCredentialId String?
+  gatewayCredential   GatewayCredential? @relation(fields: [gatewayCredentialId], references: [id])
+  provider            GatewayProvider?
+
+  /// "outbound" (we called the gateway) or "inbound" (a webhook arrived).
+  direction String
+  endpoint  String
+  method    String?
+
+  requestSummary  Json?
+  responseSummary Json?
+  statusCode      Int?
+  durationMs      Int?
+  success         Boolean
+  errorMessage    String?
+
+  /// depositId / withdrawId / webhookId — whichever this call relates to.
+  correlationId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([gatewayCredentialId])
+  @@index([provider])
+  @@index([correlationId])
+  @@index([createdAt])
+  @@index([success])
+}
+
+/// Single global row (id "global"), same pattern as GameConfig — the
+/// frontend never reads this directly; PaymentService and the admin
+/// Gateways screen are its only consumers.
+model PaymentSettings {
+  id String @id @default("global")
+
+  defaultGatewayCredentialId String?
+  defaultGatewayCredential   GatewayCredential? @relation(fields: [defaultGatewayCredentialId], references: [id])
+  routingMode                RoutingMode        @default(SINGLE)
+
+  timeoutMs  Int @default(15000)
+  maxRetries Int @default(2)
+
+  pixExpirationMinutes Int @default(30)
+  depositMinCents      Int @default(500)
+  depositMaxCents      Int @default(1000000)
+  withdrawMinCents     Int @default(1000)
+  withdrawMaxCents     Int @default(1000000)
+
+  maxWebhookProcessingMs Int @default(5000)
+
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// Match Engine (Phase 5) — src/modules/match-engine is the ONLY writer of
+// Match/MatchEvent. See that module's utils/match-state-machine.ts for the
+// exact allowed transition table between these statuses.
+// ============================================================================
+
 enum MatchStatus {
-  ACTIVE
+  CREATED
+  AWAITING_START
+  IN_PROGRESS
+  GOAL_REACHED
+  CASHOUT_AVAILABLE
   CASHED_OUT
   LOST
+  CANCELLED
+  INVALIDATED
+}
+
+enum MatchEventType {
+  CREATED
+  STARTED
+  PROGRESSED
+  GOAL_REACHED
+  CASHOUT_REQUESTED
+  CASHOUT_APPROVED
+  CASHOUT_DENIED
+  COMPLETED
+  LOST
+  CANCELLED
+  INVALIDATED
 }
 
 model Match {
-  id               String      @id @default(uuid())
-  userId           String
-  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String @id @default(uuid())
+  /// Short, human-shareable, NON-sequential code (see match-number.util.ts) —
+  /// deliberately not an incrementing counter, per this schema's own
+  /// convention (see the file-level comment) of never leaking row count/order
+  /// through an identifier.
+  matchNumber String @unique
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   betAmount        Int
-  status           MatchStatus @default(ACTIVE)
+  status           MatchStatus @default(CREATED)
   platformsPassed  Int         @default(0)
   multiplier       Float       @default(1.0)
   /// Goal multiplier snapshotted from GameEconomyConfig at match start.
   /// Cashout is rejected server-side while the current multiplier is below
   /// this value.
   targetMultiplier Float       @default(5)
+  /// betAmount × targetMultiplier at creation time — the cents amount that
+  /// unlocks cashout.
+  goalAmount       Int
+  /// Live estimate of what a cashout right now would pay, updated on every
+  /// /progress checkpoint — display-only, the real payout is always
+  /// recomputed server-side from platformsPassed at resolve time.
+  potentialPayout  Int?
   payout           Int?
-  seed             String
+
+  /// Wallet.balance immediately before the bet was debited.
+  balanceBefore Int
+  /// Wallet.balance immediately after the match resolved (null while active).
+  balanceAfter  Int?
+
+  seed String
+
+  /// SHA-256 of the per-match token issued once at creation (same pattern as
+  /// PasswordResetToken.tokenHash) — required, alongside auth, on every
+  /// begin/progress/resolve call for this match.
+  tokenHash String @unique
 
   /// Difficulty mode resolved for this user at match start (see
   /// GameConfigService.resolveModeForUser).
@@ -359,20 +895,73 @@ model Match {
   /// GameEconomyConfig.version this match was generated from — lets a config
   /// change mid-flight never affect matches already in progress.
   configVersion     Int?
+  /// Named DIFFICULTY_PRESET (see src/modules/game-config) the mode profile
+  /// matched at creation time, or null if it was already a custom edit.
+  presetKey         String?
   /// Exact mode-profile payload (physics + generation params) applied to this
   /// match — the frontend engine's only source of truth, snapshotted so it
   /// stays reproducible/auditable even after the config is later edited.
   engineParams      Json?
+  /// Goal-related general config (targetMultiplierDefault, goalMultiplierMin/
+  /// Max, betMin/Max) snapshotted alongside engineParams — the full config
+  /// context this match was created under, not just physics.
+  goalSnapshot      Json?
   /// GameEconomyConfig.antiCheat snapshotted at match start — resolve checks
   /// against this, not whatever is currently active, for the same
   /// reproducibility reason as engineParams.
   antiCheatSnapshot Json?
 
-  createdAt  DateTime  @default(now())
-  resolvedAt DateTime?
+  startedAt       DateTime?
+  resolvedAt      DateTime?
+  durationSeconds Int?
+
+  /// Highest number of consecutive platform passes without a losing contact
+  /// — defaults to platformsPassed today (a danger contact always ends the
+  /// match immediately, so "streak" and "total passed" currently coincide;
+  /// kept distinct for when non-fatal mistakes exist).
+  longestStreak  Int    @default(0)
+  collisionCount Int    @default(0)
+  avgSpeed       Float?
+
+  /// 0-100, highest observed/limit ratio across every anti-cheat dimension
+  /// checked — populated even when not flagged (see AntiCheatService).
+  riskScore          Float   @default(0)
+  invalidationReason String?
+
+  engineVersion String?
+  ip            String?
+  userAgent     String?
+  device        String?
+  os            String?
+  /// Requires a GeoIP provider — not wired in this phase, stays null (same
+  /// decision already made for Session.location).
+  location      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  events MatchEvent[]
 
   @@index([userId, status])
   @@index([createdAt])
+  @@index([matchNumber])
+}
+
+/// Append-only timeline — same spirit as AuditLog, but match-scoped. Never
+/// updated or deleted once written; powers both the admin "Timeline da
+/// partida" view and the player-facing match history.
+model MatchEvent {
+  id        String         @id @default(uuid())
+  matchId   String
+  match     Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  type      MatchEventType
+  /// Aggregated counters for PROGRESSED checkpoints, denial reasons for
+  /// CASHOUT_DENIED, etc. — shape depends on `type`.
+  payload   Json?
+  createdAt DateTime       @default(now())
+
+  @@index([matchId, createdAt])
 }
 
 model Achievement {
@@ -446,4 +1035,327 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@index([action])
+}
+
+// ============================================================================
+// Commercial system — Affiliates + Managers (Phase 8) — src/modules/affiliate
+// and src/modules/manager are the ONLY writers of these models. There is no
+// second referral tree here: multi-level commission is computed by walking
+// the EXISTING User.referredById chain (see Match/Wallet-era conventions
+// above) up to 3 hops — these models only add the "is this person an
+// approved, paid affiliate" and "who oversees them" layers on top. Every
+// commission is a real WalletTransaction (type COMMISSION, reusing the
+// SYSTEM_ACCOUNTS.commissionPool mapping reserved since Phase 6) + a real
+// LedgerEntry — never a direct balance write. Affiliate withdrawals reuse
+// src/modules/payments' existing withdraw flow unmodified.
+// ============================================================================
+
+enum AffiliateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  BLOCKED
+  DOCUMENTS_REQUESTED
+}
+
+enum AffiliateLinkStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum CommissionSourceType {
+  REVSHARE_DEPOSIT
+  CPA_FTD
+  /// The Gerente's cut of the spread (ceiling - affiliate's override%) on a
+  /// level-1 payment, or the full ceiling when the level-1 ancestor is a
+  /// Manager with no Affiliate in between — see commission.service.ts.
+  MANAGER_SPREAD
+}
+
+enum CommissionStatus {
+  LOCKED
+  AVAILABLE
+  REJECTED
+}
+
+enum ManagerInviteStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  USED
+}
+
+enum ManagerProfileStatus {
+  ACTIVE
+  PENDING
+}
+
+/// The Admin's verdict on an accepted-but-not-yet-approved manager
+/// application — lives on ManagerInvite rather than a new model or a new
+/// UserStatus value (see AGENTS.md's "Refinamento Fase 8" decision F). Null
+/// until the invite is accepted.
+enum ManagerApprovalStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+/// Admin-issued, single-use onboarding invite — the ONLY way a User becomes
+/// a Manager (see ManagerInviteService.accept). tokenHash follows the exact
+/// same "never persist the raw secret" convention as PasswordResetToken/
+/// EmailVerificationToken: the raw token is returned once, in the create/
+/// regenerate response, and is unrecoverable afterward.
+model ManagerInvite {
+  id    String  @id @default(uuid())
+  /// Null until the candidate accepts (see ManagerInviteService.accept) —
+  /// the Admin no longer supplies the candidate's identity at creation time,
+  /// only generates a bare token/link (see "Cadastro de Gerente" decision).
+  name  String?
+  email String?
+  phone String?
+  notes String?
+
+  /// Historical only — the "Refinamento Fase 8" flow (see AGENTS.md) moved
+  /// commission/initial-status decisions from invite-creation to approval;
+  /// these defaults let new rows omit them while old rows keep their values.
+  commissionPercent Float                @default(0)
+  initialStatus     ManagerProfileStatus @default(ACTIVE)
+
+  tokenHash String              @unique
+  status    ManagerInviteStatus @default(ACTIVE)
+  expiresAt DateTime?
+
+  createdById String
+  createdBy   User   @relation("ManagerInviteCreatedBy", fields: [createdById], references: [id])
+
+  acceptedAt        DateTime?
+  acceptedByUserId  String?   @unique
+  acceptedByUser    User?     @relation("ManagerInviteAcceptedBy", fields: [acceptedByUserId], references: [id])
+  acceptedIp        String?
+  acceptedUserAgent String?
+
+  /// Null until accepted. PENDING_REVIEW feeds the Admin's Solicitações
+  /// queue (Comercial → Gerentes → Solicitações) — see ManagerInviteService.
+  approvalStatus            ManagerApprovalStatus?
+  /// The ceiling decided at approval time — snapshot preserved for audit
+  /// history even if ManagerProfile.commissionPercent changes later.
+  approvedCommissionPercent Float?
+  approvedAt                DateTime?
+  approvedById              String?
+  approvedBy                User?                  @relation("ManagerInviteApprovedBy", fields: [approvedById], references: [id])
+  rejectedAt                DateTime?
+  rejectedById              String?
+  rejectedBy                User?                  @relation("ManagerInviteRejectedBy", fields: [rejectedById], references: [id])
+  rejectionReason           String?
+
+  revokedAt   DateTime?
+  revokedById String?
+  revokedBy   User?     @relation("ManagerInviteRevokedBy", fields: [revokedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  managerProfile ManagerProfile?
+
+  @@index([status])
+  @@index([email])
+  @@index([approvalStatus])
+}
+
+/// One row per Manager — a thin extension of User (role MANAGER), same 1:1
+/// pattern as MfaMethod/Session. Managers have zero financial/platform data
+/// access; this table only holds oversight/recruitment fields.
+model ManagerProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Public "become an affiliate under me" invite code — resolved during
+  /// affiliate application (see AffiliateProfile.managerId), separate from
+  /// and never mixed with the player-referral referralCode mechanism.
+  inviteCode String @unique
+
+  /// Set by the Admin at invite time (ManagerInvite.commissionPercent),
+  /// editable afterward. Reserved for future network-production commission
+  /// calculations — not consumed by any engine yet.
+  commissionPercent Float                @default(0)
+  /// PENDING blocks /manager portal access until an Admin activates the
+  /// account (see manager.service.ts's activateProfile). Independent of
+  /// AffiliateProfile.status — Managers are never gated by the affiliate
+  /// approval state machine.
+  status            ManagerProfileStatus @default(ACTIVE)
+
+  inviteId String?        @unique
+  invite   ManagerInvite? @relation(fields: [inviteId], references: [id])
+
+  /// "Meu Link da Plataforma" (/r/{User.referralCode}) hit-count — incremented
+  /// by /r/[code]/route.ts when the code resolves to this manager's user.
+  platformLinkClicks Int @default(0)
+  /// "Convidar Afiliados" (/affiliate-invite/{inviteCode}) hit-count.
+  inviteLinkClicks   Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  affiliates AffiliateProfile[]
+
+  @@index([inviteCode])
+  @@index([status])
+}
+
+/// One row per Affiliate — a thin extension of User (role AFFILIATE), same
+/// 1:1 pattern as ManagerProfile. `status` gates whether the commission
+/// engine (src/modules/affiliate/services/commission.service.ts) pays this
+/// user anything at all — a User with no AffiliateProfile, or one that's
+/// PENDING/REJECTED/BLOCKED, is just a regular player as far as commissions
+/// are concerned, even though their referredById chain still exists.
+model AffiliateProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  managerId String?
+  manager   ManagerProfile? @relation(fields: [managerId], references: [id])
+
+  status AffiliateStatus @default(PENDING)
+
+  /// Free-form document upload metadata (URLs/types) — no file storage
+  /// integration built this phase, structure only.
+  documentsJson   Json?
+  /// AES-256-GCM (src/server/security/crypto-utils), same convention as
+  /// Withdraw.pixKeyEncrypted.
+  pixKeyEncrypted String?
+
+  /// Per-affiliate override of AffiliateSettings' global defaults — null
+  /// means "use the global percentage/amount".
+  cpaOverrideCents        Int?
+  revShareOverridePercent Float?
+
+  requestedAt     DateTime  @default(now())
+  approvedAt      DateTime?
+  approvedById    String?
+  rejectionReason String?
+  blockedAt       DateTime?
+  blockedReason   String?
+
+  /// "Meu Link" (/r/{User.referralCode}) hit-count for this affiliate —
+  /// mirrors ManagerProfile.platformLinkClicks, incremented by
+  /// /r/[code]/route.ts when the code resolves to an APPROVED affiliate.
+  linkClicks Int @default(0)
+  /// Granted by the owning Manager (or Admin) — lets this affiliate surface
+  /// their manager's "Convidar Afiliados" link (ManagerProfile.inviteCode) in
+  /// their own panel, recruiting new affiliates under the SAME manager.
+  canInviteAffiliates Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  links       AffiliateLink[]
+  commissions Commission[]
+
+  @@index([managerId])
+  @@index([status])
+}
+
+/// A named, trackable, pausable/deletable variant of an affiliate's single
+/// referralCode — e.g. "campanha-instagram". NEVER a second attribution
+/// mechanism: clicking a link's slug still redirects through the exact same
+/// referredById-setting signup flow as the plain /r/{referralCode} link,
+/// just also tags User.affiliateLinkId for campaign-level analytics.
+/// Pausing a link only stops IT specifically from being trackable — the
+/// affiliate's core referral code keeps working regardless.
+model AffiliateLink {
+  id          String           @id @default(uuid())
+  affiliateId String
+  affiliate   AffiliateProfile @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  name   String
+  /// Unique across the whole platform — used as the `?l=` query value.
+  slug   String              @unique
+  status AffiliateLinkStatus @default(ACTIVE)
+  clicks Int                 @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attributedUsers User[]
+
+  @@index([affiliateId])
+}
+
+/// One row per commission event per level — the persisted, auditable record
+/// behind every WalletTransaction(type COMMISSION) the commission engine
+/// creates. `walletTransactionId` is the credit() that moved the money into
+/// the affiliate's LOCKED bucket; `unlockWalletTransactionId` is the later
+/// unlock() (auto or admin-approved) that moved it LOCKED -> MAIN.
+model Commission {
+  id          String            @id @default(uuid())
+  /// Null for a MANAGER_SPREAD row paid on the manager's own platform link
+  /// (link 1) — there's no affiliate in that path. Every other sourceType
+  /// still has one.
+  affiliateId String?
+  affiliate   AffiliateProfile? @relation(fields: [affiliateId], references: [id])
+
+  /// Snapshotted at generation time — the affiliate's manager may change
+  /// later without rewriting history.
+  managerId String?
+
+  /// Who the wallet credit actually went to — the affiliate on REVSHARE_DEPOSIT/
+  /// CPA_FTD rows, or the manager on MANAGER_SPREAD rows. Avoids re-deriving
+  /// via the (now-optional) affiliate join on every read.
+  payeeUserId String
+  payeeUser   User   @relation("CommissionPayee", fields: [payeeUserId], references: [id])
+
+  /// Tree-hop distance from the depositing player up to this affiliate: 1,
+  /// 2, or 3. Non-affiliate ancestors in between don't break the count —
+  /// see commission.service.ts's tree-walk doc comment.
+  level Int
+
+  originUserId String
+  originUser   User   @relation("CommissionOrigin", fields: [originUserId], references: [id])
+
+  sourceType CommissionSourceType
+  /// The triggering Deposit.id.
+  triggerId  String
+
+  amountCents    Int
+  /// The percentage actually applied — null for CPA_FTD (a flat amount).
+  percentApplied Float?
+
+  status                    CommissionStatus @default(LOCKED)
+  walletTransactionId       String?          @unique
+  unlockWalletTransactionId String?          @unique
+
+  createdAt       DateTime  @default(now())
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  @@index([affiliateId, status])
+  @@index([originUserId])
+  @@index([triggerId])
+  @@index([payeeUserId])
+}
+
+/// Single global row (id "global"), same pattern as GameConfig/
+/// PaymentSettings. Admin-configurable via /api/admin/affiliate/settings.
+model AffiliateSettings {
+  id String @id @default("global")
+
+  revShareLevel1Percent Float @default(0.05)
+  revShareLevel2Percent Float @default(0.02)
+  revShareLevel3Percent Float @default(0.01)
+  /// Flat bonus paid to the level-1 affiliate only, on a referred player's
+  /// first-ever confirmed deposit. 0 = disabled.
+  cpaAmountCents        Int   @default(0)
+
+  /// When true (default), a generated commission is unlocked (LOCKED ->
+  /// AVAILABLE) immediately. When false, it stays LOCKED until an admin
+  /// calls POST /api/admin/affiliate/commissions/{id}/approve.
+  autoApproveCommissions              Boolean @default(true)
+  /// When true, an affiliate application must be approved by its assigned
+  /// Manager (in addition to/instead of Admin) before becoming APPROVED.
+  requireManagerApprovalForAffiliates Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
 }

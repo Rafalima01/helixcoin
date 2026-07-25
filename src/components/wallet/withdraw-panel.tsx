@@ -33,8 +33,12 @@ export function WithdrawPanel() {
       return;
     }
     try {
-      await withdraw.mutateAsync({ amount, pixKey });
-      toast.success(`Saque de ${formatCurrency(amount)} solicitado!`);
+      const result = await withdraw.mutateAsync({ amount, pixKey });
+      toast.success(
+        result.status === "PENDING"
+          ? `Saque de ${formatCurrency(amount)} solicitado — aguardando aprovação.`
+          : `Saque de ${formatCurrency(amount)} solicitado!`
+      );
       setAmount("");
       setPixKey("");
     } catch (e) {
@@ -83,6 +87,9 @@ export function WithdrawPanel() {
             Você ainda não possui saldo disponível para saque.
           </p>
         )}
+        <p className="text-[11px] text-text-muted text-center -mt-2">
+          O valor fica bloqueado até a aprovação do saque.
+        </p>
       </div>
     </Card>
   );

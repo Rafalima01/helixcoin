@@ -2,21 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAuthContext } from "@/server/auth";
 import { prisma } from "@/lib/prisma";
+import { walletContainer } from "@/modules/wallet/container";
 
+/** Read-only — balance itself is still sourced from WalletService (the sole owner of Wallet balances); only mutation is restricted to services, plain reads stay direct Prisma like every other GET in this route family (see /api/stats, /api/transactions). */
 export async function GET(req: NextRequest) {
   const auth = await getAuthContext(req);
   if (!auth) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
-  const wallet = await prisma.wallet.upsert({
-    where: { userId: auth.userId },
-    update: {},
-    create: { userId: auth.userId, balance: 0 },
-  });
-
-  const [recentTransactions, recentMatches, userRow] = await Promise.all([
-    prisma.transaction.findMany({
+  const [balances, recentTransactions, recentMatches, userRow] = await Promise.all([
+    walletContainer.walletService.getBalance(auth.userId),
+    prisma.walletTransaction.findMany({
       where: { userId: auth.userId },
       orderBy: { createdAt: "desc" },
       take: 5,
@@ -50,7 +47,7 @@ export async function GET(req: NextRequest) {
   };
 
   return NextResponse.json({
-    balance: wallet.balance,
+    balance: balances.main,
     recentTransactions,
     recentMatches,
     user,

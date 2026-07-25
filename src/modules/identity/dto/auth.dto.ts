@@ -5,6 +5,8 @@ export interface RegisterInput {
   email: string;
   password: string;
   referralCode?: string;
+  /** Phase 8 — optional AffiliateLink slug from `/r/{code}?l={slug}`, analytics-only. */
+  affiliateLinkSlug?: string;
 }
 
 export interface LoginInput {
