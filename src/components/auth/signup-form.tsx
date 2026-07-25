@@ -68,14 +68,16 @@ export function SignupForm() {
         body: JSON.stringify({ email: data.email, password: data.password }),
       });
 
+      const callbackUrl = searchParams.get("callbackUrl");
+
       if (!loginRes.ok) {
         toast.success("Conta criada! Faça login para continuar.");
-        router.push("/login");
+        router.push(callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/login");
         return;
       }
 
       toast.success("Conta criada com sucesso!");
-      router.push("/home");
+      router.push(callbackUrl ?? "/home");
       router.refresh();
     } catch {
       toast.error("Erro de conexão. Tente novamente.");

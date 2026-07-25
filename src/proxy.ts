@@ -34,7 +34,7 @@ import type { Role } from "@prisma/client";
  * Location header, so their origin doesn't matter.
  */
 
-const PLAYER_AUTH_PREFIXES = ["/home", "/play", "/wallet", "/profile"];
+const PLAYER_AUTH_PREFIXES = ["/home", "/play", "/wallet", "/profile", "/referrals", "/deposit", "/withdraw"];
 
 /**
  * Everyone who isn't staff, Manager, or (the currently-unused) Affiliate
@@ -91,7 +91,7 @@ export default async function proxy(req: NextRequest) {
 
   if (PLAYER_AUTH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     const auth = await getAuthContext(req);
-    if (!auth) return redirectToLogin(PLAYER_URL, pathname);
+    if (!auth) return redirectToLogin(PLAYER_URL, pathname + req.nextUrl.search);
   }
   return NextResponse.next();
 }
@@ -132,7 +132,7 @@ async function handleZone(req: NextRequest, prefix: "/admin" | "/manager") {
   const isPublic = target === loginTarget || target.startsWith("/manager-invite/");
   if (!isPublic) {
     const auth = await getAuthContext(req);
-    if (!auth) return redirectToLogin(zoneOrigin, pathname);
+    if (!auth) return redirectToLogin(zoneOrigin, pathname + req.nextUrl.search);
 
     const roleAllowed = prefix === "/admin" ? hasRole(auth.role, ROLE_HIERARCHY) : auth.role === "MANAGER";
     if (!roleAllowed) return NextResponse.redirect(loginUrlForRole(auth.role));
@@ -153,9 +153,9 @@ async function handleZone(req: NextRequest, prefix: "/admin" | "/manager") {
  * `0.0.0.0`/`3000` for binding purposes — confirmed in production via a
  * generated invite link that redirected to `https://0.0.0.0:3000/...`).
  */
-function redirectToLogin(origin: string, callbackPathname: string) {
+function redirectToLogin(origin: string, callbackPathAndQuery: string) {
   const loginUrl = new URL("/login", origin);
-  loginUrl.searchParams.set("callbackUrl", callbackPathname);
+  loginUrl.searchParams.set("callbackUrl", callbackPathAndQuery);
   return NextResponse.redirect(loginUrl);
 }
 

@@ -98,7 +98,11 @@ export function LoginForm({
         <p className="text-center text-sm text-text-secondary">
           Não tem conta?{" "}
           <Link
-            href="/signup"
+            href={
+              searchParams.get("callbackUrl")
+                ? `/signup?callbackUrl=${encodeURIComponent(searchParams.get("callbackUrl")!)}`
+                : "/signup"
+            }
             className="text-purple font-semibold hover:text-pink transition-colors"
           >
             Criar conta
