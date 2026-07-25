@@ -74,6 +74,26 @@ services:
       redis:
         condition: service_healthy
 
+  # One-off: `docker compose --profile app run --rm migrate`. Targets the
+  # `builder` stage (same reason as worker/ws below) — the final `runner`
+  # image is a minimal standalone Next.js output with no `prisma` CLI
+  # package in it, so `npx prisma` there falls back to downloading whatever
+  # the latest version on the registry is instead of the project's pinned
+  # one, which breaks (schema format changes between major versions).
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    command: ["npx", "prisma", "migrate", "deploy"]
+    profiles: ["app"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-helijump}:${POSTGRES_PASSWORD:-helijump}@postgres:5432/${POSTGRES_DB:-helijump}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   worker:
     build:
       context: .
