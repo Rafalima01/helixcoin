@@ -51,6 +51,7 @@ export const gatewayProviderSchema = z.enum([
   "BSPAY",
   "PAY2M",
   "OPENPIX",
+  "VEOPAG",
   "OUTROS",
 ]);
 

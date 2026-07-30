@@ -21,6 +21,7 @@ async function bootstrap() {
     "@/modules/notifications/queue/notification-queue"
   );
   const { DailySummaryService } = await import("@/modules/notifications/services/daily-summary.service");
+  const { paymentsContainer } = await import("@/modules/payments/container");
 
   const logger = createChildLogger({ module: "worker-entrypoint" });
 
@@ -55,6 +56,25 @@ async function bootstrap() {
   const dailySummaryQueue = createDailySummaryQueue();
   await dailySummaryQueue.add("daily-summary", {}, { repeat: { pattern: "59 23 * * *" }, jobId: "daily-summary-repeat" });
 
+  // Payments reconciliation — VeoPag's webhook isn't guaranteed (one delivery
+  // attempt with a few retries, then it stops); this catches anything that
+  // fell through by re-checking PENDING/PROCESSING deposits/withdraws via
+  // GET /api/transactions/*. See PaymentReconciliationService's doc comment.
+  const reconciliationWorker = createWorker(
+    QUEUE_NAMES.paymentsReconciliation,
+    async () => {
+      await paymentsContainer.reconciliationService.reconcilePendingDeposits();
+      await paymentsContainer.reconciliationService.reconcilePendingWithdraws();
+    },
+    { concurrency: 1, deadLetterQueue: QUEUE_NAMES.deadLetter }
+  );
+  const reconciliationQueue = createQueue(QUEUE_NAMES.paymentsReconciliation);
+  await reconciliationQueue.add(
+    "reconcile",
+    {},
+    { repeat: { every: 5 * 60_000 }, jobId: "payments-reconciliation-repeat" }
+  );
+
   logger.info("worker process started");
 
   const shutdown = async (signal: string) => {
@@ -64,6 +84,8 @@ async function bootstrap() {
     await pushWorker.close();
     await dailySummaryWorker.close();
     await dailySummaryQueue.close();
+    await reconciliationWorker.close();
+    await reconciliationQueue.close();
     process.exit(0);
   };
   process.on("SIGINT", () => void shutdown("SIGINT"));

@@ -247,7 +247,7 @@ describe("/api/payments routes (integration)", () => {
       });
       const res = await webhookRoute(req, { params: Promise.resolve({ provider: "MOCK" }) });
       expect(res.status).toBe(200);
-      expect(handleWebhookMock).toHaveBeenCalledWith("MOCK", '{"eventType":"deposit.paid"}', "abc123");
+      expect(handleWebhookMock).toHaveBeenCalledWith("MOCK", '{"eventType":"deposit.paid"}', "abc123", null);
     });
 
     it("rejects an unknown provider before ever calling PaymentService", async () => {

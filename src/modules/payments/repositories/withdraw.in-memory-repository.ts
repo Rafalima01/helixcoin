@@ -73,4 +73,10 @@ export class InMemoryWithdrawRepository implements IWithdrawRepository {
     if (!row) return null;
     return { ...row, userName: "", userEmail: "", gatewayName: "", gatewayProvider: "MOCK" };
   }
+
+  async findStuckPending(olderThan: Date): Promise<Withdraw[]> {
+    return [...this.rows.values()]
+      .filter((r) => (r.status === "PENDING" || r.status === "PROCESSING") && r.updatedAt < olderThan)
+      .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
+  }
 }

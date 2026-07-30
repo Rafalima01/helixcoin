@@ -39,4 +39,6 @@ export interface IDepositRepository {
   listAdmin(filter: DepositListFilter): Promise<{ items: DepositAdminRow[]; total: number }>;
   /** Same join as listAdmin's rows, for a single id — the admin detail drawer's data source. */
   findByIdAdmin(id: string): Promise<DepositAdminRow | null>;
+  /** PENDING/PROCESSING deposits last updated before `olderThan` — PaymentReconciliationService's poll target, since a missed webhook otherwise leaves them stuck forever. */
+  findStuckPending(olderThan: Date): Promise<Deposit[]>;
 }

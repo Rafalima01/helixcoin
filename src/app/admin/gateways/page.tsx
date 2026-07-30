@@ -25,7 +25,21 @@ const SIMULATED_FAULT_LABEL: Record<string, string> = {
   OFFLINE_CALLS: "Offline nas chamadas",
 };
 
-const PROVIDERS = ["MOCK", "CARTPANDA", "CARTWAVEHUB", "MERCADO_PAGO", "PAY4FUN", "BSPAY", "PAY2M", "OPENPIX", "OUTROS"];
+const PROVIDERS = [
+  "MOCK",
+  "VEOPAG",
+  "CARTPANDA",
+  "CARTWAVEHUB",
+  "MERCADO_PAGO",
+  "PAY4FUN",
+  "BSPAY",
+  "PAY2M",
+  "OPENPIX",
+  "OUTROS",
+];
+
+/** Providers with a real PaymentProvider implementation — the rest resolve to NotImplementedProvider (see provider.factory.ts). */
+const IMPLEMENTED_PROVIDERS = new Set(["MOCK", "VEOPAG"]);
 
 export default function AdminGatewaysPage() {
   const [creating, setCreating] = useState(false);
@@ -239,9 +253,15 @@ function GatewayFormDrawer({ onClose }: { onClose: () => void }) {
               </option>
             ))}
           </select>
-          {form.provider !== "MOCK" && (
+          {!IMPLEMENTED_PROVIDERS.has(form.provider) && (
             <p className="mt-1 text-[11px] text-text-muted">
               Estrutura pronta, mas este provedor ainda não está implementado nesta fase.
+            </p>
+          )}
+          {form.provider === "VEOPAG" && (
+            <p className="mt-1 text-[11px] text-text-muted">
+              Use Chave pública para o <code>client_id</code> e Chave privada para o <code>client_secret</code> —
+              gerados em dashboard.veopag.com/credentials. URL Base não é necessária (fixa em api.veopag.com).
             </p>
           )}
         </div>

@@ -1,6 +1,7 @@
 import { walletContainer } from "@/modules/wallet/container";
 import { identityContainer } from "@/modules/identity/container";
 import { PaymentService } from "@/modules/payments/services/payment.service";
+import { PaymentReconciliationService } from "@/modules/payments/services/payment-reconciliation.service";
 import { GatewayRouterService } from "@/modules/payments/services/gateway-router.service";
 import { PrismaDepositRepository } from "@/modules/payments/repositories/deposit.prisma-repository";
 import { PrismaWithdrawRepository } from "@/modules/payments/repositories/withdraw.prisma-repository";
@@ -29,17 +30,20 @@ const logs = new PrismaGatewayLogRepository();
 const settings = new PrismaPaymentSettingsRepository();
 const router = new GatewayRouterService(credentials, health);
 
+const paymentService = new PaymentService(
+  deposits,
+  withdraws,
+  webhooks,
+  credentials,
+  logs,
+  settings,
+  router,
+  walletContainer.walletService,
+  identityContainer.userRepository
+);
+
 export const paymentsContainer = {
-  paymentService: new PaymentService(
-    deposits,
-    withdraws,
-    webhooks,
-    credentials,
-    logs,
-    settings,
-    router,
-    walletContainer.walletService,
-    identityContainer.userRepository
-  ),
+  paymentService,
   gatewayCredentialRepository: credentials,
+  reconciliationService: new PaymentReconciliationService(deposits, withdraws, credentials, paymentService),
 };

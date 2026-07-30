@@ -139,4 +139,12 @@ export class PrismaWithdrawRepository implements IWithdrawRepository {
       total,
     };
   }
+
+  async findStuckPending(olderThan: Date): Promise<Withdraw[]> {
+    const rows = await prisma.withdraw.findMany({
+      where: { status: { in: ["PENDING", "PROCESSING"] }, updatedAt: { lt: olderThan } },
+      orderBy: { updatedAt: "asc" },
+    });
+    return rows.map(toEntity);
+  }
 }

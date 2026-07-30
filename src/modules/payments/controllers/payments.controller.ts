@@ -55,7 +55,9 @@ export async function handleRequestWithdraw(req: NextRequest, auth: AuthContext)
 export async function handleWebhook(req: NextRequest, provider: string) {
   const parsedProvider = gatewayProviderSchema.parse(provider);
   const rawBody = await req.text();
-  const signatureHeader = req.headers.get("x-mock-signature") ?? req.headers.get("x-signature");
-  const result = await paymentService.handleWebhook(parsedProvider, rawBody, signatureHeader);
+  const signatureHeader =
+    req.headers.get("x-mock-signature") ?? req.headers.get("x-webhook-signature") ?? req.headers.get("x-signature");
+  const timestampHeader = req.headers.get("x-webhook-timestamp");
+  const result = await paymentService.handleWebhook(parsedProvider, rawBody, signatureHeader, timestampHeader);
   return ok(result, undefined, result.status);
 }

@@ -19,6 +19,8 @@ export const QUEUE_NAMES = {
   pushNotifications: "notifications.push",
   /** src/modules/notifications — repeatable job (23:59 daily), aggregates the day and publishes DAILY_SUMMARY_EVENTS.generated. */
   dailySummary: "notifications.daily-summary",
+  /** src/modules/payments — repeatable job (every 5min), re-checks PENDING/PROCESSING deposits/withdraws via PaymentReconciliationService in case a gateway webhook was missed. */
+  paymentsReconciliation: "payments.reconciliation",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

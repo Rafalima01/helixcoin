@@ -131,4 +131,12 @@ export class PrismaDepositRepository implements IDepositRepository {
       total,
     };
   }
+
+  async findStuckPending(olderThan: Date): Promise<Deposit[]> {
+    const rows = await prisma.deposit.findMany({
+      where: { status: { in: ["PENDING", "PROCESSING"] }, updatedAt: { lt: olderThan } },
+      orderBy: { updatedAt: "asc" },
+    });
+    return rows.map(toEntity);
+  }
 }

@@ -6,6 +6,8 @@ export interface CreatePixDepositInput {
   expiresAt: Date;
   payerDocument?: string;
   payerName?: string;
+  /** Required by some gateways (e.g. VeoPag) alongside payerName/payerDocument — optional here since MOCK ignores it. */
+  payerEmail?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -34,6 +36,10 @@ export interface CreateWithdrawInput {
   amountCents: number;
   pixKey: string;
   pixKeyType?: string;
+  /** Recipient's display name — required by some gateways (e.g. VeoPag); MOCK ignores it. */
+  payeeName?: string;
+  /** Recipient's CPF/CNPJ — some gateways (e.g. VeoPag) require this whenever pixKeyType isn't itself CPF/CNPJ. */
+  payeeDocument?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -59,6 +65,8 @@ export interface ValidateWebhookInput {
   rawBody: string;
   signatureHeader: string | null;
   webhookSecret: string;
+  /** Some gateways (e.g. VeoPag) sign `{timestamp}.{rawBody}` and require this for both the HMAC and replay protection — optional since most providers don't need it. */
+  timestampHeader?: string | null;
 }
 
 export interface ValidateWebhookResult {

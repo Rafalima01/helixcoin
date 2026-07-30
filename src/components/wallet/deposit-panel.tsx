@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PseudoQr } from "@/components/wallet/pseudo-qr";
+import { PixQr } from "@/components/wallet/pix-qr";
 import { useCreateDeposit, useSimulateDepositPayment } from "@/hooks/use-wallet";
 import { formatCurrency, cn } from "@/lib/utils";
 
@@ -120,7 +120,7 @@ export function DepositPanel() {
             transition={{ duration: 0.2 }}
             className="flex flex-col items-center gap-5"
           >
-            <PseudoQr data={pix?.pixCode ?? ""} />
+            <PixQr data={pix?.pixCode ?? ""} />
 
             <p className="text-2xl font-extrabold text-gradient-green">
               {formatCurrency(Number(amount))}

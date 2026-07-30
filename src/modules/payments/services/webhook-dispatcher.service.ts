@@ -50,7 +50,12 @@ export class WebhookDispatcherService {
    * parsed JSON. Tries every registered credential for `providerName` until
    * one validates.
    */
-  async dispatch(providerName: GatewayProvider, rawBody: string, signatureHeader: string | null): Promise<{ status: number }> {
+  async dispatch(
+    providerName: GatewayProvider,
+    rawBody: string,
+    signatureHeader: string | null,
+    timestampHeader?: string | null
+  ): Promise<{ status: number }> {
     const payloadHash = sha256Hex(rawBody);
     const candidates = await this.credentials.listByProvider(providerName);
 
@@ -65,7 +70,7 @@ export class WebhookDispatcherService {
       const provider = ProviderFactory.create(credential);
       const webhookSecret = decrypt(credential.webhookSecretEncrypted);
       try {
-        const validation = await provider.validateWebhook({ rawBody, signatureHeader, webhookSecret });
+        const validation = await provider.validateWebhook({ rawBody, signatureHeader, webhookSecret, timestampHeader });
         if (validation.valid) {
           matchedCredential = credential;
           eventType = validation.eventType ?? "";

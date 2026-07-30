@@ -110,12 +110,21 @@ export class PaymentService {
 
     const depositId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + settings.pixExpirationMinutes * 60_000);
+    const user = await this.users.findById(userId);
 
     const { credential, result } = await this.withFailover(
       settings,
       "/api/payments/deposits",
       depositId,
-      (provider) => provider.createPixDeposit({ depositId, amountCents, expiresAt })
+      (provider) =>
+        provider.createPixDeposit({
+          depositId,
+          amountCents,
+          expiresAt,
+          payerName: user ? `${user.firstName} ${user.lastName}`.trim() : undefined,
+          payerEmail: user?.email,
+          payerDocument: user?.cpf ?? undefined,
+        })
     );
 
     const deposit = await this.deposits.create({
@@ -204,6 +213,7 @@ export class PaymentService {
     }
 
     const withdrawId = crypto.randomUUID();
+    const user = await this.users.findById(userId);
 
     const locked = await this.walletService.lock({
       userId,
@@ -220,7 +230,14 @@ export class PaymentService {
     let providerTransactionId: string;
     try {
       const outcome = await this.withFailover(settings, "/api/payments/withdrawals", withdrawId, (provider) =>
-        provider.createWithdraw({ withdrawId, amountCents, pixKey, pixKeyType })
+        provider.createWithdraw({
+          withdrawId,
+          amountCents,
+          pixKey,
+          pixKeyType,
+          payeeName: user ? `${user.firstName} ${user.lastName}`.trim() : undefined,
+          payeeDocument: user?.cpf ?? undefined,
+        })
       );
       credential = outcome.credential;
       providerTransactionId = outcome.result.providerTransactionId;
@@ -339,13 +356,14 @@ export class PaymentService {
 
   // -------------------------------------------------------------- webhooks
 
-  /** Thin delegation — the mechanics of matching/dedup/persistence live in WebhookDispatcherService (Fase 10); this stays public so `/api/payments/webhook/{provider}` doesn't need to know that split happened. */
+  /** Thin delegation — the mechanics of matching/dedup/persistence live in WebhookDispatcherService (Fase 10); this stays public so `/api/payments/webhook/{provider}` doesn't need to know that split happened. `timestampHeader` is only meaningful to gateways whose signature scheme includes it (e.g. VeoPag) — providers that don't need it simply ignore it. */
   async handleWebhook(
     providerName: GatewayProvider,
     rawBody: string,
-    signatureHeader: string | null
+    signatureHeader: string | null,
+    timestampHeader?: string | null
   ): Promise<{ status: number }> {
-    return this.dispatcher.dispatch(providerName, rawBody, signatureHeader);
+    return this.dispatcher.dispatch(providerName, rawBody, signatureHeader, timestampHeader);
   }
 
   /** Admin "Reprocessar" action on a stored webhook. */

@@ -525,6 +525,7 @@ enum GatewayProvider {
   BSPAY
   PAY2M
   OPENPIX
+  VEOPAG
   OUTROS
 }
 

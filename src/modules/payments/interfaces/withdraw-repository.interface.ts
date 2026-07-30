@@ -41,4 +41,6 @@ export interface IWithdrawRepository {
   listAdmin(filter: WithdrawListFilter): Promise<{ items: WithdrawAdminRow[]; total: number }>;
   /** Same join as listAdmin's rows, for a single id — the admin detail drawer's data source. */
   findByIdAdmin(id: string): Promise<WithdrawAdminRow | null>;
+  /** PENDING/PROCESSING withdraws last updated before `olderThan` — PaymentReconciliationService's poll target, since a missed webhook otherwise leaves them stuck forever. */
+  findStuckPending(olderThan: Date): Promise<Withdraw[]>;
 }

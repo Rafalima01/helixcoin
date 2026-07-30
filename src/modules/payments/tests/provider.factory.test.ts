@@ -1,9 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { encrypt } from "@/server/security/crypto-utils";
 import { ProviderFactory } from "@/modules/payments/factories/provider.factory";
 import { MockProvider } from "@/modules/payments/providers/mock/mock.provider";
 import { NotImplementedProvider } from "@/modules/payments/providers/not-implemented.provider";
+import { VeoPagProvider } from "@/modules/payments/providers/veopag/veopag.provider";
 import type { GatewayCredential, GatewayProvider } from "@/modules/payments/entities/payments.entity";
+
+vi.mock("@/modules/payments/providers/veopag/veopag-auth", () => ({
+  VEOPAG_BASE_URL: "https://api.veopag.com",
+  getVeoPagToken: vi.fn().mockResolvedValue("test-jwt-token"),
+  invalidateVeoPagToken: vi.fn().mockResolvedValue(undefined),
+}));
 
 function buildCredential(provider: GatewayProvider): GatewayCredential {
   return {
@@ -74,5 +81,15 @@ describe("ProviderFactory", () => {
     ).rejects.toThrow();
     const health = await instance.health();
     expect(health.status).toBe("OFFLINE");
+  });
+
+  it("resolves VEOPAG to a functional VeoPagProvider with client_id/client_secret decrypted from credentials.publicKey/privateKey", () => {
+    const credential: GatewayCredential = {
+      ...buildCredential("VEOPAG"),
+      credentialsEncrypted: encrypt(JSON.stringify({ publicKey: "cli_test", privateKey: "secret_test" })),
+    };
+    const provider = ProviderFactory.create(credential);
+    expect(provider).toBeInstanceOf(VeoPagProvider);
+    expect(provider.name).toBe("VEOPAG");
   });
 });
