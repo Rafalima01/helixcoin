@@ -38,4 +38,5 @@ export const identityContainer = {
   userManagementService: new UserManagementService(users, sessions),
   mfaService: new MfaService(mfaMethods),
   loginHistoryService: new LoginHistoryService(),
+  userRepository: users,
 };

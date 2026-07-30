@@ -13,3 +13,18 @@ export class WebhookConflictError extends Error {
     this.name = "WebhookConflictError";
   }
 }
+
+/**
+ * Thrown internally by PaymentService.withTimeout when a single gateway
+ * attempt exceeds the candidate's `timeoutMs` (Fase 10) — caught by
+ * `withFailover`'s retry loop, never surfaces past it. Distinguishing this
+ * from a generic provider failure is what lets `withFailover` log
+ * "timeout after Xms" and publish PAYMENT_EVENTS.gatewayTimeout specifically,
+ * instead of a generic error message.
+ */
+export class GatewayTimeoutError extends Error {
+  constructor(readonly timeoutMs: number) {
+    super(`Gateway call exceeded timeout of ${timeoutMs}ms`);
+    this.name = "GatewayTimeoutError";
+  }
+}

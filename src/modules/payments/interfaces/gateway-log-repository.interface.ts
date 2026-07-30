@@ -16,6 +16,7 @@ export interface CreateGatewayLogInput {
 }
 
 export interface GatewayLogListFilter {
+  gatewayCredentialId?: string;
   provider?: GatewayProvider;
   direction?: "outbound" | "inbound";
   correlationId?: string;

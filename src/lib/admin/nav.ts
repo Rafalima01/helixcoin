@@ -33,6 +33,8 @@ import {
   Briefcase,
   Coins,
   UserCheck,
+  Smartphone,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -73,6 +75,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       { href: "/affiliates", label: "Afiliados", icon: Gift },
       { href: "/affiliate-commissions", label: "Comissões", icon: Coins },
       { href: "/affiliate-settings", label: "Configurações", icon: Settings },
+      { href: "/demo-accounts", label: "Contas Demo", icon: FlaskConical },
     ],
   },
   {
@@ -108,6 +111,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     label: "Plataforma",
     items: [
       { href: "/notifications", label: "Notificações", icon: Bell },
+      { href: "/push-notifications", label: "Push Notifications", icon: Smartphone },
       { href: "/settings", label: "Configurações", icon: Settings },
       { href: "/integrations", label: "Integrações", icon: Plug },
       { href: "/api", label: "API Management", icon: KeyRound },

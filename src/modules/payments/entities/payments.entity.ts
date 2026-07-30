@@ -6,6 +6,7 @@ import type {
   WithdrawStatus,
   WebhookStatus,
   GatewayHealthStatus,
+  GatewaySimulatedFault,
   PaymentRelatedType,
 } from "@prisma/client";
 
@@ -17,6 +18,7 @@ export type {
   WithdrawStatus,
   WebhookStatus,
   GatewayHealthStatus,
+  GatewaySimulatedFault,
   PaymentRelatedType,
 };
 
@@ -35,6 +37,8 @@ export interface GatewayCredential {
   webhookSecretEncrypted: string;
   /** Mock-only test lever — see schema doc comment. Null means "report real health". */
   simulatedHealth: GatewayHealthStatus | null;
+  /** Mock-only test lever (Fase 10) — see schema doc comment. Null means "no simulated fault". */
+  simulatedErrorMode: GatewaySimulatedFault | null;
   createdById: string | null;
   createdAt: Date;
   updatedAt: Date;

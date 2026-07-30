@@ -9,7 +9,7 @@ export default function LoginPage() {
   return (
     <AuthShell title="Bem-vindo de volta" subtitle="Entre para continuar girando a torre.">
       <Suspense fallback={null}>
-        <LoginForm />
+        <LoginForm submitVariant="gold" />
       </Suspense>
     </AuthShell>
   );

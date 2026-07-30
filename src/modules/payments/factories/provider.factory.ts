@@ -14,7 +14,11 @@ export class ProviderFactory {
   static create(credential: GatewayCredential): PaymentProvider {
     if (credential.provider === "MOCK") {
       const webhookSecret = decrypt(credential.webhookSecretEncrypted);
-      return new MockProvider({ webhookSecret, simulatedHealth: credential.simulatedHealth });
+      return new MockProvider({
+        webhookSecret,
+        simulatedHealth: credential.simulatedHealth,
+        simulatedErrorMode: credential.simulatedErrorMode,
+      });
     }
     return new NotImplementedProvider(credential.provider);
   }

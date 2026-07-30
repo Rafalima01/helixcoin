@@ -1,67 +1,82 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { Play, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OnlineCounter } from "@/components/landing/online-counter";
-import { HeroTower } from "@/components/landing/hero-tower";
 
+/**
+ * Mobile-first image composition (per the approved reference): a full-screen
+ * background illustration with the title art overlaid on its upper third and
+ * the CTAs anchored at the bottom. There is no separate desktop layout — the
+ * composition is width-capped so it simply centers on wide screens.
+ */
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pt-32 pb-20 md:pt-44 md:pb-28">
-      <div className="mx-auto max-w-7xl px-5 md:px-8 grid md:grid-cols-2 gap-12 items-center">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          <div className="mb-6">
+    <section className="relative flex justify-center overflow-hidden bg-[#12081f]">
+      <h1 className="sr-only">Helix Coin</h1>
+
+      <div className="relative w-full max-w-md min-h-dvh flex flex-col">
+        <Image
+          src="/hero-background.png"
+          alt=""
+          aria-hidden
+          fill
+          priority
+          sizes="(max-width: 448px) 100vw, 448px"
+          className="object-cover object-top select-none"
+        />
+
+        <div className="relative z-10 flex flex-col items-center flex-1 px-5 pt-24 pb-12">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="rounded-full bg-[#12081f]/75 backdrop-blur-sm shadow-[0_4px_16px_rgba(0,0,0,0.35)]"
+          >
             <OnlineCounter />
-          </div>
+          </motion.div>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.02] mb-6">
-            <span className="text-white">Gire e</span>{" "}
-            <span className="text-gradient-brand">Ganhe</span>
-          </h1>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, ease: "easeOut", delay: 0.15 }}
+            className="w-full"
+          >
+            <Image
+              src="/hero-title.png"
+              alt="Desça as plataformas e ganhe!"
+              width={1535}
+              height={1024}
+              priority
+              className="w-[88%] max-w-sm mx-auto h-auto mt-5 select-none drop-shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
+            />
+          </motion.div>
 
-          <p className="text-lg md:text-xl text-text-secondary max-w-xl mb-9 leading-relaxed">
-            O skill game mais viciante do Brasil. Controle a torre, atravesse plataformas e
-            multiplique seu saldo com puro timing e reflexo — sem sorte, sem cartas, sem roleta.
-          </p>
+          <div className="flex-1" />
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Link href="/signup">
-              <Button variant="primary" size="lg" className="w-full sm:w-auto">
-                <Play className="size-5" fill="currentColor" />
-                Jogar Agora
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
+            className="w-full flex flex-col items-center gap-4"
+          >
+            <Link href="/demo" className="w-full max-w-xs">
+              <Button variant="gold" size="lg" className="w-full uppercase tracking-wide">
+                Jogar grátis
               </Button>
             </Link>
-            <Link href="/signup">
-              <Button variant="secondary" size="lg" className="w-full sm:w-auto">
-                Criar Conta
-                <ArrowRight className="size-4" />
-              </Button>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold italic text-white/90 hover:text-white transition-colors drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]"
+            >
+              Já tenho conta
+              <ArrowRight className="size-4" />
             </Link>
-          </div>
-
-          <div className="mt-10 flex items-center gap-6 text-sm text-text-muted">
-            <span>Saques via PIX</span>
-            <span className="size-1 rounded-full bg-text-muted/40" />
-            <span>100% habilidade</span>
-            <span className="size-1 rounded-full bg-text-muted/40" />
-            <span>Sem cadastro de cartão</span>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut", delay: 0.15 }}
-          className="animate-float"
-        >
-          <HeroTower />
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );

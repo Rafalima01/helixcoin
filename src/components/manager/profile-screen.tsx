@@ -1,20 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldCheck, Monitor } from "lucide-react";
+import { ShieldCheck, Monitor, Bell } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWallet } from "@/hooks/use-wallet";
 import { useManagerProfile } from "@/hooks/use-manager";
 import { SecuritySection } from "@/components/profile/security-section";
 import { SessionsSection } from "@/components/profile/sessions-section";
+import { PushNotificationsSection } from "@/components/manager/push-notifications-section";
 import { cn } from "@/lib/utils";
 
-type TabKey = "seguranca" | "sessoes";
+type TabKey = "seguranca" | "sessoes" | "notificacoes";
 
 const TABS: { key: TabKey; label: string; icon: typeof ShieldCheck }[] = [
   { key: "seguranca", label: "Segurança", icon: ShieldCheck },
   { key: "sessoes", label: "Sessões", icon: Monitor },
+  { key: "notificacoes", label: "Notificações", icon: Bell },
 ];
 
 export function ManagerProfileScreen() {
@@ -78,6 +80,7 @@ export function ManagerProfileScreen() {
 
       {tab === "seguranca" && <SecuritySection email={email} />}
       {tab === "sessoes" && <SessionsSection />}
+      {tab === "notificacoes" && <PushNotificationsSection />}
     </div>
   );
 }

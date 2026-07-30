@@ -28,6 +28,9 @@ export default defineConfig({
       JWT_REFRESH_SECRET: "test-refresh-secret",
       UPLOADS_LOCAL_DIR: "./.vitest-uploads",
       ENCRYPTION_KEY: "YIYRszgvSkBjSfSIPVwfzlfeVSHw7ZThUrurfFCLupw=",
+      VAPID_PUBLIC_KEY: "test-vapid-public-key",
+      VAPID_PRIVATE_KEY: "test-vapid-private-key",
+      VAPID_SUBJECT: "mailto:test@example.com",
     },
     coverage: {
       provider: "v8",

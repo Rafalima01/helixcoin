@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
 import { PaymentLogsAdminApi } from "@/lib/admin/payments-api";
@@ -11,15 +12,29 @@ function formatDate(iso: string) {
 }
 
 export default function AdminPaymentLogsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPaymentLogsPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPaymentLogsPageInner() {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [direction, setDirection] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Deep link from the Gateways screen's "Ver logs" button — cleared locally via the "limpar" button below, not by editing the URL.
+  const [gatewayCredentialId, setGatewayCredentialId] = useState<string | undefined>(
+    searchParams.get("gatewayCredentialId") ?? undefined
+  );
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin", "payments", "logs", direction],
+    queryKey: ["admin", "payments", "logs", direction, gatewayCredentialId],
     queryFn: () =>
       PaymentLogsAdminApi.list({
         direction: direction === "all" ? undefined : (direction as "outbound" | "inbound"),
+        gatewayCredentialId,
         page: 1,
         pageSize: 100,
       }),
@@ -67,6 +82,14 @@ export default function AdminPaymentLogsPage() {
         title="Logs de Pagamento"
         description="Toda chamada a um gateway (saída) e todo webhook recebido (entrada) — nunca inclui credenciais ou segredos."
       />
+      {gatewayCredentialId && (
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          Filtrando por gateway <code className="text-[11px]">{gatewayCredentialId}</code>
+          <button className="text-purple hover:underline" onClick={() => setGatewayCredentialId(undefined)}>
+            limpar
+          </button>
+        </div>
+      )}
       <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por endpoint ou correlationId...">
         <FilterChips
           value={direction}

@@ -85,6 +85,10 @@ const PERMISSIONS = [
   { key: "affiliate.settings.manage", description: "Gerenciar configurações comerciais (CPA/RevShare/níveis)" },
   { key: "manager.read", description: "Visualizar gerentes" },
   { key: "manager.manage", description: "Criar/editar gerentes" },
+  { key: "notifications.read", description: "Visualizar histórico de push notifications" },
+  { key: "notifications.manage", description: "Gerenciar push notifications" },
+  { key: "promotions.settings.manage", description: "Gerenciar configurações de promoções (bônus de primeiro depósito)" },
+  { key: "demo.accounts.manage", description: "Criar/gerenciar Contas Demo (influenciadores/parceiros)" },
 ] as const;
 
 /** Default role → permission grants. SUPER_ADMIN bypasses this entirely at runtime (see server/auth/rbac.ts) — listed here only so the backoffice's Permissions screen shows it as "all". */
@@ -124,6 +128,10 @@ const ROLE_GRANTS: Record<Role, readonly (typeof PERMISSIONS)[number]["key"][]> 
     "affiliate.settings.manage",
     "manager.read",
     "manager.manage",
+    "notifications.read",
+    "notifications.manage",
+    "promotions.settings.manage",
+    "demo.accounts.manage",
   ],
   FINANCE: [
     "wallet.read",

@@ -74,6 +74,35 @@ describe("AuthService.register", () => {
       )
     ).rejects.toThrow(ConflictError);
   });
+
+  it("never attributes referral to a Conta Demo referrer — signup stays organic", async () => {
+    const { service, users } = buildService();
+    const demoReferrer = await users.create({
+      firstName: "Conta",
+      lastName: "Demo",
+      username: "demo22222",
+      email: "demo22222@demo.helixcoin.internal",
+      passwordHash: "hash",
+      referralCode: "DEMOREF1",
+      status: "ACTIVE",
+      isDemo: true,
+      tags: ["demo"],
+    });
+
+    const user = await service.register(
+      {
+        firstName: "Novo",
+        lastName: "Jogador",
+        username: "novojogador",
+        email: "novo@test.com",
+        password: "Sup3rSecret!",
+        referralCode: demoReferrer.referralCode,
+      },
+      meta
+    );
+
+    expect(user.referredById).toBeNull();
+  });
 });
 
 describe("AuthService.login", () => {
@@ -144,6 +173,24 @@ describe("AuthService.login", () => {
 
     const active = await sessions.listByUser(user.id);
     expect(active).toHaveLength(1);
+  });
+
+  it("logs in a Conta Demo by its bare login (no '@') via username lookup", async () => {
+    const { service, users } = buildService();
+    const demoUser = await users.create({
+      firstName: "Conta",
+      lastName: "Demo",
+      username: "demo33333",
+      email: "demo33333@demo.helixcoin.internal",
+      passwordHash: await hashPassword("Lx92@Pm83"),
+      status: "ACTIVE",
+      referralCode: "DEMOLOG1",
+      isDemo: true,
+      tags: ["demo"],
+    });
+
+    const result = await service.login({ email: "demo33333", password: "Lx92@Pm83" }, meta);
+    expect(result.user.id).toBe(demoUser.id);
   });
 });
 

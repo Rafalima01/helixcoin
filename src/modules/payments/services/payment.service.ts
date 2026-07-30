@@ -1,12 +1,14 @@
-import { BusinessRuleError, ExternalServiceError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/server/errors";
+import { BusinessRuleError, ExternalServiceError, ForbiddenError, NotFoundError } from "@/server/errors";
 import { eventBus } from "@/server/events";
-import { encrypt, decrypt, sha256Hex } from "@/server/security/crypto-utils";
-import { WebhookConflictError } from "@/modules/payments/errors";
+import { encrypt, decrypt } from "@/server/security/crypto-utils";
+import { GatewayTimeoutError } from "@/modules/payments/errors";
 import { WalletService } from "@/modules/wallet/services/wallet.service";
 import type { WalletActor } from "@/modules/wallet/entities/wallet.entity";
+import type { IUserRepository } from "@/modules/identity/interfaces/user-repository.interface";
 import { MockProvider } from "@/modules/payments/providers/mock/mock.provider";
 import { ProviderFactory } from "@/modules/payments/factories/provider.factory";
 import { GatewayRouterService } from "@/modules/payments/services/gateway-router.service";
+import { WebhookDispatcherService } from "@/modules/payments/services/webhook-dispatcher.service";
 import { PAYMENT_EVENTS } from "@/modules/payments/events/payments.events";
 import { PAYMENT_IDEMPOTENCY_KEYS, maskPixKey } from "@/modules/payments/constants/payments.constants";
 import type { IDepositRepository } from "@/modules/payments/interfaces/deposit-repository.interface";
@@ -65,6 +67,8 @@ const SYSTEM_ACTOR: WalletActor = { actorId: null, actorType: "SYSTEM" };
  * verification + idempotent settlement.
  */
 export class PaymentService {
+  private readonly dispatcher: WebhookDispatcherService;
+
   constructor(
     private readonly deposits: IDepositRepository,
     private readonly withdraws: IWithdrawRepository,
@@ -73,12 +77,30 @@ export class PaymentService {
     private readonly logs: IGatewayLogRepository,
     private readonly settingsRepo: IPaymentSettingsRepository,
     private readonly router: GatewayRouterService,
-    private readonly walletService: WalletService
-  ) {}
+    private readonly walletService: WalletService,
+    private readonly users: IUserRepository
+  ) {
+    this.dispatcher = new WebhookDispatcherService(
+      webhooks,
+      credentials,
+      logs,
+      this.resolveRelatedId.bind(this),
+      this.settle.bind(this)
+    );
+  }
+
+  /** Contas Demo (src/modules/demo-accounts) são exclusivamente demonstrativas — nunca movimentam dinheiro real. */
+  private async assertNotDemo(userId: string, action: "depositar" | "sacar"): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (user?.isDemo) {
+      throw new BusinessRuleError(`Contas Demo não podem ${action}`);
+    }
+  }
 
   // -------------------------------------------------------------- deposits
 
   async createDeposit(userId: string, amountCents: number): Promise<CreateDepositResult> {
+    await this.assertNotDemo(userId, "depositar");
     const settings = await this.settingsRepo.get();
     if (amountCents < settings.depositMinCents || amountCents > settings.depositMaxCents) {
       throw new BusinessRuleError(
@@ -161,7 +183,7 @@ export class PaymentService {
       webhookSecret,
     });
 
-    return this.handleWebhook(credential.provider, built.rawBody, built.signatureHeader);
+    return this.dispatcher.dispatch(credential.provider, built.rawBody, built.signatureHeader);
   }
 
   // ------------------------------------------------------------- withdraws
@@ -173,6 +195,7 @@ export class PaymentService {
     pixKeyType: string | undefined,
     actor: WalletActor
   ): Promise<RequestWithdrawResult> {
+    await this.assertNotDemo(userId, "sacar");
     const settings = await this.settingsRepo.get();
     if (amountCents < settings.withdrawMinCents || amountCents > settings.withdrawMaxCents) {
       throw new BusinessRuleError(
@@ -264,123 +287,70 @@ export class PaymentService {
       extra: action === "REJECT" ? { rejectionReason } : undefined,
     });
 
-    return this.handleWebhook(credential.provider, built.rawBody, built.signatureHeader);
+    return this.dispatcher.dispatch(credential.provider, built.rawBody, built.signatureHeader);
+  }
+
+  /**
+   * Admin-only Fase 10 simulator — same "build a real signed webhook
+   * payload, settle through the dispatcher" pattern as simulateDeposit/
+   * decideWithdraw, but with the fuller outcome set (CANCELLED/EXPIRED/
+   * REFUNDED) that only makes sense as an ops/testing action, never
+   * something a player triggers on their own deposit — the player-facing
+   * simulateDeposit above is untouched, still PAID/FAILED only.
+   */
+  async simulateDepositAdmin(
+    depositId: string,
+    outcome: "PAID" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED"
+  ): Promise<{ status: number }> {
+    const deposit = await this.deposits.findById(depositId);
+    if (!deposit) throw new NotFoundError("Depósito");
+
+    const requiredStatus = outcome === "REFUNDED" ? "PAID" : "PENDING";
+    if (deposit.status !== requiredStatus) {
+      throw new BusinessRuleError(
+        outcome === "REFUNDED" ? "Só é possível estornar um depósito já pago" : "Depósito já processado"
+      );
+    }
+
+    const credential = await this.credentials.findById(deposit.gatewayCredentialId);
+    if (!credential || credential.provider !== "MOCK") {
+      throw new BusinessRuleError("Simulação disponível apenas para o gateway MOCK");
+    }
+
+    const eventTypeByOutcome: Record<typeof outcome, string> = {
+      PAID: "deposit.paid",
+      FAILED: "deposit.failed",
+      CANCELLED: "deposit.cancelled",
+      EXPIRED: "deposit.expired",
+      REFUNDED: "deposit.refunded",
+    };
+
+    const webhookSecret = decrypt(credential.webhookSecretEncrypted);
+    const built = MockProvider.buildWebhookPayload({
+      eventType: eventTypeByOutcome[outcome],
+      relatedType: "DEPOSIT",
+      relatedId: deposit.id,
+      providerTransactionId: deposit.providerTransactionId ?? `mock_dep_${deposit.id}`,
+      webhookSecret,
+    });
+
+    return this.dispatcher.dispatch(credential.provider, built.rawBody, built.signatureHeader);
   }
 
   // -------------------------------------------------------------- webhooks
 
-  /**
-   * `POST /api/payments/webhook/{provider}` lands here with the raw request
-   * body — signatures are always verified over the raw string, never the
-   * parsed JSON. Tries every registered credential for `providerName` until
-   * one validates (never reveals which check failed, if any).
-   */
+  /** Thin delegation — the mechanics of matching/dedup/persistence live in WebhookDispatcherService (Fase 10); this stays public so `/api/payments/webhook/{provider}` doesn't need to know that split happened. */
   async handleWebhook(
     providerName: GatewayProvider,
     rawBody: string,
     signatureHeader: string | null
   ): Promise<{ status: number }> {
-    const payloadHash = sha256Hex(rawBody);
-    const candidates = await this.credentials.listByProvider(providerName);
-
-    let matchedCredential: GatewayCredential | null = null;
-    let eventType = "";
-    let relatedType: PaymentRelatedType | undefined;
-    let providerTransactionId: string | undefined;
-    let providerEventId: string | undefined;
-    let parsedPayload: Record<string, unknown> | undefined;
-
-    for (const credential of candidates) {
-      const provider = ProviderFactory.create(credential);
-      const webhookSecret = decrypt(credential.webhookSecretEncrypted);
-      try {
-        const validation = await provider.validateWebhook({ rawBody, signatureHeader, webhookSecret });
-        if (validation.valid) {
-          matchedCredential = credential;
-          eventType = validation.eventType ?? "";
-          relatedType = validation.relatedType;
-          providerTransactionId = validation.providerTransactionId;
-          providerEventId = validation.providerEventId;
-          parsedPayload = validation.parsedPayload;
-          break;
-        }
-      } catch {
-        continue; // e.g. NotImplementedProvider — never reveal which credential rejected it
-      }
-    }
-
-    if (!matchedCredential || !relatedType || !providerTransactionId) {
-      throw new UnauthorizedError("Assinatura de webhook inválida");
-    }
-
-    const existing = await this.findExistingWebhook(providerEventId, payloadHash);
-    if (existing && (existing.status === "PROCESSED" || existing.status === "REPROCESSED")) {
-      return { status: existing.responseStatus ?? 200 };
-    }
-
-    const relatedId = await this.resolveRelatedId(relatedType, providerTransactionId);
-    if (!relatedId) throw new NotFoundError(relatedType === "DEPOSIT" ? "Depósito" : "Saque");
-
-    let webhook: PaymentWebhook;
-    if (existing) {
-      webhook = existing;
-    } else {
-      try {
-        webhook = await this.webhooks.create({
-          gatewayCredentialId: matchedCredential.id,
-          provider: matchedCredential.provider,
-          relatedType,
-          relatedId,
-          eventType,
-          providerEventId: providerEventId ?? null,
-          payloadHash,
-          payload: parsedPayload ?? JSON.parse(rawBody),
-          signatureValid: true,
-        });
-      } catch (err) {
-        // A concurrent delivery of the SAME event won the race and already created the row — defer to it instead of erroring.
-        if (err instanceof WebhookConflictError && providerEventId) {
-          const winner = await this.webhooks.findByProviderEventId(providerEventId);
-          if (!winner) throw err;
-          if (winner.status === "PROCESSED" || winner.status === "REPROCESSED") {
-            return { status: winner.responseStatus ?? 200 };
-          }
-          webhook = winner;
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    eventBus.publish(PAYMENT_EVENTS.webhookReceived, {
-      webhookId: webhook.id,
-      provider: matchedCredential.provider,
-      eventType,
-      relatedType,
-      relatedId,
-    });
-
-    return this.settleAndRecord(webhook, matchedCredential, !!existing);
+    return this.dispatcher.dispatch(providerName, rawBody, signatureHeader);
   }
 
-  /** Admin "Reprocessar" action on a stored webhook — re-runs settlement from the already-verified, already-stored payload without needing a fresh signature. */
+  /** Admin "Reprocessar" action on a stored webhook. */
   async reprocessWebhook(webhookId: string): Promise<{ status: number }> {
-    const webhook = await this.webhooks.findById(webhookId);
-    if (!webhook) throw new NotFoundError("Webhook");
-    const credential = await this.credentials.findById(webhook.gatewayCredentialId);
-    if (!credential) throw new NotFoundError("Gateway");
-    return this.settleAndRecord(webhook, credential, true);
-  }
-
-  private async findExistingWebhook(
-    providerEventId: string | undefined,
-    payloadHash: string
-  ): Promise<PaymentWebhook | null> {
-    if (providerEventId) {
-      const byEventId = await this.webhooks.findByProviderEventId(providerEventId);
-      if (byEventId) return byEventId;
-    }
-    return this.webhooks.findByPayloadHash(payloadHash);
+    return this.dispatcher.reprocess(webhookId);
   }
 
   private async resolveRelatedId(relatedType: PaymentRelatedType, providerTransactionId: string): Promise<string | null> {
@@ -392,79 +362,39 @@ export class PaymentService {
     return withdraw?.id ?? null;
   }
 
-  private async settleAndRecord(
-    webhook: PaymentWebhook,
-    credential: GatewayCredential,
-    isReprocess: boolean
-  ): Promise<{ status: number }> {
-    const start = performance.now();
-    try {
-      await this.settle(webhook);
-      const processingMs = Math.round(performance.now() - start);
-      await this.webhooks.update(webhook.id, {
-        status: isReprocess ? "REPROCESSED" : "PROCESSED",
-        responseStatus: 200,
-        responseBody: { ok: true },
-        processedAt: new Date(),
-        ...(isReprocess ? { reprocessedAt: new Date(), reprocessCount: webhook.reprocessCount + 1 } : {}),
-        processingMs,
-      });
-      await this.logGateway({
-        direction: "inbound",
-        endpoint: `/api/payments/webhook/${credential.provider}`,
-        provider: credential.provider,
-        gatewayCredentialId: credential.id,
-        success: true,
-        statusCode: 200,
-        durationMs: processingMs,
-        correlationId: webhook.relatedId,
-      });
-      return { status: 200 };
-    } catch (err) {
-      const processingMs = Math.round(performance.now() - start);
-      const errorMessage = err instanceof Error ? err.message : "unknown error";
-      await this.webhooks.update(webhook.id, {
-        status: "ERROR",
-        responseStatus: 500,
-        errorMessage,
-        processedAt: new Date(),
-        ...(isReprocess ? { reprocessedAt: new Date(), reprocessCount: webhook.reprocessCount + 1 } : {}),
-        processingMs,
-      });
-      await this.logGateway({
-        direction: "inbound",
-        endpoint: `/api/payments/webhook/${credential.provider}`,
-        provider: credential.provider,
-        gatewayCredentialId: credential.id,
-        success: false,
-        statusCode: 500,
-        durationMs: processingMs,
-        errorMessage,
-        correlationId: webhook.relatedId,
-      });
-      return { status: 500 };
-    }
-  }
-
   /**
    * The settlement idempotency-key scheme, parallel to match-engine's
    * `match:{id}:bet` convention:
    *   deposit.paid              -> credit()                       deposit:{id}:confirm
    *   deposit.failed/cancelled/
-   *   expired                   -> Deposit status update only      (none)
+   *   expired/refunded          -> Deposit status update only      (none)
    *   withdraw.approved         -> debit(account:"LOCKED")         withdraw:{id}:approve
    *   withdraw.rejected         -> unlock()                        withdraw:{id}:unlock-reject
    * Every branch is itself defensively idempotent (checks the current
    * Deposit/Withdraw status before acting) on top of WalletService's own
    * idempotency-key guarantee — belt and suspenders for a reprocessed or
-   * replayed webhook.
+   * replayed webhook. When the guard trips because the entity already moved
+   * past the state this event expects (e.g. a stale "rejected" landing
+   * after the withdraw was already APPROVED), it's a no-op AND publishes
+   * PAYMENT_EVENTS.webhookOutOfOrder (Fase 10) instead of failing silently.
+   *
+   * deposit.refunded is status-only by design (Fase 10) — it never calls
+   * WalletService. Automatically reversing an already-spent deposit's
+   * balance is a real business-risk decision (negative balance handling,
+   * etc.) that's out of scope for the payments architecture hardening this
+   * phase covers; if a refund needs an actual balance adjustment, the admin
+   * already has the right tool for that (the audited manual wallet
+   * adjustment at /admin/wallets).
    */
   private async settle(webhook: PaymentWebhook): Promise<void> {
     switch (webhook.eventType) {
       case "deposit.paid": {
         const deposit = await this.deposits.findById(webhook.relatedId);
         if (!deposit) throw new NotFoundError("Depósito");
-        if (deposit.status === "PAID") return;
+        if (deposit.status === "PAID") {
+          this.publishWebhookOutOfOrder(webhook, deposit.status);
+          return;
+        }
 
         const result = await this.walletService.credit({
           userId: deposit.userId,
@@ -497,16 +427,24 @@ export class PaymentService {
       case "deposit.expired": {
         const deposit = await this.deposits.findById(webhook.relatedId);
         if (!deposit) throw new NotFoundError("Depósito");
-        if (deposit.status !== "PENDING" && deposit.status !== "PROCESSING") return;
+        if (deposit.status !== "PENDING" && deposit.status !== "PROCESSING") {
+          this.publishWebhookOutOfOrder(webhook, deposit.status);
+          return;
+        }
 
         const statusMap: Record<string, DepositStatus> = {
           "deposit.failed": "FAILED",
           "deposit.cancelled": "CANCELLED",
           "deposit.expired": "EXPIRED",
         };
+        const eventByType = {
+          "deposit.failed": PAYMENT_EVENTS.depositFailed,
+          "deposit.cancelled": PAYMENT_EVENTS.depositCancelled,
+          "deposit.expired": PAYMENT_EVENTS.depositExpired,
+        } as const;
         const reason = (webhook.payload as { reason?: string }).reason ?? null;
         await this.deposits.update(deposit.id, { status: statusMap[webhook.eventType], failureReason: reason });
-        eventBus.publish(PAYMENT_EVENTS.depositFailed, {
+        eventBus.publish(eventByType[webhook.eventType as keyof typeof eventByType], {
           depositId: deposit.id,
           userId: deposit.userId,
           amountCents: deposit.amountCents,
@@ -516,10 +454,32 @@ export class PaymentService {
         return;
       }
 
+      case "deposit.refunded": {
+        const deposit = await this.deposits.findById(webhook.relatedId);
+        if (!deposit) throw new NotFoundError("Depósito");
+        if (deposit.status !== "PAID") {
+          this.publishWebhookOutOfOrder(webhook, deposit.status);
+          return;
+        }
+
+        await this.deposits.update(deposit.id, { status: "REFUNDED" });
+        eventBus.publish(PAYMENT_EVENTS.depositRefunded, {
+          depositId: deposit.id,
+          userId: deposit.userId,
+          amountCents: deposit.amountCents,
+          gatewayCredentialId: deposit.gatewayCredentialId,
+          status: "REFUNDED",
+        });
+        return;
+      }
+
       case "withdraw.approved": {
         const withdraw = await this.withdraws.findById(webhook.relatedId);
         if (!withdraw) throw new NotFoundError("Saque");
-        if (withdraw.status !== "PENDING" && withdraw.status !== "PROCESSING") return;
+        if (withdraw.status !== "PENDING" && withdraw.status !== "PROCESSING") {
+          this.publishWebhookOutOfOrder(webhook, withdraw.status);
+          return;
+        }
 
         const result = await this.walletService.debit({
           userId: withdraw.userId,
@@ -550,7 +510,10 @@ export class PaymentService {
       case "withdraw.rejected": {
         const withdraw = await this.withdraws.findById(webhook.relatedId);
         if (!withdraw) throw new NotFoundError("Saque");
-        if (withdraw.status !== "PENDING" && withdraw.status !== "PROCESSING") return;
+        if (withdraw.status !== "PENDING" && withdraw.status !== "PROCESSING") {
+          this.publishWebhookOutOfOrder(webhook, withdraw.status);
+          return;
+        }
 
         await this.walletService.unlock({
           userId: withdraw.userId,
@@ -583,9 +546,30 @@ export class PaymentService {
     }
   }
 
+  private publishWebhookOutOfOrder(webhook: PaymentWebhook, currentStatus: string): void {
+    eventBus.publish(PAYMENT_EVENTS.webhookOutOfOrder, {
+      webhookId: webhook.id,
+      relatedType: webhook.relatedType,
+      relatedId: webhook.relatedId,
+      currentStatus,
+      attemptedEventType: webhook.eventType,
+    });
+  }
+
   // ---------------------------------------------------------- gateway I/O
 
-  /** Tries every routable, healthy candidate in order; records a GatewayLog row per attempt and a fresh health check on failure so the next call's routing already reflects it. */
+  /**
+   * Tries every routable, healthy candidate in order; per candidate, retries
+   * up to `credential.maxRetries` times (Fase 10 — previously a stored-but-
+   * unread column) before moving on, and every single attempt is bounded by
+   * `credential.timeoutMs` via `withTimeout`. `correlationId` is always the
+   * Deposit/Withdraw id — the same value threaded through every GatewayLog
+   * row, the eventual PaymentWebhook, and the WalletService call that
+   * settles it, so the whole chain (gateway attempts → webhook → wallet →
+   * ledger → logs) can be reconstructed from one id alone. Records a
+   * GatewayLog row per attempt and a fresh health check once a candidate's
+   * retries are exhausted, so the next call's routing already reflects it.
+   */
   private async withFailover<T>(
     settings: PaymentSettings,
     endpoint: string,
@@ -598,42 +582,100 @@ export class PaymentService {
     if (candidates.length === 0) throw new BusinessRuleError("Nenhum gateway de pagamento ativo configurado");
 
     let lastError: unknown;
-    for (const credential of candidates) {
+    for (let i = 0; i < candidates.length; i++) {
+      const credential = candidates[i];
       const provider = ProviderFactory.create(credential);
-      const start = performance.now();
-      try {
-        const result = await fn(provider);
-        const durationMs = Math.round(performance.now() - start);
-        await this.logGateway({
-          direction: "outbound",
-          endpoint,
-          provider: credential.provider,
-          gatewayCredentialId: credential.id,
-          success: true,
-          durationMs,
-          correlationId,
-        });
-        return { credential, result };
-      } catch (err) {
-        lastError = err;
-        const durationMs = Math.round(performance.now() - start);
-        await this.logGateway({
-          direction: "outbound",
-          endpoint,
-          provider: credential.provider,
-          gatewayCredentialId: credential.id,
-          success: false,
-          durationMs,
-          correlationId,
-          errorMessage: err instanceof Error ? err.message : "unknown error",
-        });
-        await this.router.recordHealthCheck(credential).catch(() => {});
+      const maxAttempts = credential.maxRetries + 1;
+
+      let candidateError: unknown;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (attempt > 0) {
+          eventBus.publish(PAYMENT_EVENTS.gatewayRetry, {
+            gatewayCredentialId: credential.id,
+            provider: credential.provider,
+            correlationId,
+            attempt,
+            maxRetries: credential.maxRetries,
+          });
+        }
+
+        const start = performance.now();
+        try {
+          const result = await this.withTimeout(fn(provider), credential.timeoutMs);
+          const durationMs = Math.round(performance.now() - start);
+          await this.logGateway({
+            direction: "outbound",
+            endpoint,
+            provider: credential.provider,
+            gatewayCredentialId: credential.id,
+            success: true,
+            durationMs,
+            correlationId,
+            requestSummary: { correlationId, attempt, maxRetries: credential.maxRetries },
+          });
+          return { credential, result };
+        } catch (err) {
+          candidateError = err;
+          lastError = err;
+          const timedOut = err instanceof GatewayTimeoutError;
+          const durationMs = Math.round(performance.now() - start);
+
+          if (timedOut) {
+            eventBus.publish(PAYMENT_EVENTS.gatewayTimeout, {
+              gatewayCredentialId: credential.id,
+              provider: credential.provider,
+              correlationId,
+              attempt,
+              timeoutMs: credential.timeoutMs,
+            });
+          }
+
+          await this.logGateway({
+            direction: "outbound",
+            endpoint,
+            provider: credential.provider,
+            gatewayCredentialId: credential.id,
+            success: false,
+            durationMs,
+            correlationId,
+            errorMessage: timedOut ? `timeout after ${credential.timeoutMs}ms` : err instanceof Error ? err.message : "unknown error",
+            requestSummary: { correlationId, attempt, maxRetries: credential.maxRetries, timedOut },
+          });
+        }
       }
+
+      // Every attempt for this candidate failed — record health and move to the next one.
+      await this.router.recordHealthCheck(credential).catch(() => {});
+      const next = candidates[i + 1];
+      eventBus.publish(PAYMENT_EVENTS.gatewayFailover, {
+        fromGatewayCredentialId: credential.id,
+        toGatewayCredentialId: next ? next.id : null,
+        provider: credential.provider,
+        correlationId,
+        reason: candidateError instanceof Error ? candidateError.message : "unknown error",
+      });
     }
 
     throw lastError instanceof Error
       ? new ExternalServiceError("payments", lastError.message)
       : new ExternalServiceError("payments");
+  }
+
+  /** Races `promise` against a timer that rejects with GatewayTimeoutError after `timeoutMs` — never leaves a dangling timer once either side settles. */
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new GatewayTimeoutError(timeoutMs)), timeoutMs);
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        }
+      );
+    });
   }
 
   private async logGateway(input: {
@@ -646,6 +688,7 @@ export class PaymentService {
     statusCode?: number;
     correlationId?: string;
     errorMessage?: string;
+    requestSummary?: Record<string, unknown>;
   }): Promise<void> {
     try {
       await this.logs.create({
@@ -658,7 +701,7 @@ export class PaymentService {
         statusCode: input.statusCode ?? null,
         errorMessage: input.errorMessage ?? null,
         correlationId: input.correlationId ?? null,
-        requestSummary: input.correlationId ? { correlationId: input.correlationId } : null,
+        requestSummary: input.requestSummary ?? (input.correlationId ? { correlationId: input.correlationId } : null),
       });
     } catch {
       // Logging must never break the payment flow itself.
@@ -728,6 +771,7 @@ export class PaymentService {
     timeoutMs?: number;
     maxRetries?: number;
     simulatedHealth?: GatewayCredential["simulatedHealth"];
+    simulatedErrorMode?: GatewayCredential["simulatedErrorMode"];
     createdById: string;
   }): Promise<GatewayCredential> {
     const payload: CreateGatewayCredentialInput = {
@@ -742,6 +786,7 @@ export class PaymentService {
       credentialsEncrypted: encrypt(JSON.stringify(input.credentials)),
       webhookSecretEncrypted: encrypt(input.webhookSecret),
       simulatedHealth: input.simulatedHealth ?? null,
+      simulatedErrorMode: input.simulatedErrorMode ?? null,
       createdById: input.createdById,
     };
     return this.credentials.create(payload);
@@ -760,6 +805,7 @@ export class PaymentService {
       timeoutMs?: number;
       maxRetries?: number;
       simulatedHealth?: GatewayCredential["simulatedHealth"];
+      simulatedErrorMode?: GatewayCredential["simulatedErrorMode"];
     }
   ): Promise<GatewayCredential> {
     const existing = await this.credentials.findById(id);
@@ -774,6 +820,7 @@ export class PaymentService {
       timeoutMs: input.timeoutMs,
       maxRetries: input.maxRetries,
       simulatedHealth: input.simulatedHealth,
+      simulatedErrorMode: input.simulatedErrorMode,
       ...(input.credentials !== undefined ? { credentialsEncrypted: encrypt(JSON.stringify(input.credentials)) } : {}),
       ...(input.webhookSecret !== undefined ? { webhookSecretEncrypted: encrypt(input.webhookSecret) } : {}),
     };

@@ -19,6 +19,7 @@ function buildCredential(provider: GatewayProvider): GatewayCredential {
     credentialsEncrypted: encrypt("{}"),
     webhookSecretEncrypted: encrypt("some-webhook-secret"),
     simulatedHealth: null,
+    simulatedErrorMode: null,
     createdById: null,
     createdAt: new Date(),
     updatedAt: new Date(),

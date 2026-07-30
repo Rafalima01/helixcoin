@@ -15,6 +15,14 @@
   --color-pink: #ff4fae;
   --color-green: #16f2a5;
 
+  /* Prize accent — reserved for conversion CTAs (hero, cadastro, final CTA), never used as a general brand tint. */
+  --color-gold: #f0a83c;
+  --color-gold-dim: #c96a0b;
+  --color-gold-soft: rgba(240, 168, 60, 0.14);
+
+  /* Focal-point accent — the hero illustration's glowing ball and matching decorative highlights only. */
+  --color-coral: #ef4444;
+
   /* Text */
   --color-text: #ffffff;
   --color-text-secondary: #b2afc2;
@@ -41,6 +49,10 @@
   --color-purple-dim: var(--color-purple-dim);
   --color-pink: var(--color-pink);
   --color-green: var(--color-green);
+  --color-gold: var(--color-gold);
+  --color-gold-dim: var(--color-gold-dim);
+  --color-gold-soft: var(--color-gold-soft);
+  --color-coral: var(--color-coral);
 
   --color-text: var(--color-text);
   --color-text-secondary: var(--color-text-secondary);
@@ -183,6 +195,13 @@ body {
   color: transparent;
 }
 
+.text-gradient-gold {
+  background: linear-gradient(90deg, #ffd479 0%, #f0a83c 55%, #c96a0b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 .glow-purple {
   box-shadow:
     0 0 24px 0 rgba(139, 92, 246, 0.45),
@@ -200,6 +219,13 @@ body {
     0 0 24px 0 rgba(22, 242, 165, 0.45),
     0 0 60px 0 rgba(22, 242, 165, 0.15);
 }
+
+.glow-gold {
+  box-shadow:
+    0 0 24px 0 rgba(240, 168, 60, 0.5),
+    0 0 60px 0 rgba(240, 168, 60, 0.18);
+}
+
 
 .shimmer-bg {
   background: linear-gradient(

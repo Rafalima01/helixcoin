@@ -7,6 +7,8 @@ export interface RegisterInput {
   referralCode?: string;
   /** Phase 8 — optional AffiliateLink slug from `/r/{code}?l={slug}`, analytics-only. */
   affiliateLinkSlug?: string;
+  /** Fase Demo — "demo" when signup came from the ?source=demo flow (see promotions.service.ts). */
+  source?: "demo";
 }
 
 export interface LoginInput {

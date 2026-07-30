@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Logo } from "@/components/ui/logo";
-import { HeroTower } from "@/components/landing/hero-tower";
+import { HeroScene } from "@/components/landing/hero-scene-loader";
 
 export function AuthShell({
   children,
@@ -33,6 +33,11 @@ export function AuthShell({
           animate={{ x: [0, -30, 0], y: [0, -20, 0] }}
           transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
         />
+        <motion.div
+          className="absolute top-1/3 -right-24 size-[300px] rounded-full bg-gold/15 blur-3xl"
+          animate={{ x: [0, -20, 0], y: [0, 24, 0] }}
+          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+        />
 
         <Link href="/" className="relative z-10">
           <Logo />
@@ -41,7 +46,7 @@ export function AuthShell({
         {!hideHero && (
           <>
             <div className="relative z-10 flex items-center justify-center flex-1">
-              <HeroTower />
+              <HeroScene className="relative aspect-square w-full max-w-[360px] mx-auto" />
             </div>
 
             <blockquote className="relative z-10 text-text-secondary text-lg leading-relaxed max-w-md">

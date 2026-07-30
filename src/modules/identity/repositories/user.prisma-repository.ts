@@ -40,6 +40,10 @@ export class PrismaUserRepository implements IUserRepository {
         referralCode: data.referralCode,
         referredById: data.referredById ?? null,
         affiliateLinkId: data.affiliateLinkId ?? null,
+        signupSource: data.signupSource ?? null,
+        eligibleForFirstDepositBonus: data.eligibleForFirstDepositBonus ?? false,
+        isDemo: data.isDemo ?? false,
+        tags: data.tags ?? [],
         wallet: { create: { balance: 0 } },
       },
     });

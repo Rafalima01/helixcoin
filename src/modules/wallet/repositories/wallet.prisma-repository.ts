@@ -161,6 +161,11 @@ export class PrismaWalletRepository implements IWalletRepository {
 
   async listTransactions(filter: TransactionListFilter): Promise<{ items: WalletTransaction[]; total: number }> {
     const where: Prisma.WalletTransactionWhereInput = {
+      // Contas Demo nunca aparecem em relatórios/estatísticas financeiras —
+      // ver isDemo no schema.prisma. Este é o listing admin (Transações);
+      // a própria conta demo continua vendo seu extrato via /api/wallet
+      // (filtrado por userId, não por este método).
+      user: { isDemo: false },
       ...(filter.userId ? { userId: filter.userId } : {}),
       ...(filter.type ? { type: filter.type } : {}),
       ...(filter.status ? { status: filter.status } : {}),
@@ -192,23 +197,28 @@ export class PrismaWalletRepository implements IWalletRepository {
   }
 
   async listWalletsAdmin(filter: WalletListFilter): Promise<{ items: WalletAdminSummary[]; total: number }> {
-    const where: Prisma.WalletWhereInput = filter.search
-      ? {
-          OR: [
-            { userId: filter.search },
-            {
-              user: {
-                OR: [
-                  { email: { contains: filter.search, mode: "insensitive" } },
-                  { username: { contains: filter.search, mode: "insensitive" } },
-                  { firstName: { contains: filter.search, mode: "insensitive" } },
-                  { lastName: { contains: filter.search, mode: "insensitive" } },
-                ],
+    // Contas Demo (isDemo) ficam isoladas da operação real — visíveis apenas
+    // no admin dedicado /admin/demo-accounts, nunca no listing financeiro geral.
+    const where: Prisma.WalletWhereInput = {
+      user: { isDemo: false },
+      ...(filter.search
+        ? {
+            OR: [
+              { userId: filter.search },
+              {
+                user: {
+                  OR: [
+                    { email: { contains: filter.search, mode: "insensitive" } },
+                    { username: { contains: filter.search, mode: "insensitive" } },
+                    { firstName: { contains: filter.search, mode: "insensitive" } },
+                    { lastName: { contains: filter.search, mode: "insensitive" } },
+                  ],
+                },
               },
-            },
-          ],
-        }
-      : {};
+            ],
+          }
+        : {}),
+    };
 
     const [rows, total] = await Promise.all([
       prisma.wallet.findMany({

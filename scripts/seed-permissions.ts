@@ -56,6 +56,10 @@ const PERMISSIONS = [
   { key: "affiliate.settings.manage", description: "Gerenciar configurações comerciais (CPA/RevShare/níveis)" },
   { key: "manager.read", description: "Visualizar gerentes" },
   { key: "manager.manage", description: "Criar/editar gerentes" },
+  { key: "notifications.read", description: "Visualizar histórico de push notifications" },
+  { key: "notifications.manage", description: "Gerenciar push notifications" },
+  { key: "promotions.settings.manage", description: "Gerenciar configurações de promoções (bônus de primeiro depósito)" },
+  { key: "demo.accounts.manage", description: "Criar/gerenciar Contas Demo (influenciadores/parceiros)" },
 ] as const;
 
 const ROLE_GRANTS: Record<Role, readonly (typeof PERMISSIONS)[number]["key"][]> = {
@@ -70,6 +74,8 @@ const ROLE_GRANTS: Record<Role, readonly (typeof PERMISSIONS)[number]["key"][]> 
     "payments.webhooks.manage", "payments.logs.read", "affiliate.applications.read",
     "affiliate.applications.approve", "affiliate.commissions.read",
     "affiliate.commissions.approve", "affiliate.settings.manage", "manager.read", "manager.manage",
+    "notifications.read", "notifications.manage", "promotions.settings.manage",
+    "demo.accounts.manage",
   ],
   FINANCE: [
     "wallet.read", "wallet.update", "ledger.read", "finance.read", "reports.export",

@@ -14,6 +14,7 @@ import {
   gatewayCredentialCreateSchema,
   gatewayCredentialUpdateSchema,
   paymentSettingsUpdateSchema,
+  adminSimulateDepositSchema,
 } from "@/modules/payments/validators/payments.validator";
 import {
   toDepositAdminDto,
@@ -79,6 +80,14 @@ export async function handleGetDepositAdmin(_req: NextRequest, auth: AuthContext
   await assertPermission(auth, "payments.deposits.read");
   const deposit = await paymentService.getDepositAdmin(id);
   return ok(deposit);
+}
+
+/** Fase 10 admin simulator — broader outcome set (CANCELLED/EXPIRED/REFUNDED) than the player-facing /api/payments/deposits/{id}/simulate, MOCK-only (enforced in PaymentService.simulateDepositAdmin). */
+export async function handleSimulateDepositAdmin(req: NextRequest, auth: AuthContext, id: string) {
+  await assertPermission(auth, "payments.gateways.manage");
+  const body = adminSimulateDepositSchema.parse(await req.json());
+  const result = await paymentService.simulateDepositAdmin(id, body.outcome);
+  return ok(result);
 }
 
 // ------------------------------------------------------------ withdrawals
@@ -219,6 +228,7 @@ export async function handleListGatewayLogsAdmin(req: NextRequest, auth: AuthCon
   const url = req.nextUrl;
   const pagination = parsePagination(url.searchParams);
   const query = adminGatewayLogListQuerySchema.parse({
+    gatewayCredentialId: url.searchParams.get("gatewayCredentialId") ?? undefined,
     provider: url.searchParams.get("provider") ?? undefined,
     direction: url.searchParams.get("direction") ?? undefined,
     correlationId: url.searchParams.get("correlationId") ?? undefined,
@@ -228,6 +238,7 @@ export async function handleListGatewayLogsAdmin(req: NextRequest, auth: AuthCon
   });
 
   const { items, total } = await paymentService.listGatewayLogsAdmin({
+    gatewayCredentialId: query.gatewayCredentialId,
     provider: query.provider as GatewayProvider | undefined,
     direction: query.direction,
     correlationId: query.correlationId,

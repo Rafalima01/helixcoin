@@ -60,12 +60,21 @@ export interface DepositListParams {
   [key: string]: string | number | undefined;
 }
 
+export type AdminDepositSimulateOutcome = "PAID" | "FAILED" | "CANCELLED" | "EXPIRED" | "REFUNDED";
+
 export const DepositsAdminApi = {
   async list(params: DepositListParams) {
     return request<DepositAdminDto[]>(`/api/admin/payments/deposits${buildQuery(params)}`);
   },
   async get(id: string) {
     return request<DepositAdminDto>(`/api/admin/payments/deposits/${id}`);
+  },
+  /** Fase 10 admin simulator — MOCK-only, broader than the player's own PAID/FAILED demo button. */
+  async simulate(id: string, outcome: AdminDepositSimulateOutcome) {
+    return request<{ status: number }>(`/api/admin/payments/deposits/${id}/simulate`, {
+      method: "POST",
+      body: JSON.stringify({ outcome }),
+    });
   },
 };
 
@@ -115,6 +124,7 @@ export interface CreateGatewayInput {
   timeoutMs?: number;
   maxRetries?: number;
   simulatedHealth?: "ONLINE" | "DEGRADED" | "OFFLINE" | null;
+  simulatedErrorMode?: "TIMEOUT" | "ERROR_500" | "AUTH_ERROR" | "OFFLINE_CALLS" | null;
 }
 
 export type UpdateGatewayInput = Partial<Omit<CreateGatewayInput, "provider">>;
@@ -171,6 +181,7 @@ export const WebhooksAdminApi = {
 };
 
 export interface GatewayLogListParams {
+  gatewayCredentialId?: string;
   provider?: string;
   direction?: "outbound" | "inbound";
   correlationId?: string;

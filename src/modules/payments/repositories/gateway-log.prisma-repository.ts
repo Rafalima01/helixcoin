@@ -58,6 +58,7 @@ export class PrismaGatewayLogRepository implements IGatewayLogRepository {
 
   async listAdmin(filter: GatewayLogListFilter): Promise<{ items: GatewayLog[]; total: number }> {
     const where: Prisma.GatewayLogWhereInput = {
+      ...(filter.gatewayCredentialId ? { gatewayCredentialId: filter.gatewayCredentialId } : {}),
       ...(filter.provider ? { provider: filter.provider } : {}),
       ...(filter.direction ? { direction: filter.direction } : {}),
       ...(filter.correlationId ? { correlationId: filter.correlationId } : {}),

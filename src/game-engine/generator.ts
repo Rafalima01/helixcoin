@@ -46,8 +46,14 @@ function dangerBudget(rng: () => number, depth: number): number {
   // depth-scaled budget below applies at all for this ring. 1 (the default)
   // means it always does, exactly like before this was configurable.
   if (rng() > CFG.dangerChance) return 0;
-  const base = Math.min(CFG.maxDangerSegments, 1 + Math.floor((depth - CFG.safeDepth) / 9));
-  return rng() < 0.75 ? base : Math.max(0, base - 1);
+  // RTP11: ramps one step every 6 rings past safeDepth (was 9) — the
+  // curve still starts gentle right after the protected opening, but now
+  // reaches each admin-configured maxDangerSegments cap noticeably sooner,
+  // instead of staying near-minimum for the first ~40 platforms of a run.
+  const base = Math.min(CFG.maxDangerSegments, 1 + Math.floor((depth - CFG.safeDepth) / 6));
+  // Biased toward hitting the ramped target (was a 75/25 split) so realized
+  // difficulty tracks the curve above more consistently.
+  return rng() < 0.85 ? base : Math.max(0, base - 1);
 }
 
 export function generateRing(seed: string, index: number): RingData {

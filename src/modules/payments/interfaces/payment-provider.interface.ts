@@ -50,6 +50,11 @@ export interface GetWithdrawResult {
   raw?: Record<string, unknown>;
 }
 
+export interface CancelWithdrawResult {
+  cancelled: boolean;
+  raw?: Record<string, unknown>;
+}
+
 export interface ValidateWebhookInput {
   rawBody: string;
   signatureHeader: string | null;
@@ -87,6 +92,14 @@ export interface PaymentProvider {
   cancelDeposit(input: { providerTransactionId: string }): Promise<CancelDepositResult>;
   createWithdraw(input: CreateWithdrawInput): Promise<CreateWithdrawResult>;
   getWithdraw(input: { providerTransactionId: string }): Promise<GetWithdrawResult>;
+  /**
+   * Not yet called by PaymentService this phase — withdraws only resolve via
+   * admin approve/reject (settled through a webhook, see PaymentService.
+   * decideWithdraw). Exists so the SDK contract is complete for a future
+   * gateway that requires an explicit cancel call before a pending withdraw
+   * can be approved/rejected — not dead code, an extension point.
+   */
+  cancelWithdraw(input: { providerTransactionId: string }): Promise<CancelWithdrawResult>;
   validateWebhook(input: ValidateWebhookInput): Promise<ValidateWebhookResult>;
   health(): Promise<ProviderHealthResult>;
 }

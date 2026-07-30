@@ -14,6 +14,14 @@ export interface CreateUserRecord {
   referredById?: string | null;
   /** Phase 8 — analytics-only tag, see AffiliateLink's schema doc comment. Never used for attribution. */
   affiliateLinkId?: string | null;
+  /** Fase Demo — ?source= query param at signup (e.g. "demo"), analytics only. */
+  signupSource?: string | null;
+  /** Fase Demo — true when signupSource === "demo"; the only field promotions.service.ts reads. */
+  eligibleForFirstDepositBonus?: boolean;
+  /** Conta Demo (influenciador/parceiro) — only ever set by src/modules/demo-accounts, never by public signup. */
+  isDemo?: boolean;
+  /** Only demo-account creation passes tags (["demo"] → game-config DEMO mode) — public signup never does. */
+  tags?: string[];
 }
 
 export type UpdateUserRecord = Partial<

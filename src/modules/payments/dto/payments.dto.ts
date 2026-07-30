@@ -130,6 +130,7 @@ export interface GatewayCredentialAdminDto {
   timeoutMs: number;
   maxRetries: number;
   simulatedHealth: string | null;
+  simulatedErrorMode: string | null;
   latestHealthStatus: string | null;
   latestHealthCheckedAt: string | null;
   createdAt: string;
@@ -148,6 +149,7 @@ export function toGatewayCredentialAdminDto(entity: GatewayCredentialWithHealth)
     timeoutMs: entity.timeoutMs,
     maxRetries: entity.maxRetries,
     simulatedHealth: entity.simulatedHealth,
+    simulatedErrorMode: entity.simulatedErrorMode,
     latestHealthStatus: entity.latestHealth?.status ?? null,
     latestHealthCheckedAt: entity.latestHealth?.checkedAt.toISOString() ?? null,
     createdAt: entity.createdAt.toISOString(),

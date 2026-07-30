@@ -1717,7 +1717,7 @@ export const openApiSpec = {
       LoginInput: {
         type: "object",
         properties: {
-          email: { type: "string", format: "email" },
+          email: { type: "string", description: "Email, or a Conta Demo login (e.g. \"demo47291\")" },
           password: { type: "string" },
           rememberMe: { type: "boolean", default: false },
         },

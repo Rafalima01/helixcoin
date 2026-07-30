@@ -8,6 +8,7 @@ import type {
   CreateWithdrawInput,
   CreateWithdrawResult,
   GetWithdrawResult,
+  CancelWithdrawResult,
   ValidateWebhookInput,
   ValidateWebhookResult,
   ProviderHealthResult,
@@ -48,6 +49,10 @@ export class NotImplementedProvider implements PaymentProvider {
   }
 
   async getWithdraw(_input: { providerTransactionId: string }): Promise<GetWithdrawResult> {
+    this.fail();
+  }
+
+  async cancelWithdraw(_input: { providerTransactionId: string }): Promise<CancelWithdrawResult> {
     this.fail();
   }
 

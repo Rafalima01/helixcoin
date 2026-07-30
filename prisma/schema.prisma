@@ -145,6 +145,20 @@ model User {
   affiliateLinkId String?
   attributedLink  AffiliateLink? @relation(fields: [affiliateLinkId], references: [id])
 
+  /// Fase Demo — `?source=` query param at signup, analytics only (mirrors
+  /// affiliateLinkId's "never used for attribution" rule). `eligibleForFirstDepositBonus`
+  /// is the one field promotions.service.ts actually reads to decide whether
+  /// to credit a bonus on this user's first confirmed deposit.
+  signupSource                 String?
+  eligibleForFirstDepositBonus Boolean @default(false)
+
+  /// Conta Demo (influenciadores/parceiros) — criada exclusivamente pelo
+  /// backoffice (src/modules/demo-accounts), nunca via cadastro público.
+  /// Bloqueada de depósitos/saques/comissões/bônus e excluída de todos os
+  /// relatórios financeiros. Sempre criada junto com tags:["demo"], que é o
+  /// que o game-config usa para resolver o modo de dificuldade DEMO.
+  isDemo Boolean @default(false)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime? // soft delete — repositories must filter this explicitly
@@ -172,11 +186,14 @@ model User {
   managerInvitesRevoked     ManagerInvite[]          @relation("ManagerInviteRevokedBy")
   managerInvitesApproved    ManagerInvite[]          @relation("ManagerInviteApprovedBy")
   managerInvitesRejected    ManagerInvite[]          @relation("ManagerInviteRejectedBy")
+  pushSubscriptions         PushSubscription[]
+  notificationPreferences   NotificationPreference[]
 
   @@index([referredById])
   @@index([affiliateLinkId])
   @@index([status])
   @@index([role])
+  @@index([isDemo])
   @@index([deletedAt])
 }
 
@@ -560,6 +577,19 @@ enum PaymentRelatedType {
   WITHDRAW
 }
 
+/// Mock-only test lever (Fase 10) — forces an OUTBOUND provider call
+/// (createPixDeposit/getDeposit/createWithdraw/getWithdraw/cancelWithdraw) to
+/// fail or hang in a specific way, independent of `simulatedHealth` (which
+/// only affects `health()`'s reported status for routing/failover). Lets the
+/// admin "Gateways" screen exercise PaymentService's retry/timeout/failover
+/// logic on demand without any real network dependency.
+enum GatewaySimulatedFault {
+  TIMEOUT
+  ERROR_500
+  AUTH_ERROR
+  OFFLINE_CALLS
+}
+
 /// One registered gateway configuration. Multiple rows may share the same
 /// `provider` (e.g. two MOCK credentials with different `simulatedHealth`,
 /// used to exercise failover) — routing picks among `active` rows via
@@ -591,6 +621,9 @@ model GatewayCredential {
   /// failover browser test can force a candidate offline on demand. Null
   /// means "report real health" (always ONLINE for Mock).
   simulatedHealth GatewayHealthStatus?
+  /// Mock-only test lever (Fase 10) — see GatewaySimulatedFault doc comment.
+  /// Null means "no simulated fault" (calls succeed normally).
+  simulatedErrorMode GatewaySimulatedFault?
 
   createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id])
@@ -1358,4 +1391,141 @@ model AffiliateSettings {
   requireManagerApprovalForAffiliates Boolean @default(false)
 
   updatedAt DateTime @updatedAt
+}
+
+/// Single global row (id "global"), same pattern as AffiliateSettings.
+/// Admin-configurable via /api/admin/promotions/settings.
+model PromotionSettings {
+  id String @id @default("global")
+
+  /// Credited automatically on a user's first confirmed deposit, only when
+  /// User.eligibleForFirstDepositBonus is true (set at signup via ?source=demo).
+  /// Fraction, not percent (0.5 = 50%). 0 = disabled.
+  firstDepositBonusPercent Float @default(0.5)
+
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Push Notifications (Fase X) — src/modules/notifications. Generic per-User,
+// never role-restricted at the schema level: this phase only wires up
+// SUPER_ADMIN/ADMIN (broadcast) and MANAGER (own-network events) audiences,
+// but nothing here stops a future phase from also enabling AFFILIATE/USER
+// rows without a migration.
+// ---------------------------------------------------------------------------
+
+enum PushSubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+/// One browser/device push registration. `deviceId` is client-generated
+/// (crypto.randomUUID(), persisted in localStorage) so the same browser
+/// re-subscribing upserts the same row instead of duplicating — this is what
+/// "um usuário pode ter vários dispositivos" means in practice: one row per
+/// [userId, deviceId], never per userId alone.
+model PushSubscription {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId String
+  browser  String?
+  os       String?
+
+  /// The three pieces the Web Push protocol needs — endpoint is the push
+  /// service URL, p256dh/auth are the subscription's encryption keys.
+  /// Never logged/exposed once stored (mirrors GatewayCredential's secret
+  /// handling conventions).
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  status PushSubscriptionStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs PushNotificationLog[]
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([status])
+}
+
+/// One category the push system knows how to send. Deliberately a single
+/// flat enum (not split per-role) — the audience for a category is decided
+/// in code (NotificationDispatcher), not in the schema, so adding a new
+/// audience for an existing category is a code change, never a migration.
+enum NotificationCategory {
+  DEPOSIT_CONFIRMED
+  WITHDRAW_REQUESTED
+  WITHDRAW_APPROVED
+  WITHDRAW_REJECTED
+  MANAGER_REQUESTED
+  AFFILIATE_REQUESTED
+  DAILY_SUMMARY
+  SYSTEM_CRITICAL_ALERT
+  MANAGER_NETWORK_DEPOSIT_CONFIRMED
+  MANAGER_NETWORK_AFFILIATE_REQUESTED
+  TEST
+}
+
+/// Per-user, per-category opt-out. Absence of a row means "enabled" (the
+/// default) — a row only ever needs to exist once someone actually toggles
+/// something off, same "sparse override" pattern as AffiliateProfile's
+/// cpaOverrideCents/revShareOverridePercent.
+model NotificationPreference {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  category NotificationCategory
+  enabled  Boolean              @default(true)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, category])
+}
+
+enum PushDeliveryStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  CLICKED
+}
+
+/// One row per push attempt per device — "Salvar todo push enviado" from the
+/// spec. DELIVERED/CLICKED are filled in later by beacons the Service Worker
+/// fires from its own `push`/`notificationclick` handlers (Web Push has no
+/// server-side delivery ack), never assumed at send time.
+model PushNotificationLog {
+  id String @id @default(uuid())
+
+  subscriptionId String
+  subscription   PushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  /// Denormalized from subscription.userId — lets admin history be queried
+  /// without a join, same convention as PaymentWebhook.provider.
+  userId         String
+
+  category NotificationCategory
+  title    String
+  body     String
+  deepLink String?
+
+  status       PushDeliveryStatus @default(QUEUED)
+  errorMessage String?
+
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  clickedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([createdAt])
 }

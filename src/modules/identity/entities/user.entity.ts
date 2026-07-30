@@ -30,6 +30,9 @@ export interface UserEntity {
   suspendedUntil: Date | null;
   referralCode: string;
   referredById: string | null;
+  signupSource: string | null;
+  eligibleForFirstDepositBonus: boolean;
+  isDemo: boolean;
   xp: number;
   level: number;
   createdAt: Date;

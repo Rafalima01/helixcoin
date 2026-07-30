@@ -52,6 +52,7 @@ export function SignupForm() {
           password: data.password,
           referralCode: data.referralCode,
           affiliateLinkSlug: data.affiliateLinkSlug,
+          source: searchParams.get("source") === "demo" ? "demo" : undefined,
         }),
       });
       const json = await res.json();
@@ -161,8 +162,8 @@ export function SignupForm() {
           <span className="text-xs text-error font-medium -mt-3">{errors.terms.message}</span>
         )}
 
-        <Button type="submit" variant="primary" size="lg" loading={submitting} className="mt-1">
-          Criar Conta
+        <Button type="submit" variant="gold" size="lg" loading={submitting} className="mt-1">
+          Criar Conta Grátis
         </Button>
       </form>
 

@@ -23,6 +23,7 @@ function toEntity(row: PrismaGatewayCredential): GatewayCredential {
     credentialsEncrypted: row.credentialsEncrypted,
     webhookSecretEncrypted: row.webhookSecretEncrypted,
     simulatedHealth: row.simulatedHealth,
+    simulatedErrorMode: row.simulatedErrorMode,
     createdById: row.createdById,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -99,6 +100,7 @@ export class PrismaGatewayCredentialRepository implements IGatewayCredentialRepo
         credentialsEncrypted: input.credentialsEncrypted,
         webhookSecretEncrypted: input.webhookSecretEncrypted,
         simulatedHealth: input.simulatedHealth ?? null,
+        simulatedErrorMode: input.simulatedErrorMode ?? null,
         createdById: input.createdById ?? null,
       },
     });
@@ -121,6 +123,7 @@ export class PrismaGatewayCredentialRepository implements IGatewayCredentialRepo
           ? { webhookSecretEncrypted: input.webhookSecretEncrypted }
           : {}),
         ...(input.simulatedHealth !== undefined ? { simulatedHealth: input.simulatedHealth } : {}),
+        ...(input.simulatedErrorMode !== undefined ? { simulatedErrorMode: input.simulatedErrorMode } : {}),
       },
     });
     return toEntity(row);

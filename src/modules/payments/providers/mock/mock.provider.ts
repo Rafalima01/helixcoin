@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual, randomUUID } from "node:crypto";
+import { ExternalServiceError, UnauthorizedError } from "@/server/errors";
 import type {
   PaymentProvider,
   CreatePixDepositInput,
@@ -8,12 +9,13 @@ import type {
   CreateWithdrawInput,
   CreateWithdrawResult,
   GetWithdrawResult,
+  CancelWithdrawResult,
   ValidateWebhookInput,
   ValidateWebhookResult,
   ProviderHealthResult,
 } from "@/modules/payments/interfaces/payment-provider.interface";
-import type { GatewayHealthStatus, PaymentRelatedType } from "@/modules/payments/entities/payments.entity";
-import { MOCK_WEBHOOK_SIGNATURE_HEADER } from "@/modules/payments/constants/payments.constants";
+import type { GatewayHealthStatus, GatewaySimulatedFault, PaymentRelatedType } from "@/modules/payments/entities/payments.entity";
+import { MOCK_WEBHOOK_SIGNATURE_HEADER, MOCK_TIMEOUT_FAULT_DELAY_MS } from "@/modules/payments/constants/payments.constants";
 
 interface MockWebhookPayload {
   eventId: string;
@@ -73,10 +75,38 @@ export class MockProvider implements PaymentProvider {
   readonly name = "MOCK" as const;
 
   constructor(
-    private readonly params: { webhookSecret: string; simulatedHealth: GatewayHealthStatus | null }
+    private readonly params: {
+      webhookSecret: string;
+      simulatedHealth: GatewayHealthStatus | null;
+      simulatedErrorMode?: GatewaySimulatedFault | null;
+    }
   ) {}
 
+  /**
+   * Applied at the top of every OUTBOUND call — distinct from
+   * `simulatedHealth`, which only shapes `health()`'s own reported status.
+   * This is what lets the admin "Gateways" screen exercise
+   * PaymentService's real retry/timeout/failover logic on demand, fully
+   * offline (TIMEOUT is a local setTimeout, never a real network wait).
+   */
+  private async applyFault(): Promise<void> {
+    switch (this.params.simulatedErrorMode) {
+      case "OFFLINE_CALLS":
+        throw new ExternalServiceError("MOCK", "Gateway MOCK simulando indisponibilidade (simulatedErrorMode=OFFLINE_CALLS)");
+      case "ERROR_500":
+        throw new ExternalServiceError("MOCK", "Gateway MOCK simulando erro interno (simulatedErrorMode=ERROR_500)");
+      case "AUTH_ERROR":
+        throw new UnauthorizedError("Gateway MOCK simulando falha de autenticação (simulatedErrorMode=AUTH_ERROR)");
+      case "TIMEOUT":
+        await new Promise((resolve) => setTimeout(resolve, MOCK_TIMEOUT_FAULT_DELAY_MS));
+        return;
+      default:
+        return;
+    }
+  }
+
   async createPixDeposit(input: CreatePixDepositInput): Promise<CreatePixDepositResult> {
+    await this.applyFault();
     return {
       providerTransactionId: `mock_dep_${input.depositId}`,
       pixCode: buildFakePixCode(input.depositId, input.amountCents),
@@ -86,6 +116,7 @@ export class MockProvider implements PaymentProvider {
   }
 
   async getDeposit(input: { providerTransactionId: string }): Promise<GetDepositResult> {
+    await this.applyFault();
     return {
       providerTransactionId: input.providerTransactionId,
       status: "PENDING",
@@ -94,10 +125,12 @@ export class MockProvider implements PaymentProvider {
   }
 
   async cancelDeposit(input: { providerTransactionId: string }): Promise<CancelDepositResult> {
+    await this.applyFault();
     return { cancelled: true, raw: { mock: true, providerTransactionId: input.providerTransactionId } };
   }
 
   async createWithdraw(input: CreateWithdrawInput): Promise<CreateWithdrawResult> {
+    await this.applyFault();
     return {
       providerTransactionId: `mock_wd_${input.withdrawId}`,
       status: "PENDING",
@@ -106,11 +139,17 @@ export class MockProvider implements PaymentProvider {
   }
 
   async getWithdraw(input: { providerTransactionId: string }): Promise<GetWithdrawResult> {
+    await this.applyFault();
     return {
       providerTransactionId: input.providerTransactionId,
       status: "PENDING",
       raw: { mock: true, note: "Mock has no independent state — settlement only happens via handleWebhook." },
     };
+  }
+
+  async cancelWithdraw(input: { providerTransactionId: string }): Promise<CancelWithdrawResult> {
+    await this.applyFault();
+    return { cancelled: true, raw: { mock: true, providerTransactionId: input.providerTransactionId } };
   }
 
   async validateWebhook(input: ValidateWebhookInput): Promise<ValidateWebhookResult> {

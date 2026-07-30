@@ -4,6 +4,7 @@ import type {
   GatewayProvider,
   GatewayMode,
   GatewayHealthStatus,
+  GatewaySimulatedFault,
 } from "@/modules/payments/entities/payments.entity";
 
 export interface CreateGatewayCredentialInput {
@@ -19,6 +20,7 @@ export interface CreateGatewayCredentialInput {
   credentialsEncrypted: string;
   webhookSecretEncrypted: string;
   simulatedHealth?: GatewayHealthStatus | null;
+  simulatedErrorMode?: GatewaySimulatedFault | null;
   createdById?: string | null;
 }
 
@@ -33,6 +35,7 @@ export interface UpdateGatewayCredentialInput {
   credentialsEncrypted?: string;
   webhookSecretEncrypted?: string;
   simulatedHealth?: GatewayHealthStatus | null;
+  simulatedErrorMode?: GatewaySimulatedFault | null;
 }
 
 export interface GatewayCredentialListFilter {

@@ -60,3 +60,47 @@ describe("PaymentService deposit lifecycle", () => {
     await expect(paymentService.createDeposit(USER_ID, 100)).rejects.toThrow();
   });
 });
+
+describe("PaymentService.simulateDepositAdmin (Fase 10)", () => {
+  it("CANCELLED and EXPIRED transition the deposit without touching the wallet", async () => {
+    const { paymentService, walletService, deposits } = await buildPaymentTestHarness();
+
+    const cancelled = await paymentService.createDeposit(USER_ID, 2000);
+    await paymentService.simulateDepositAdmin(cancelled.depositId, "CANCELLED");
+    expect((await deposits.findById(cancelled.depositId))?.status).toBe("CANCELLED");
+
+    const expired = await paymentService.createDeposit(USER_ID, 2000);
+    await paymentService.simulateDepositAdmin(expired.depositId, "EXPIRED");
+    expect((await deposits.findById(expired.depositId))?.status).toBe("EXPIRED");
+
+    expect((await walletService.getBalance(USER_ID)).main).toBe(0);
+  });
+
+  it("REFUNDED only works on an already-PAID deposit, only changes status, never debits the wallet", async () => {
+    const { paymentService, walletService, deposits } = await buildPaymentTestHarness();
+    const created = await paymentService.createDeposit(USER_ID, 6000);
+
+    // Not paid yet — refund must be rejected, exactly like an out-of-scope status transition.
+    await expect(paymentService.simulateDepositAdmin(created.depositId, "REFUNDED")).rejects.toThrow();
+
+    await paymentService.simulateDepositAdmin(created.depositId, "PAID");
+    expect((await walletService.getBalance(USER_ID)).main).toBe(6000);
+
+    await paymentService.simulateDepositAdmin(created.depositId, "REFUNDED");
+    const deposit = await deposits.findById(created.depositId);
+    expect(deposit?.status).toBe("REFUNDED");
+
+    // No automatic wallet clawback by design — see PaymentService.settle's doc comment.
+    expect((await walletService.getBalance(USER_ID)).main).toBe(6000);
+  });
+
+  it("rejects PAID/FAILED/CANCELLED/EXPIRED outcomes on a deposit that isn't PENDING", async () => {
+    const { paymentService } = await buildPaymentTestHarness();
+    const created = await paymentService.createDeposit(USER_ID, 1000);
+    await paymentService.simulateDepositAdmin(created.depositId, "PAID");
+
+    await expect(paymentService.simulateDepositAdmin(created.depositId, "FAILED")).rejects.toThrow();
+    await expect(paymentService.simulateDepositAdmin(created.depositId, "CANCELLED")).rejects.toThrow();
+    await expect(paymentService.simulateDepositAdmin(created.depositId, "EXPIRED")).rejects.toThrow();
+  });
+});

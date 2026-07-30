@@ -64,7 +64,10 @@ export class AuthService {
     let referredById: string | undefined;
     if (input.referralCode) {
       const referrer = await this.users.findByReferralCode(input.referralCode);
-      if (referrer) referredById = referrer.id;
+      // Demo accounts (src/modules/demo-accounts) never generate a real
+      // referral network — a signup through a demo account's code stays
+      // organic, exactly as if no code had been provided at all.
+      if (referrer && !referrer.isDemo) referredById = referrer.id;
     }
 
     const passwordHash = await hashPassword(input.password);
@@ -84,6 +87,8 @@ export class AuthService {
       referralCode,
       referredById,
       affiliateLinkId: affiliateLinkId ?? null,
+      signupSource: input.source ?? null,
+      eligibleForFirstDepositBonus: input.source === "demo",
       status: "PENDING",
       role: "USER",
     });
@@ -105,7 +110,13 @@ export class AuthService {
 
   async login(input: LoginInput, meta: RequestMeta): Promise<LoginResult> {
     const logger = createChildLogger({ module: "identity.auth" });
-    const user = await this.users.findByEmail(input.email);
+    // Conta Demo credentials (src/modules/demo-accounts) show a bare login
+    // like "demo47291", never the synthetic @demo.helixcoin.internal email
+    // behind it — so a value with no "@" is looked up by username instead.
+    const identifier = input.email;
+    const user = identifier.includes("@")
+      ? await this.users.findByEmail(identifier)
+      : await this.users.findByUsername(identifier);
 
     if (!user) {
       await AuditService.record({

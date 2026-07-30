@@ -22,9 +22,20 @@ import type { GameMode } from "@prisma/client";
  * without breaking game feel by accident.
  *
  * `MODE_FIELDS` are duplicated per GameMode (DEMO/NORMAL/HARD) — the same
- * knobs, tuned three times. NORMAL's defaults reproduce the original
- * hand-tuned engine feel exactly (dangerChance: 1 means "the depth-scaled
- * danger budget always applies, exactly like before this was configurable").
+ * knobs, tuned three times (dangerChance: 1 means "the depth-scaled danger
+ * budget always applies, exactly like before this was configurable").
+ *
+ * NORMAL/HARD were recalibrated (RTP11) after player feedback that the game
+ * felt too easy — players advanced too many platforms too often even with
+ * dangerChance already maxed out. The fix isn't a lower payout, it's a
+ * harder climb: faster gravity/ball speed (less reaction time), a lower
+ * bounce (less hang time to plan the next move), and — the main lever — a
+ * higher `maxDangerSegments` ceiling reached sooner (see generator.ts's
+ * `dangerBudget`, whose ramp-rate divisor dropped from 9 to 6 rings per step
+ * as part of this same pass). DEMO is untouched on purpose: it's the
+ * onboarding/no-login trial mode (and the physics profile Contas Demo also
+ * inherit via `tags: ["demo"]` — see src/modules/demo-accounts), where
+ * staying easy and shareable is the point, not a bug.
  */
 
 export type FieldSection = "physics" | "generation";
@@ -55,7 +66,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: -40,
     max: -2,
     step: 0.5,
-    defaults: { DEMO: -15, NORMAL: -16, HARD: -19 },
+    defaults: { DEMO: -15, NORMAL: -17.5, HARD: -21 },
   },
   {
     key: "bounceForce",
@@ -66,7 +77,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 0.1,
     max: 1,
     step: 0.01,
-    defaults: { DEMO: 0.62, NORMAL: 0.6, HARD: 0.55 },
+    defaults: { DEMO: 0.62, NORMAL: 0.56, HARD: 0.52 },
   },
   {
     key: "ballSpeed",
@@ -78,7 +89,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 4,
     max: 30,
     step: 0.5,
-    defaults: { DEMO: 14.5, NORMAL: 15, HARD: 17 },
+    defaults: { DEMO: 14.5, NORMAL: 16.5, HARD: 19 },
   },
   // ---- Estrutura das plataformas ----
   {
@@ -101,7 +112,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 0,
     max: 8,
     step: 1,
-    defaults: { DEMO: 3, NORMAL: 3, HARD: 4 },
+    defaults: { DEMO: 3, NORMAL: 4, HARD: 5 },
   },
   {
     key: "protectedPlatforms",
@@ -112,7 +123,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 0,
     max: 20,
     step: 1,
-    defaults: { DEMO: 5, NORMAL: 4, HARD: 3 },
+    defaults: { DEMO: 5, NORMAL: 4, HARD: 2 },
   },
   {
     key: "totalPlatforms",
@@ -197,13 +208,13 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
   {
     key: "normal",
     label: "Normal",
-    description: "Dificuldade equilibrada — o padrão da plataforma. Não favorece nem prejudica excessivamente o jogador.",
+    description: "Dificuldade equilibrada — o padrão da plataforma (recalibrado: exige mais atenção do jogador do que antes, sem deixar de ser justo).",
     values: {
-      gravity: -16,
-      bounceForce: 0.6,
-      ballSpeed: 15,
+      gravity: -17.5,
+      bounceForce: 0.56,
+      ballSpeed: 16.5,
       dangerChance: 1,
-      maxDangerSegments: 3,
+      maxDangerSegments: 4,
       protectedPlatforms: 4,
       gapWidth: 2,
     },
@@ -211,14 +222,14 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
   {
     key: "hard",
     label: "Difícil",
-    description: "Mais segmentos vermelhos, aberturas menores, gravidade um pouco mais intensa e menos plataformas protegidas — exige mais habilidade.",
+    description: "Mais segmentos vermelhos, gravidade mais intensa e menos plataformas protegidas — exige mais habilidade.",
     values: {
-      gravity: -19,
-      bounceForce: 0.55,
-      ballSpeed: 17,
+      gravity: -21,
+      bounceForce: 0.52,
+      ballSpeed: 19,
       dangerChance: 1,
-      maxDangerSegments: 4,
-      protectedPlatforms: 3,
+      maxDangerSegments: 5,
+      protectedPlatforms: 2,
       gapWidth: 2,
     },
   },
@@ -227,11 +238,11 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
     label: "Muito Difícil",
     description: "Para usar em situações específicas — mais obstáculos e gravidade mais intensa, mas ainda um jogo justo e vencível.",
     values: {
-      gravity: -22,
-      bounceForce: 0.5,
-      ballSpeed: 19,
+      gravity: -23,
+      bounceForce: 0.48,
+      ballSpeed: 20.5,
       dangerChance: 1,
-      maxDangerSegments: 5,
+      maxDangerSegments: 6,
       protectedPlatforms: 2,
       gapWidth: 2,
     },

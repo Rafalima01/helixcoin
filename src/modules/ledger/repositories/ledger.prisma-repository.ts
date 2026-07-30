@@ -54,7 +54,24 @@ export class PrismaLedgerRepository implements ILedgerRepository {
   }
 
   async list(filter: LedgerListFilter): Promise<{ items: LedgerEntry[]; total: number }> {
+    // Contas Demo ficam isoladas do ledger financeiro — account codes seguem
+    // o formato "WALLET:{userId}:{bucket}" (ledger.constants.ts), então
+    // excluímos qualquer entrada cujo débito/crédito referencie a wallet de
+    // um usuário demo. Lista de contas demo tende a ser pequena (só
+    // influenciadores/parceiros criados manualmente), então esta segunda
+    // query é barata.
+    const demoUsers = await prisma.user.findMany({ where: { isDemo: true }, select: { id: true } });
+    const demoAccountPrefixes = demoUsers.map((u) => `WALLET:${u.id}:`);
+
     const where: Prisma.LedgerEntryWhereInput = {
+      ...(demoAccountPrefixes.length > 0
+        ? {
+            AND: demoAccountPrefixes.flatMap((prefix) => [
+              { NOT: { debitAccount: { startsWith: prefix } } },
+              { NOT: { creditAccount: { startsWith: prefix } } },
+            ]),
+          }
+        : {}),
       ...(filter.debitAccount ? { debitAccount: filter.debitAccount } : {}),
       ...(filter.creditAccount ? { creditAccount: filter.creditAccount } : {}),
       ...(filter.reference ? { reference: filter.reference } : {}),

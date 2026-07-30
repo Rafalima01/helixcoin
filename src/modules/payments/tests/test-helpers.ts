@@ -1,6 +1,7 @@
 import { encrypt } from "@/server/security/crypto-utils";
 import { WalletService } from "@/modules/wallet/services/wallet.service";
 import { InMemoryWalletRepository } from "@/modules/wallet/repositories/wallet.in-memory-repository";
+import { InMemoryUserRepository } from "@/modules/identity/repositories/user.in-memory-repository";
 import { PaymentService } from "@/modules/payments/services/payment.service";
 import { GatewayRouterService } from "@/modules/payments/services/gateway-router.service";
 import { InMemoryDepositRepository } from "@/modules/payments/repositories/deposit.in-memory-repository";
@@ -26,6 +27,7 @@ export async function buildPaymentTestHarness() {
   const logs = new InMemoryGatewayLogRepository();
   const settingsRepo = new InMemoryPaymentSettingsRepository();
   const router = new GatewayRouterService(credentials, health);
+  const users = new InMemoryUserRepository();
 
   const credential = await credentials.create({
     name: "Mock Gateway",
@@ -37,7 +39,7 @@ export async function buildPaymentTestHarness() {
   });
   await settingsRepo.update({ defaultGatewayCredentialId: credential.id, routingMode: "SINGLE" });
 
-  const paymentService = new PaymentService(deposits, withdraws, webhooks, credentials, logs, settingsRepo, router, walletService);
+  const paymentService = new PaymentService(deposits, withdraws, webhooks, credentials, logs, settingsRepo, router, walletService, users);
 
-  return { paymentService, walletService, wallets, deposits, withdraws, webhooks, credentials, health, logs, settingsRepo, router, credential };
+  return { paymentService, walletService, wallets, deposits, withdraws, webhooks, credentials, health, logs, settingsRepo, router, credential, users };
 }

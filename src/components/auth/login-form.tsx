@@ -14,11 +14,14 @@ import { loginSchema, type LoginInput } from "@/modules/identity/validators/auth
 export function LoginForm({
   showSignupLink = true,
   fallbackPath = "/home",
+  submitVariant = "primary",
 }: {
   /** Admin/manager logins hide this — those roles are never self-registered. */
   showSignupLink?: boolean;
   /** Where to land when there's no `callbackUrl` (e.g. visiting /login directly instead of being redirected). */
   fallbackPath?: string;
+  /** "gold" is the player-facing identity (hero/cadastro CTA tone) — admin/manager logins never pass this, so they keep the neutral "primary" look. */
+  submitVariant?: "primary" | "gold";
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -54,11 +57,11 @@ export function LoginForm({
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
         <Input
-          label="Email"
-          type="email"
+          label="Email ou Login"
+          type="text"
           icon={Mail}
           placeholder="voce@email.com"
-          autoComplete="email"
+          autoComplete="username"
           error={errors.email?.message}
           {...register("email")}
         />
@@ -89,7 +92,7 @@ export function LoginForm({
           </Link>
         </div>
 
-        <Button type="submit" variant="primary" size="lg" loading={submitting} className="mt-1">
+        <Button type="submit" variant={submitVariant} size="lg" loading={submitting} className="mt-1">
           Entrar
         </Button>
       </form>

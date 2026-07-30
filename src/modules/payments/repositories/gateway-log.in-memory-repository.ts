@@ -31,6 +31,7 @@ export class InMemoryGatewayLogRepository implements IGatewayLogRepository {
 
   async listAdmin(filter: GatewayLogListFilter): Promise<{ items: GatewayLog[]; total: number }> {
     let items = [...this.rows];
+    if (filter.gatewayCredentialId) items = items.filter((r) => r.gatewayCredentialId === filter.gatewayCredentialId);
     if (filter.provider) items = items.filter((r) => r.provider === filter.provider);
     if (filter.direction) items = items.filter((r) => r.direction === filter.direction);
     if (filter.correlationId) items = items.filter((r) => r.correlationId === filter.correlationId);

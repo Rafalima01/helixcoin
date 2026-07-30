@@ -58,6 +58,7 @@ export class InMemoryGatewayCredentialRepository implements IGatewayCredentialRe
       credentialsEncrypted: input.credentialsEncrypted,
       webhookSecretEncrypted: input.webhookSecretEncrypted,
       simulatedHealth: input.simulatedHealth ?? null,
+      simulatedErrorMode: input.simulatedErrorMode ?? null,
       createdById: input.createdById ?? null,
       createdAt: now,
       updatedAt: now,

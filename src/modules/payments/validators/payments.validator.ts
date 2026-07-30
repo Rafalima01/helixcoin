@@ -10,7 +10,7 @@ export const createDepositSchema = z.object({
 });
 export type CreateDepositInput = z.infer<typeof createDepositSchema>;
 
-/** POST /api/payments/deposits/{id}/simulate — Mock-only demo action. `outcome` defaults to PAID; FAILED exists so the failure path is exercisable from the same UI without a second endpoint. */
+/** POST /api/payments/deposits/{id}/simulate — Mock-only demo action. `outcome` defaults to PAID; FAILED exists so the failure path is exercisable from the same UI without a second endpoint. Player-facing — deliberately narrower than the admin simulator (adminSimulateDepositSchema below), which also covers CANCELLED/EXPIRED/REFUNDED. */
 export const simulateDepositSchema = z.object({
   outcome: z.enum(["PAID", "FAILED"]).default("PAID"),
 });
@@ -55,6 +55,13 @@ export const gatewayProviderSchema = z.enum([
 ]);
 
 const gatewayHealthStatusSchema = z.enum(["ONLINE", "DEGRADED", "OFFLINE"]);
+const gatewaySimulatedFaultSchema = z.enum(["TIMEOUT", "ERROR_500", "AUTH_ERROR", "OFFLINE_CALLS"]);
+
+/** Admin-only Fase 10 simulator — POST /api/admin/payments/deposits/{id}/simulate. Broader than the player-facing simulateDepositSchema on purpose: CANCELLED/EXPIRED/REFUNDED are ops/testing scenarios, not something a player triggers on their own deposit. */
+export const adminSimulateDepositSchema = z.object({
+  outcome: z.enum(["PAID", "FAILED", "CANCELLED", "EXPIRED", "REFUNDED"]),
+});
+export type AdminSimulateDepositInput = z.infer<typeof adminSimulateDepositSchema>;
 
 /** `credentials` is the raw, provider-specific JSON blob (for MOCK, `{}`) — AES-256-GCM encrypted before storage, never persisted as plain JSON. */
 export const gatewayCredentialCreateSchema = z.object({
@@ -69,6 +76,7 @@ export const gatewayCredentialCreateSchema = z.object({
   timeoutMs: z.number().int().min(1000).default(15000),
   maxRetries: z.number().int().min(0).max(10).default(2),
   simulatedHealth: gatewayHealthStatusSchema.nullable().optional(),
+  simulatedErrorMode: gatewaySimulatedFaultSchema.nullable().optional(),
 });
 export type GatewayCredentialCreateInput = z.infer<typeof gatewayCredentialCreateSchema>;
 
@@ -83,6 +91,7 @@ export const gatewayCredentialUpdateSchema = z.object({
   timeoutMs: z.number().int().min(1000).optional(),
   maxRetries: z.number().int().min(0).max(10).optional(),
   simulatedHealth: gatewayHealthStatusSchema.nullable().optional(),
+  simulatedErrorMode: gatewaySimulatedFaultSchema.nullable().optional(),
 });
 export type GatewayCredentialUpdateInput = z.infer<typeof gatewayCredentialUpdateSchema>;
 
@@ -135,6 +144,7 @@ export const adminWebhookListQuerySchema = z.object({
 export type AdminWebhookListQuery = z.infer<typeof adminWebhookListQuerySchema>;
 
 export const adminGatewayLogListQuerySchema = z.object({
+  gatewayCredentialId: z.string().optional(),
   provider: z.string().optional(),
   direction: z.enum(["outbound", "inbound"]).optional(),
   correlationId: z.string().optional(),

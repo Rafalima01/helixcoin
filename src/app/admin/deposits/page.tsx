@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
-import { DepositsAdminApi } from "@/lib/admin/payments-api";
+import { DepositsAdminApi, ApiError, type AdminDepositSimulateOutcome } from "@/lib/admin/payments-api";
 import type { DepositAdminDto } from "@/modules/payments/dto/payments.dto";
 import { formatCurrency } from "@/lib/utils";
 
@@ -110,12 +112,35 @@ export default function AdminDepositsPage() {
   );
 }
 
+const SIMULATE_OUTCOMES_BY_STATUS: Record<string, { outcome: AdminDepositSimulateOutcome; label: string }[]> = {
+  PENDING: [
+    { outcome: "PAID", label: "Marcar como pago" },
+    { outcome: "FAILED", label: "Marcar como falho" },
+    { outcome: "CANCELLED", label: "Marcar como cancelado" },
+    { outcome: "EXPIRED", label: "Marcar como expirado" },
+  ],
+  PAID: [{ outcome: "REFUNDED", label: "Estornar (só muda status, sem debitar saldo)" }],
+};
+
 function DepositDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "payments", "deposit", id],
     queryFn: () => DepositsAdminApi.get(id),
   });
   const deposit = data?.data;
+
+  const simulate = useMutation({
+    mutationFn: (outcome: AdminDepositSimulateOutcome) => DepositsAdminApi.simulate(id, outcome),
+    onSuccess: () => {
+      toast.success("Evento simulado processado");
+      queryClient.invalidateQueries({ queryKey: ["admin", "payments", "deposit", id] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "payments", "deposits"] });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao simular evento"),
+  });
+
+  const simulateOptions = deposit && deposit.gatewayProvider === "MOCK" ? (SIMULATE_OUTCOMES_BY_STATUS[deposit.status] ?? []) : [];
 
   return (
     <Drawer open onClose={onClose} title={deposit ? "Depósito" : "Carregando..."}>
@@ -134,8 +159,28 @@ function DepositDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           <DetailRow label="Criado em" value={formatDate(deposit.createdAt)} />
           <DetailRow label="Confirmado em" value={formatDate(deposit.confirmedAt)} />
           {deposit.failureReason && <DetailRow label="Motivo da falha" value={deposit.failureReason} />}
+
+          {simulateOptions.length > 0 && (
+            <div className="mt-5 border-t border-border pt-4">
+              <p className="mb-2 text-sm font-semibold">Simulador (Fase 10 — gateway MOCK)</p>
+              <div className="flex flex-col gap-2">
+                {simulateOptions.map((opt) => (
+                  <Button
+                    key={opt.outcome}
+                    variant="secondary"
+                    size="sm"
+                    loading={simulate.isPending}
+                    onClick={() => simulate.mutate(opt.outcome)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <p className="mt-4 text-[11px] text-text-muted">
-            Toda confirmação passa pelo webhook assinado do gateway → PaymentService → WalletService. Nenhum saldo é alterado diretamente.
+            Toda confirmação passa pelo webhook assinado do gateway → PaymentService → WalletService. Nenhum saldo é alterado diretamente — o simulador de estorno só muda o status do depósito.
           </p>
         </div>
       )}

@@ -21,12 +21,19 @@ export const registerSchema = z
     password: passwordSchema,
     referralCode: z.string().trim().optional().or(z.literal("")),
     affiliateLinkSlug: z.string().trim().optional().or(z.literal("")),
+    /** ?source= at signup — "demo" flags eligibility for the first-deposit bonus (see promotions.service.ts). */
+    source: z.enum(["demo"]).optional(),
   })
   .strict();
 
 export const loginSchema = z
   .object({
-    email: z.string().trim().toLowerCase().email("Email inválido"),
+    // Accepts a real email OR a Conta Demo login (e.g. "demo47291", no
+    // "@domain.internal" shown to the admin — see src/modules/demo-accounts).
+    // AuthService.login() branches on the presence of "@" to decide which
+    // repository lookup to use; regular users always type a real email, so
+    // their behavior is unchanged.
+    email: z.string().trim().toLowerCase().min(3, "Informe seu email ou login"),
     password: z.string().min(1, "Informe sua senha"),
     rememberMe: z.boolean().optional().default(false),
   })
