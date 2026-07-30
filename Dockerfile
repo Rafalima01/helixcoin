@@ -16,7 +16,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # `next build` imports src/server/config/env.ts (fail-fast env validation)
-# while statically analyzing route modules, so the 5 vars with no `.default()`
+# while statically analyzing route modules, so the vars with no `.default()`
 # there must merely be *present* at build time — their real values come from
 # docker-compose's `env_file: .env` at container run time and completely
 # replace these build-only placeholders (Dockerfile ENV is stage-scoped and
@@ -27,11 +27,17 @@ ARG REDIS_URL="redis://build:6379"
 ARG JWT_ACCESS_SECRET="build-time-placeholder"
 ARG JWT_REFRESH_SECRET="build-time-placeholder"
 ARG ENCRYPTION_KEY="build-time-placeholder"
+ARG VAPID_PUBLIC_KEY="build-time-placeholder"
+ARG VAPID_PRIVATE_KEY="build-time-placeholder"
+ARG VAPID_SUBJECT="mailto:build@example.com"
 ENV DATABASE_URL=$DATABASE_URL
 ENV REDIS_URL=$REDIS_URL
 ENV JWT_ACCESS_SECRET=$JWT_ACCESS_SECRET
 ENV JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET
 ENV ENCRYPTION_KEY=$ENCRYPTION_KEY
+ENV VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY
+ENV VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY
+ENV VAPID_SUBJECT=$VAPID_SUBJECT
 
 RUN npx prisma generate
 RUN npm run build
