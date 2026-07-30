@@ -38,7 +38,6 @@ export const ENGINE_CONFIG = {
   fireBreaks: 1, // rings smashed per charge before fire mode ends
 
   // ---- Special platform rewards ----
-  bonusExtraPasses: 2, // gold segments credit extra platform passes
   fragileBreakDelay: 0.12, // seconds after bounce before a fragile ring shatters
 
   // ---- Procedural generation ----
@@ -99,7 +98,6 @@ export const ENGINE_CONFIG = {
     oscillatingFrom: 10,
     spinningFrom: 13,
     blinkingFrom: 16,
-    bonusChance: 0.12,
   },
 
   // ---- Palette ----
@@ -109,7 +107,9 @@ export const ENGINE_CONFIG = {
     ice: "#7DD3FC",
     boost: "#FB923C",
     danger: "#FF4D6D",
-    bonus: "#FFD166",
+    // Decorative gold accent only (goal-reached celebration burst) — not a
+    // platform special zone. Red is the platform's only special/loss color.
+    reward: "#FFD166",
     ballIdle: "#FFFFFF",
     ballFire: "#FFB86B",
     trailIdle: "#8B5CF6",

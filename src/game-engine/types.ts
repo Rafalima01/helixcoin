@@ -1,8 +1,8 @@
 import type { RefObject } from "react";
 import type { RapierRigidBody } from "@react-three/rapier";
 
-/** What occupies one angular segment of a ring. */
-export type SegmentType = "hole" | "solid" | "danger" | "bonus";
+/** What occupies one angular segment of a ring. "danger" (red) is the only loss zone — everything else is safe. */
+export type SegmentType = "hole" | "solid" | "danger";
 
 /** Surface behavior applied to a ring's solid segments. */
 export type RingVariant = "normal" | "fragile" | "ice" | "boost";
@@ -25,7 +25,7 @@ export interface RingData {
 }
 
 /** Groups of colliders inside one ring body, identified by behavior on touch. */
-export type TouchKind = "solid" | "danger" | "bonus";
+export type TouchKind = "solid" | "danger";
 
 /**
  * Mutable per-match runtime shared by systems, physics and renderer.
@@ -43,8 +43,8 @@ export interface EngineRuntime {
     lastX: number;
     lastT: number;
   };
+  /** Rings with no active collider and hidden from render — smashed (fire/fragile) AND rings the ball has already passed (see stepGameplay). */
   broken: Set<number>;
-  consumedBonus: Set<number>;
   pendingBreaks: { ring: number; at: number }[];
   lastBounceAt: number;
   lastMovedAt: number; // watchdog: last time |vy| was healthy
@@ -64,7 +64,6 @@ export function createRuntime(ballRef: RefObject<RapierRigidBody | null>): Engin
     time: 0,
     rot: { target: 0, current: 0, velPs: 0, dragging: false, lastX: 0, lastT: 0 },
     broken: new Set(),
-    consumedBonus: new Set(),
     pendingBreaks: [],
     lastBounceAt: -1,
     lastMovedAt: 0,

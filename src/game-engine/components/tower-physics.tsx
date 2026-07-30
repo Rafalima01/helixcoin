@@ -26,7 +26,7 @@ interface ColliderGeometry {
 }
 
 /**
- * One kinematic RigidBody per behavior group (solid / danger / bonus) per ring.
+ * One kinematic RigidBody per behavior group (solid / danger) per ring.
  * Bodies live only inside a small window around the ball; rotation is written
  * every physics step from the exact same math the renderer uses.
  */
@@ -49,7 +49,6 @@ function RingBody({
     const type = ring.segments[k];
     if (kind === "solid" && type === "solid") segments.push(k);
     else if (kind === "danger" && type === "danger") segments.push(k);
-    else if (kind === "bonus" && type === "bonus") segments.push(k);
   }
   if (segments.length === 0) return null;
 
@@ -170,7 +169,6 @@ export function TowerPhysics({
           <group key={ring.index}>
             <RingBody ring={ring} kind="solid" geometry={geometry} register={register} touch={touch} />
             <RingBody ring={ring} kind="danger" geometry={geometry} register={register} touch={touch} />
-            <RingBody ring={ring} kind="bonus" geometry={geometry} register={register} touch={touch} />
           </group>
         )
       )}

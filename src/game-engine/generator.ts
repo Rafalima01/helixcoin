@@ -87,12 +87,6 @@ export function generateRing(seed: string, index: number): RingData {
     segments[eligible[i]] = "danger";
   }
 
-  // Occasionally a gold bonus segment.
-  if (index >= CFG.safeDepth && rng() < CFG.variants.bonusChance) {
-    const spot = eligible.slice(dangers).find((i) => segments[i] === "solid");
-    if (spot !== undefined) segments[spot] = "bonus";
-  }
-
   const motion = pickMotion(rng, index);
   // Motion rings keep a plain surface so behaviors never stack confusingly.
   const variant: RingVariant = motion.kind === "static" ? pickVariant(rng, index) : "normal";

@@ -149,20 +149,6 @@ export function handleTouch(
     runtime.boostUntil = now + CFG.boostDuration;
     AudioManager.boost();
   }
-  if (kind === "bonus" && !runtime.consumedBonus.has(ringIndex)) {
-    runtime.consumedBonus.add(ringIndex);
-    store.registerPass(CFG.bonusExtraPasses);
-    AudioManager.bonus();
-    const p = ballPos(runtime);
-    particleBus.spawnBurst(p.x, p.y, p.z, CFG.colors.bonus, {
-      count: 22,
-      speed: 3,
-      upward: 3,
-      size: 0.06,
-      ttl: 0.8,
-      gravity: -4,
-    });
-  }
 
   body.setLinvel({ x: 0, y: bounce, z: 0 }, true);
   store.registerTouch(Math.abs(runtime.lastVy));
@@ -210,11 +196,18 @@ export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks, dt: nu
   const depth = -(y + CFG.ballRadius * 1.4);
   const crossed = depth < 0 ? 0 : Math.floor(depth / CFG.ringSpacing) + 1;
   if (crossed > store.platformsPassed) {
-    const gained = crossed - store.platformsPassed;
+    const firstConsumedIndex = store.platformsPassed;
+    const gained = crossed - firstConsumedIndex;
     for (let i = 0; i < gained; i++) {
+      // Platform ultrapassada: nunca mais colide nem renderiza — reusa o
+      // mesmo mecanismo de rings "broken" (fire/fragile) que já exclui um
+      // índice de windowRings/ringVisible, só que sem a explosão/som de
+      // smash (breakRing()), já que este NÃO é um evento de destruição.
+      runtime.broken.add(firstConsumedIndex + i);
       store.registerPass(1);
       const after = useGameStore.getState();
       AudioManager.pass(after.combo);
+      AudioManager.coin(); // feedback de recompensa — uma vez por plataforma consumida
       if (!after.fireMode && after.combo >= CFG.fireThreshold) {
         after.setFire(true);
         runtime.fireBreaksLeft = CFG.fireBreaks;
@@ -255,7 +248,7 @@ export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks, dt: nu
     AudioManager.goal();
     runtime.trauma = Math.min(1, runtime.trauma + CFG.trauma.fireOn);
     const p = ballPos(runtime);
-    particleBus.spawnBurst(p.x, p.y, p.z, CFG.colors.bonus, {
+    particleBus.spawnBurst(p.x, p.y, p.z, CFG.colors.reward, {
       count: 30,
       speed: 3.6,
       upward: 3.2,

@@ -42,7 +42,6 @@ const variantColors = {
 export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
   const baseRef = useRef<THREE.InstancedMesh>(null);
   const dangerRef = useRef<THREE.InstancedMesh>(null);
-  const bonusRef = useRef<THREE.InstancedMesh>(null);
   const columnRef = useRef<THREE.Mesh>(null);
 
   const baseGeo = useMemo(() => createSegmentGeometry(), []);
@@ -63,17 +62,6 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
       }),
     []
   );
-  const bonusMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: CFG.colors.bonus,
-        emissive: CFG.colors.bonus,
-        emissiveIntensity: 0.9,
-        metalness: 0.55,
-        roughness: 0.25,
-      }),
-    []
-  );
 
   useEffect(() => {
     return () => {
@@ -81,15 +69,13 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
       dangerGeo.dispose();
       baseMat.dispose();
       dangerMat.dispose();
-      bonusMat.dispose();
     };
-  }, [baseGeo, dangerGeo, baseMat, dangerMat, bonusMat]);
+  }, [baseGeo, dangerGeo, baseMat, dangerMat]);
 
   useFrame(() => {
     const base = baseRef.current;
     const danger = dangerRef.current;
-    const bonus = bonusRef.current;
-    if (!base || !danger || !bonus) return;
+    if (!base || !danger) return;
 
     const t = runtime.time;
     const body = runtime.ballRef.current;
@@ -102,7 +88,6 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
 
     let nBase = 0;
     let nDanger = 0;
-    let nBonus = 0;
 
     for (let i = first; i <= last; i++) {
       const ring = runtime.rings[i];
@@ -110,7 +95,6 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
       if (!ringVisible(runtime, ring, t, ballY)) continue;
 
       const rot = ringRotation(runtime, ring, t);
-      const consumedBonus = runtime.consumedBonus.has(ring.index);
 
       for (let k = 0; k < ring.segments.length; k++) {
         const type = ring.segments[k];
@@ -125,11 +109,6 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
           if (nDanger < CFG.maxInstances) {
             danger.setMatrixAt(nDanger, dummy.matrix);
             nDanger++;
-          }
-        } else if (type === "bonus" && !consumedBonus) {
-          if (nBonus < CFG.maxInstances) {
-            bonus.setMatrixAt(nBonus, dummy.matrix);
-            nBonus++;
           }
         } else if (nBase < CFG.maxInstances) {
           base.setMatrixAt(nBase, dummy.matrix);
@@ -146,10 +125,8 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
 
     base.count = nBase;
     danger.count = nDanger;
-    bonus.count = nBonus;
     base.instanceMatrix.needsUpdate = true;
     danger.instanceMatrix.needsUpdate = true;
-    bonus.instanceMatrix.needsUpdate = true;
     if (base.instanceColor) base.instanceColor.needsUpdate = true;
 
     // Endless central column follows the ball.
@@ -166,11 +143,6 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
       <instancedMesh
         ref={dangerRef}
         args={[dangerGeo, dangerMat, CFG.maxInstances]}
-        frustumCulled={false}
-      />
-      <instancedMesh
-        ref={bonusRef}
-        args={[baseGeo, bonusMat, CFG.maxInstances]}
         frustumCulled={false}
       />
 

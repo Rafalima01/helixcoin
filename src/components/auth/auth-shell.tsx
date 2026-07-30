@@ -11,6 +11,7 @@ export function AuthShell({
   subtitle,
   quote,
   hideHero = false,
+  centered = false,
 }: {
   children: React.ReactNode;
   title: string;
@@ -18,7 +19,47 @@ export function AuthShell({
   quote?: string;
   /** Drops the game hero/testimonial panel — used by the admin/manager logins, which shouldn't feel like the player app. */
   hideHero?: boolean;
+  /**
+   * Single centered column, no split-screen panel at all — used by the
+   * player login/signup pages, which dropped the 3D hero entirely rather
+   * than leaving an empty decorative half behind (see `hideHero`, which
+   * still keeps the branded split panel for admin/manager logins).
+   */
+  centered?: boolean;
 }) {
+  if (centered) {
+    return (
+      <div className="relative min-h-dvh w-full flex flex-col items-center justify-center px-6 py-12 overflow-hidden">
+        <div className="absolute inset-0 bg-app-radial" />
+        <motion.div
+          className="absolute -top-40 -left-40 size-[520px] rounded-full bg-purple/15 blur-3xl"
+          animate={{ x: [0, 40, 0], y: [0, 30, 0] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute -bottom-40 -right-20 size-[420px] rounded-full bg-pink/15 blur-3xl"
+          animate={{ x: [0, -30, 0], y: [0, -20, 0] }}
+          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        <Link href="/" className="relative z-10 mb-10">
+          <Logo />
+        </Link>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+          className="relative z-10 w-full max-w-[420px]"
+        >
+          <h1 className="text-3xl font-extrabold tracking-tight mb-2 text-center">{title}</h1>
+          <p className="text-text-secondary mb-8 text-center">{subtitle}</p>
+          {children}
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-dvh w-full grid lg:grid-cols-2">
       <div className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden border-r border-border">

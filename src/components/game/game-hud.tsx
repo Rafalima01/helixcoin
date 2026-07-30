@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { TrendingUp, Wallet, Target, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/ui/animated-number";
+import { RewardPopups } from "@/components/game/reward-popups";
 import { useGameStore } from "@/store/game-store";
 import { centsToReais } from "@/lib/multiplier";
 import { formatCurrency, formatMultiplier, cn } from "@/lib/utils";
@@ -49,6 +50,8 @@ export function GameHud({
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-between p-4 md:p-6 z-10">
+      <RewardPopups />
+
       {/* Current multiplier + always-visible goal state */}
       <div className="flex flex-col items-center gap-2">
         <div className="glass-card px-6 py-3 flex flex-col items-center glow-purple">

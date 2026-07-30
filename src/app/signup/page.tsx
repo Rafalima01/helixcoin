@@ -10,7 +10,7 @@ export default function SignupPage() {
     <AuthShell
       title="Crie sua conta"
       subtitle="Leva menos de um minuto. Sem cartão de crédito."
-      quote="“Depositei, joguei e sacei tudo via PIX em menos de 10 minutos.”"
+      centered
     >
       <Suspense fallback={null}>
         <SignupForm />

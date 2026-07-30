@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Entrar — HeliJump" };
 
 export default function LoginPage() {
   return (
-    <AuthShell title="Bem-vindo de volta" subtitle="Entre para continuar girando a torre.">
+    <AuthShell title="Bem-vindo de volta" subtitle="Entre para continuar girando a torre." centered>
       <Suspense fallback={null}>
         <LoginForm submitVariant="gold" />
       </Suspense>

@@ -73,9 +73,10 @@ class AudioManagerImpl {
     this.tone(360 + Math.min(combo, 10) * 55, 0.09, { type: "triangle", gain: 0.24 });
   }
 
-  bonus() {
-    this.tone(660, 0.1, { type: "triangle", gain: 0.3 });
-    this.tone(880, 0.12, { type: "triangle", gain: 0.3, delay: 0.07 });
+  /** Short "plim" — reward feedback, once per platform consumed (see systems.ts's stepGameplay). */
+  coin() {
+    this.tone(1046, 0.05, { type: "sine", gain: 0.22 });
+    this.tone(1568, 0.09, { type: "sine", gain: 0.18, delay: 0.045 });
   }
 
   fireOn() {

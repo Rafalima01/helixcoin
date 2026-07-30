@@ -3,6 +3,18 @@ import { getMultiplierForPlatforms } from "@/lib/multiplier";
 
 export type GameStatus = "idle" | "playing" | "resolving" | "won" | "lost";
 
+/** One "🪙 +R$X" popup trigger — `amountCents` is purely a display derivation of the existing multiplier curve, never a new financial rule (see registerPass). */
+export interface RewardEvent {
+  id: number;
+  amountCents: number;
+}
+
+let rewardIdSeq = 0;
+function nextRewardId(): number {
+  rewardIdSeq += 1;
+  return rewardIdSeq;
+}
+
 interface GameState {
   status: GameStatus;
   matchId: string | null;
@@ -27,6 +39,8 @@ interface GameState {
   goalAmountCents: number;
   goalReached: boolean;
   startedAt: number | null;
+  /** Queue of "🪙 +R$X" popups the HUD should render, one per platform consumed — see reward-popups.tsx. */
+  rewardEvents: RewardEvent[];
 
   startMatch: (
     matchId: string,
@@ -35,10 +49,12 @@ interface GameState {
     targetMultiplier: number,
     goalAmountCents: number
   ) => void;
-  /** Credit `count` platform passes (bonus segments credit more than one). */
+  /** Credit `count` platform passes and queue a reward popup for the multiplier gained. */
   registerPass: (count?: number) => void;
   /** Ball touched a platform — combo resets. `impactSpeed` (if known) feeds the anti-cheat telemetry peak. */
   registerTouch: (impactSpeed?: number) => void;
+  /** Removes a reward popup once its animation finishes — see reward-popups.tsx. */
+  dismissReward: (id: number) => void;
   setFire: (on: boolean) => void;
   setResolving: () => void;
   resolveWon: (payoutCents: number, multiplier: number) => void;
@@ -67,6 +83,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   goalAmountCents: 0,
   goalReached: false,
   startedAt: null,
+  rewardEvents: [],
 
   startMatch: (matchId, matchToken, betAmountCents, targetMultiplier, goalAmountCents) =>
     set({
@@ -83,21 +100,32 @@ export const useGameStore = create<GameState>((set, get) => ({
       goalAmountCents,
       goalReached: false,
       startedAt: Date.now(),
+      rewardEvents: [],
     }),
 
   registerPass: (count = 1) => {
-    const { platformsPassed: prev, combo, maxCombo, targetMultiplier, goalReached } = get();
+    const { platformsPassed: prev, combo, maxCombo, targetMultiplier, goalReached, betAmountCents, rewardEvents } =
+      get();
     const platformsPassed = prev + count;
     const multiplier = getMultiplierForPlatforms(platformsPassed);
     const nextCombo = combo + count;
+    // Recompensa incremental exibida no popup de moeda — puramente uma
+    // leitura antes/depois da MESMA curva de multiplicador já usada pelo
+    // HUD/payout (src/lib/multiplier.ts). Nenhuma fórmula financeira nova.
+    const prevMultiplier = getMultiplierForPlatforms(prev);
+    const amountCents = Math.round(betAmountCents * (multiplier - prevMultiplier));
     set({
       platformsPassed,
       multiplier,
       combo: nextCombo,
       maxCombo: Math.max(maxCombo, nextCombo),
       goalReached: goalReached || (targetMultiplier > 1 && multiplier >= targetMultiplier - 1e-9),
+      rewardEvents:
+        amountCents > 0 ? [...rewardEvents, { id: nextRewardId(), amountCents }] : rewardEvents,
     });
   },
+
+  dismissReward: (id) => set((s) => ({ rewardEvents: s.rewardEvents.filter((r) => r.id !== id) })),
 
   registerTouch: (impactSpeed) => {
     const { collisionCount, maxVerticalSpeed } = get();
@@ -131,5 +159,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       goalAmountCents: 0,
       goalReached: false,
       startedAt: null,
+      rewardEvents: [],
     }),
 }));
