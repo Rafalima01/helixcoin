@@ -1,23 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import { Save } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, SectionCard, StatusBadge } from "@/components/admin/ui";
-import { notImplemented } from "@/lib/admin/use-admin-data";
+import { PaymentSettingsAdminApi, ApiError } from "@/lib/admin/payments-api";
+import type { PaymentSettingsDto } from "@/modules/payments/dto/payments.dto";
 
-/** Platform settings — Phase 1 mockup, all fields read-only. */
+/** Marca/Compliance/Aparência ainda são maquete (Fase 1) — só Limites financeiros é real, ligado ao mesmo PaymentSettings que o painel de Roteamento (em Gateways) já usa. */
 export default function AdminSettingsPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Configurações"
         description="Parâmetros globais da plataforma. Nenhuma configuração crítica vive no Frontend — tudo será persistido e validado pelo Backend."
-        actions={
-          <Button variant="primary" size="sm" onClick={notImplemented}>
-            <Save className="size-4" /> Salvar
-          </Button>
-        }
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -30,14 +30,7 @@ export default function AdminSettingsPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Limites financeiros">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Depósito mínimo" value="R$ 5,00" readOnly />
-            <Input label="Saque mínimo" value="R$ 10,00" readOnly />
-            <Input label="Saque máximo diário" value="R$ 20.000,00" readOnly />
-            <Input label="Aprovação manual acima de" value="R$ 2.500,00" readOnly />
-          </div>
-        </SectionCard>
+        <FinancialLimitsCard />
 
         <SectionCard
           title="Compliance & KYC"
@@ -61,5 +54,96 @@ export default function AdminSettingsPage() {
         </SectionCard>
       </div>
     </div>
+  );
+}
+
+function FinancialLimitsCard() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "payments", "settings"],
+    queryFn: () => PaymentSettingsAdminApi.get(),
+  });
+  const settings = data?.data;
+
+  if (isLoading || !settings) {
+    return (
+      <SectionCard title="Limites financeiros">
+        <Skeleton className="h-32 w-full rounded-2xl" />
+      </SectionCard>
+    );
+  }
+  // Remounts (via key) after a successful save instead of syncing local state from the query in an effect.
+  return <FinancialLimitsForm key={settings.updatedAt} settings={settings} />;
+}
+
+const centsToReaisStr = (cents: number) => (cents / 100).toFixed(2);
+const reaisStrToCents = (value: string) => Math.round(Number(value) * 100);
+
+function FinancialLimitsForm({ settings }: { settings: PaymentSettingsDto }) {
+  const queryClient = useQueryClient();
+  const [depositMin, setDepositMin] = useState(centsToReaisStr(settings.depositMinCents));
+  const [depositMax, setDepositMax] = useState(centsToReaisStr(settings.depositMaxCents));
+  const [withdrawMin, setWithdrawMin] = useState(centsToReaisStr(settings.withdrawMinCents));
+  const [withdrawMax, setWithdrawMax] = useState(centsToReaisStr(settings.withdrawMaxCents));
+
+  const save = useMutation({
+    mutationFn: () =>
+      PaymentSettingsAdminApi.update({
+        depositMinCents: reaisStrToCents(depositMin),
+        depositMaxCents: reaisStrToCents(depositMax),
+        withdrawMinCents: reaisStrToCents(withdrawMin),
+        withdrawMaxCents: reaisStrToCents(withdrawMax),
+      }),
+    onSuccess: () => {
+      toast.success("Limites financeiros atualizados");
+      queryClient.invalidateQueries({ queryKey: ["admin", "payments", "settings"] });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao salvar limites"),
+  });
+
+  return (
+    <SectionCard
+      title="Limites financeiros"
+      actions={
+        <Button variant="primary" size="sm" loading={save.isPending} onClick={() => save.mutate()}>
+          <Save className="size-4" /> Salvar
+        </Button>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input
+          label="Depósito mínimo (R$)"
+          type="number"
+          min={0}
+          step="0.01"
+          value={depositMin}
+          onChange={(e) => setDepositMin(e.target.value)}
+        />
+        <Input
+          label="Depósito máximo (R$)"
+          type="number"
+          min={0}
+          step="0.01"
+          value={depositMax}
+          onChange={(e) => setDepositMax(e.target.value)}
+        />
+        <Input
+          label="Saque mínimo (R$)"
+          type="number"
+          min={0}
+          step="0.01"
+          value={withdrawMin}
+          onChange={(e) => setWithdrawMin(e.target.value)}
+        />
+        <Input
+          label="Saque máximo (R$)"
+          type="number"
+          min={0}
+          step="0.01"
+          value={withdrawMax}
+          onChange={(e) => setWithdrawMax(e.target.value)}
+          hint="Por saque — ainda não existe um teto agregado diário."
+        />
+      </div>
+    </SectionCard>
   );
 }
