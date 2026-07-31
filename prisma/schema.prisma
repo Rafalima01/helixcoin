@@ -39,6 +39,8 @@ model GameConfig {
   commissionLevel1 Float    @default(0.10)
   commissionLevel2 Float    @default(0.05)
   commissionLevel3 Float    @default(0.02)
+  /// Platform-wide switch — blocks new matches (MatchEngineService.create) without affecting matches already in progress.
+  maintenanceMode  Boolean  @default(false)
   updatedAt        DateTime @updatedAt
 }
 

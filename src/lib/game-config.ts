@@ -8,3 +8,11 @@ export function getGameConfig() {
     create: { id: "global" },
   });
 }
+
+export function setMaintenanceMode(enabled: boolean) {
+  return prisma.gameConfig.upsert({
+    where: { id: "global" },
+    update: { maintenanceMode: enabled },
+    create: { id: "global", maintenanceMode: enabled },
+  });
+}

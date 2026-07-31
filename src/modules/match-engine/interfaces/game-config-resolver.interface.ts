@@ -12,6 +12,8 @@ export interface ResolvedMatchConfig {
   };
   antiCheat: Record<string, number>;
   engineParams: Record<string, number | boolean>;
+  /** GameConfig.maintenanceMode singleton — create() rejects new matches while true; matches already in progress are unaffected. */
+  maintenanceMode: boolean;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { ok, parsePagination, buildPaginationMeta } from "@/server/http";
 import type { AuthContext } from "@/server/auth/context";
@@ -5,6 +6,7 @@ import { extractRequestMeta } from "@/server/audit";
 import { ForbiddenError } from "@/server/errors";
 import { identityContainer } from "@/modules/identity/container";
 import { gameConfigContainer } from "@/modules/game-config/container";
+import { getGameConfig, setMaintenanceMode } from "@/lib/game-config";
 import {
   upsertDraftSchema,
   activateSchema,
@@ -64,6 +66,22 @@ export async function handleActivateDraft(req: NextRequest, auth: AuthContext) {
     body.versionId
   );
   return ok(toGameEconomyConfigResponseDto(activated));
+}
+
+const updateMaintenanceModeSchema = z.object({ maintenanceMode: z.boolean() }).strict();
+
+/** GameConfig.maintenanceMode — a separate singleton from the GameEconomyConfig draft/active versioning above, but same "Gestão do Jogo" RBAC gate. */
+export async function handleGetPlatformConfig(_req: NextRequest, auth: AuthContext) {
+  await assertGameConfigPermission(auth);
+  const config = await getGameConfig();
+  return ok({ maintenanceMode: config.maintenanceMode });
+}
+
+export async function handleUpdateMaintenanceMode(req: NextRequest, auth: AuthContext) {
+  await assertGameConfigPermission(auth);
+  const { maintenanceMode } = updateMaintenanceModeSchema.parse(await req.json());
+  const config = await setMaintenanceMode(maintenanceMode);
+  return ok({ maintenanceMode: config.maintenanceMode });
 }
 
 export async function handleListGameConfigVersions(req: NextRequest, auth: AuthContext) {

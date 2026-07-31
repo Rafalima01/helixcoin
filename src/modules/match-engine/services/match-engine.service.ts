@@ -60,7 +60,12 @@ export class MatchEngineService {
   ) {}
 
   async create(userId: string, input: ValidatedCreateInput, meta: RequestMeta): Promise<CreatedMatch> {
-    const { mode, configVersion, general, antiCheat, engineParams: params } = await this.gameConfig.resolveForUser(userId);
+    const { mode, configVersion, general, antiCheat, engineParams: params, maintenanceMode } =
+      await this.gameConfig.resolveForUser(userId);
+
+    if (maintenanceMode) {
+      throw new BusinessRuleError("O jogo está em manutenção no momento. Tente novamente em instantes.");
+    }
 
     const betAmountCents = roundToCents(input.amount);
     if (betAmountCents < general.betMin || betAmountCents > general.betMax) {

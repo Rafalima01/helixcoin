@@ -69,4 +69,15 @@ export const GameConfigAdminApi = {
       method: "POST",
     });
   },
+
+  async getPlatformConfig() {
+    return request<{ maintenanceMode: boolean }>("/api/admin/game-config/platform");
+  },
+
+  async setMaintenanceMode(maintenanceMode: boolean) {
+    return request<{ maintenanceMode: boolean }>("/api/admin/game-config/platform", {
+      method: "PATCH",
+      body: JSON.stringify({ maintenanceMode }),
+    });
+  },
 };

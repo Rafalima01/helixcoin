@@ -40,6 +40,7 @@ function lenientConfig(overrides?: Partial<ResolvedMatchConfig["general"]>): Res
       maxCollisionsPerSecond: Infinity,
     },
     engineParams: buildDefaultModes().NORMAL,
+    maintenanceMode: false,
   };
 }
 
@@ -90,6 +91,14 @@ describe("MatchEngineService", () => {
     wallet.setBalance(USER_ID, 100);
     await expect(service.create(USER_ID, { amount: 5 }, meta)).rejects.toThrow(BusinessRuleError);
     await expect(matches.listAdmin({ page: 1, pageSize: 10 })).resolves.toEqual({ items: [], total: 0 });
+  });
+
+  it("create() rejects new matches while maintenanceMode is on and persists nothing", async () => {
+    const { service, matches, wallet } = buildService({ ...lenientConfig(), maintenanceMode: true });
+    wallet.setBalance(USER_ID, 10_000);
+    await expect(service.create(USER_ID, { amount: 5 }, meta)).rejects.toThrow(BusinessRuleError);
+    await expect(matches.listAdmin({ page: 1, pageSize: 10 })).resolves.toEqual({ items: [], total: 0 });
+    await expect(wallet.getBalance(USER_ID)).resolves.toBe(10_000);
   });
 
   it("begin() transitions AWAITING_START to IN_PROGRESS and stamps startedAt", async () => {
