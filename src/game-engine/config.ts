@@ -66,7 +66,11 @@ export const ENGINE_CONFIG = {
   // geometrically impossible, no matter how the tower spins.
   cameraDistance: 6.6, // distance from the tower axis, along the ball's radial
   cameraOffsetY: 2.4, // height above the ball
-  cameraLookDown: 1.35, // look target below the ball → upcoming rings on screen
+  // Look target below the ball → upcoming rings on screen. The extra +0.6
+  // beyond the original 1.35 is a deliberate, subtle downward pitch (camera
+  // reads as slightly above the tower looking down) — position/distance/FOV
+  // are untouched, only the look-at aim point moved.
+  cameraLookDown: 1.95,
   cameraFov: 55,
   cameraDamping: 10, // per-second exponential follow
   cameraMaxLag: 1.1, // hard clamp: ball never drifts off-frame in either direction
