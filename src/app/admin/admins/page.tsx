@@ -1,12 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShieldPlus, KeyRound, Eye, Headset, LineChart, Crown, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader, DataTable, StatusBadge, type TableColumn } from "@/components/admin/ui";
 import { IdentityAdminApi } from "@/lib/admin/identity-api";
-import { notImplemented } from "@/lib/admin/use-admin-data";
+import { CreateAdminModal } from "@/components/admin/admins/create-admin-modal";
 import type { UserResponseDto } from "@/modules/identity/dto/user.dto";
 
 const STAFF_ROLES = [
@@ -39,9 +40,10 @@ const STATUS_LABEL: Record<UserResponseDto["status"], { label: string; tone: "su
 };
 
 export default function AdminAdminsPage() {
+  const [inviting, setInviting] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "staff"],
-    queryFn: () => IdentityAdminApi.searchUsers({ page: 1, pageSize: 200 }),
+    queryFn: () => IdentityAdminApi.searchUsers({ page: 1, pageSize: 100 }),
   });
 
   const staff = (data?.data ?? []).filter((u) => (STAFF_ROLES as readonly string[]).includes(u.role));
@@ -100,11 +102,13 @@ export default function AdminAdminsPage() {
         title="Gestão Administrativa"
         description="Contas com papéis não-jogador (RBAC) — mesma base de usuários do módulo Identity, filtrada por papel."
         actions={
-          <Button variant="primary" size="sm" onClick={notImplemented}>
+          <Button variant="primary" size="sm" onClick={() => setInviting(true)}>
             <ShieldPlus className="size-4" /> Convidar administrador
           </Button>
         }
       />
+
+      <CreateAdminModal open={inviting} onClose={() => setInviting(false)} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {STAFF_ROLES.map((role) => {
