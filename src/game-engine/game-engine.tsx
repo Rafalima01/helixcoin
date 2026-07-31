@@ -235,11 +235,17 @@ export function GameEngine({
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      style={{
+        backgroundImage: "url(/game-sky-background.webp)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
     >
       {size && (
         <Canvas
           dpr={[1, 1.75]}
-          gl={{ antialias: true, powerPreference: "high-performance" }}
+          gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
           camera={{
             fov: CFG.cameraFov,
             position: [CFG.cameraDistance, CFG.ballSpawnY + CFG.cameraOffsetY, 0],
@@ -252,8 +258,13 @@ export function GameEngine({
             applySize(size.width, size.height);
           }}
         >
-          <color attach="background" args={["#0B0815"]} />
-          <fog attach="fog" args={["#0B0815", 9, 24]} />
+          {/* No <color attach="background">: the WebGL context clears to transparent
+              (gl alpha:true above) so the CSS background-image on the container div
+              — the real photo asset — shows through everywhere nothing is drawn.
+              Fog color sampled from the photo's own sky-blue so distant tower/ring
+              segments fade toward a color consistent with the backdrop instead of an
+              unrelated flat tone. */}
+          <fog attach="fog" args={["#1793F2", 9, 24]} />
 
           <ambientLight intensity={0.55} color="#a78bfa" />
           <directionalLight position={[4, 8, 4]} intensity={1.2} color="#ffffff" />
