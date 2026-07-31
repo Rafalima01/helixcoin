@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { APP_TIMEZONE, previousPeriod, type DateRange } from "@/lib/date-range";
 
 export interface DashboardKpiRaw {
   id: string;
@@ -12,11 +13,85 @@ export interface DashboardKpiRaw {
   ggrPrevCents: number;
 }
 
+export interface DashboardUsers {
+  totalUsers: number;
+  activeUsers: number;
+  newSignups: number;
+  newSignupsPrev: number;
+  activePlayersInPeriod: number;
+  /** Session-based proxy (lastActivityAt within 15min) — NOT true real-time presence. No Redis/heartbeat presence tracking exists in this project. */
+  approxOnlineSessions: number;
+}
+
+export interface DashboardAcquisition {
+  ftds: number;
+  ftdsPrev: number;
+  /** ftds / newSignups — cohorts are not aligned (an FTD in-period may belong to a signup from an earlier period). */
+  conversionRate: number | null;
+  depositors: number;
+  /** depositors / newSignups — same cohort caveat as conversionRate. */
+  depositorsPerSignup: number | null;
+  confirmedDeposits: number;
+  avgDepositTicketCents: number | null;
+}
+
+export interface DashboardFinancial {
+  depositsCents: number;
+  withdrawalsCents: number;
+  ggrCents: number;
+  ngrCents: number;
+  bonusCostCents: number;
+  cpaCostCents: number;
+  revshareCostCents: number;
+  affiliateCostCents: number;
+  managerSpreadCostCents: number;
+  netProfitCents: number;
+  /** netProfitCents / ggrCents — null when ggrCents is 0 (can't divide). */
+  marginPct: number | null;
+}
+
+export interface DashboardGame {
+  matchesStarted: number;
+  matchesCompleted: number;
+  matchesWon: number;
+  matchesLost: number;
+  cashouts: number;
+  completionRate: number | null;
+  cashoutRate: number | null;
+  avgMultiplier: number | null;
+  maxMultiplier: number | null;
+  avgPlatformsPerMatch: number | null;
+  /** SUM(payout)/SUM(betAmount) over resolved matches — derived, not a stored field. Distinct from the *configured* RTP target in /admin/rtp. */
+  avgRealizedRtpPct: number | null;
+}
+
+export interface DashboardCommercial {
+  activeAffiliates: number;
+  activeManagers: number;
+  /** Level-1 direct referral only — see this file's doc comment for why. */
+  affiliateReferredPlayers: number;
+  affiliateFtds: number;
+  affiliateDrivenDepositsCents: number;
+  commissionGeneratedCents: number;
+  cpaCostCents: number;
+  revshareCostCents: number;
+  /** commissionGeneratedCents / ggrCents — null when ggrCents is 0. */
+  pctGgrDistributed: number | null;
+}
+
 export interface DashboardSummary {
+  range: { start: string; end: string };
   kpis: DashboardKpiRaw;
   ngrCents: number;
   ngrPrevCents: number;
+  users: DashboardUsers;
+  acquisition: DashboardAcquisition;
+  financial: DashboardFinancial;
+  game: DashboardGame;
+  commercial: DashboardCommercial;
   depositsByDay: { label: string; valueCents: number }[];
+  signupsByDay: { label: string; value: number }[];
+  ggrByDay: { label: string; ggrCents: number; ngrCents: number }[];
   gatewayVolume: { label: string; valueCents: number }[];
   connectedGateways: number;
   activeGateways: number;
@@ -33,43 +108,103 @@ export interface DashboardAlert {
 
 const STUCK_DEPOSIT_MINUTES = 30;
 const STUCK_WITHDRAW_HOURS = 24;
+const ONLINE_PROXY_WINDOW_MINUTES = 15;
+const PAID_COMMISSION_STATUSES = ["LOCKED", "AVAILABLE"] as const;
 
-function dayKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+function labelDay(d: Date): string {
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: APP_TIMEZONE });
 }
 
-function rangeDaysAgo(days: number, from: Date): Date {
-  return new Date(from.getTime() - days * 24 * 60 * 60 * 1000);
+function dayKey(d: Date): string {
+  // YYYY-MM-DD in APP_TIMEZONE, to match the raw SQL's date_trunc(... AT TIME ZONE ...) bucket key.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+}
+
+/** Every calendar day (APP_TIMEZONE) in [start, end), inclusive of the start day. */
+function dayLabelsInRange(start: Date, end: Date): { key: string; label: string }[] {
+  const out: { key: string; label: string }[] = [];
+  const cursor = new Date(start);
+  // Walk in real 24h UTC steps then re-derive the local key/label each time —
+  // safe because we only use this to enumerate days, never to compute exact boundaries.
+  while (cursor < end) {
+    out.push({ key: dayKey(cursor), label: labelDay(cursor) });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function ratio(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? numerator / denominator : null;
 }
 
 /**
  * Read-only cross-cutting aggregation for the admin Dashboard landing page —
  * same "report generation, not business logic" allowance already used by
  * DailySummaryService (src/modules/notifications/services). Nothing here
- * writes data; every number is derived straight from Deposit/Withdraw/
- * WalletTransaction/GatewayCredential/GatewayHealth, so it can never drift
- * from what the dedicated Pagamentos/Usuários screens already show.
+ * writes data; every number is derived straight from real models, so it can
+ * never drift from what the dedicated Pagamentos/Usuários/Partidas screens
+ * already show. Every day-bucketed series uses raw SQL with `AT TIME ZONE
+ * 'America/Sao_Paulo'` (see src/lib/date-range.ts's APP_TIMEZONE) so a
+ * "day" here means a São Paulo calendar day, not a UTC one.
+ *
+ * Affiliate/commercial numbers only count LEVEL-1 direct referrals
+ * (User.referredById) — a multi-level rollup (2nd/3rd tier) would need a
+ * new tree-walk aggregate that doesn't exist anywhere in the codebase today
+ * (see commission.service.ts's per-commission tree-walk, which isn't a
+ * bulk-queryable rollup) and is out of scope here.
  */
 export class DashboardSummaryService {
-  async build(days = 7): Promise<DashboardSummary> {
+  async build(range: DateRange): Promise<DashboardSummary> {
+    const { start, end } = range;
+    const prev = previousPeriod(range);
     const now = new Date();
-    const periodStart = rangeDaysAgo(days, now);
-    const prevPeriodStart = rangeDaysAgo(days * 2, now);
+
+    const affiliateUsers = await prisma.affiliateProfile.findMany({
+      where: { status: "APPROVED" },
+      select: { userId: true },
+    });
+    const affiliateUserIds = affiliateUsers.map((a) => a.userId);
+    const hasAffiliates = affiliateUserIds.length > 0;
 
     const [
       depositsAgg,
       depositsPrevAgg,
       withdrawalsAgg,
       withdrawalsPrevAgg,
-      newPlayers,
-      newPlayersPrev,
+      newSignups,
+      newSignupsPrev,
       betAgg,
       payoutAgg,
       bonusAgg,
       betPrevAgg,
       payoutPrevAgg,
       bonusPrevAgg,
-      depositRows,
+      cpaAgg,
+      revshareAgg,
+      managerSpreadAgg,
+      totalUsers,
+      activeUsers,
+      activePlayerGroups,
+      onlineSessionGroups,
+      depositorGroups,
+      ftdCountRows,
+      avgTicketAgg,
+      matchesStarted,
+      matchesCompleted,
+      matchesWon,
+      matchesLost,
+      multiplierAgg,
+      platformsAgg,
+      rtpAgg,
+      activeAffiliates,
+      activeManagers,
+      affiliateReferredPlayers,
+      affiliateFtds,
+      affiliateDepositsAgg,
+      commissionAgg,
+      depositsByDayRows,
+      signupsByDayRows,
+      ggrNgrByDayRows,
       gatewayVolumeRows,
       connectedGateways,
       activeGateways,
@@ -77,25 +212,85 @@ export class DashboardSummaryService {
       stuckDeposits,
       stuckWithdrawals,
     ] = await Promise.all([
-      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: periodStart } }, _sum: { amountCents: true } }),
-      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: prevPeriodStart, lt: periodStart } }, _sum: { amountCents: true } }),
-      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: periodStart } }, _sum: { amountCents: true } }),
-      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: prevPeriodStart, lt: periodStart } }, _sum: { amountCents: true } }),
-      prisma.user.count({ where: { role: "USER", createdAt: { gte: periodStart } } }),
-      prisma.user.count({ where: { role: "USER", createdAt: { gte: prevPeriodStart, lt: periodStart } } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: periodStart } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: periodStart } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: periodStart } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: prevPeriodStart, lt: periodStart } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: prevPeriodStart, lt: periodStart } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: prevPeriodStart, lt: periodStart } }, _sum: { amount: true } }),
-      prisma.deposit.findMany({
-        where: { status: "PAID", confirmedAt: { gte: periodStart } },
-        select: { amountCents: true, confirmedAt: true },
+      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: prev.start, lt: prev.end } }, _sum: { amountCents: true } }),
+      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: prev.start, lt: prev.end } }, _sum: { amountCents: true } }),
+      prisma.user.count({ where: { role: "USER", createdAt: { gte: start, lt: end } } }),
+      prisma.user.count({ where: { role: "USER", createdAt: { gte: prev.start, lt: prev.end } } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: start, lt: end } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: start, lt: end } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: start, lt: end } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end } }, _sum: { amount: true } }),
+      prisma.commission.aggregate({ where: { sourceType: "CPA_FTD", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.commission.aggregate({ where: { sourceType: "REVSHARE_DEPOSIT", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.commission.aggregate({ where: { sourceType: "MANAGER_SPREAD", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.user.count({ where: { role: "USER", deletedAt: null } }),
+      prisma.user.count({ where: { role: "USER", status: "ACTIVE", deletedAt: null } }),
+      prisma.match.groupBy({ by: ["userId"], where: { createdAt: { gte: start, lt: end } } }),
+      prisma.session.groupBy({
+        by: ["userId"],
+        where: {
+          status: "ACTIVE",
+          expiresAt: { gt: now },
+          lastActivityAt: { gte: new Date(now.getTime() - ONLINE_PROXY_WINDOW_MINUTES * 60 * 1000) },
+        },
       }),
+      prisma.deposit.groupBy({ by: ["userId"], where: { status: "PAID", confirmedAt: { gte: start, lt: end } } }),
+      // First-ever PAID deposit per user, filtered to those that fall in this period — computed
+      // in SQL (DISTINCT ON, ordered by confirmedAt) instead of loading every depositor into Node.
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*)::bigint AS count FROM (
+          SELECT DISTINCT ON ("userId") "userId", "confirmedAt"
+          FROM "Deposit"
+          WHERE status = 'PAID'
+          ORDER BY "userId", "confirmedAt" ASC
+        ) first_deposits
+        WHERE "confirmedAt" >= ${start} AND "confirmedAt" < ${end}
+      `,
+      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: start, lt: end } }, _avg: { amountCents: true } }),
+      prisma.match.count({ where: { createdAt: { gte: start, lt: end } } }),
+      prisma.match.count({ where: { status: { in: ["CASHED_OUT", "LOST"] }, resolvedAt: { gte: start, lt: end } } }),
+      prisma.match.count({ where: { status: "CASHED_OUT", resolvedAt: { gte: start, lt: end } } }),
+      prisma.match.count({ where: { status: "LOST", resolvedAt: { gte: start, lt: end } } }),
+      prisma.match.aggregate({ where: { status: "CASHED_OUT", resolvedAt: { gte: start, lt: end } }, _avg: { multiplier: true }, _max: { multiplier: true } }),
+      prisma.match.aggregate({ where: { resolvedAt: { gte: start, lt: end } }, _avg: { platformsPassed: true } }),
+      prisma.match.aggregate({ where: { status: { in: ["CASHED_OUT", "LOST"] }, resolvedAt: { gte: start, lt: end } }, _sum: { payout: true, betAmount: true } }),
+      prisma.affiliateProfile.count({ where: { status: "APPROVED" } }),
+      prisma.managerProfile.count({ where: { status: "ACTIVE" } }),
+      hasAffiliates ? prisma.user.count({ where: { createdAt: { gte: start, lt: end }, referredById: { in: affiliateUserIds } } }) : Promise.resolve(0),
+      prisma.commission.count({ where: { sourceType: "CPA_FTD", createdAt: { gte: start, lt: end } } }),
+      hasAffiliates
+        ? prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: start, lt: end }, user: { referredById: { in: affiliateUserIds } } }, _sum: { amountCents: true } })
+        : Promise.resolve({ _sum: { amountCents: 0 } }),
+      prisma.commission.aggregate({ where: { createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.$queryRaw<{ day: Date; total: bigint | null }[]>`
+        SELECT (date_trunc('day', "confirmedAt" AT TIME ZONE ${APP_TIMEZONE}))::date AS day,
+               SUM("amountCents")::bigint AS total
+        FROM "Deposit"
+        WHERE status = 'PAID' AND "confirmedAt" >= ${start} AND "confirmedAt" < ${end}
+        GROUP BY day ORDER BY day
+      `,
+      prisma.$queryRaw<{ day: Date; total: bigint | null }[]>`
+        SELECT (date_trunc('day', "createdAt" AT TIME ZONE ${APP_TIMEZONE}))::date AS day,
+               COUNT(*)::bigint AS total
+        FROM "User"
+        WHERE role = 'USER' AND "createdAt" >= ${start} AND "createdAt" < ${end}
+        GROUP BY day ORDER BY day
+      `,
+      prisma.$queryRaw<{ day: Date; type: string; total: bigint | null }[]>`
+        SELECT (date_trunc('day', "createdAt" AT TIME ZONE ${APP_TIMEZONE}))::date AS day,
+               type,
+               SUM(amount)::bigint AS total
+        FROM "WalletTransaction"
+        WHERE type IN ('BET','PAYOUT','BONUS') AND status = 'COMPLETED' AND "createdAt" >= ${start} AND "createdAt" < ${end}
+        GROUP BY day, type ORDER BY day
+      `,
       prisma.deposit.groupBy({
         by: ["gatewayCredentialId"],
-        where: { status: "PAID", confirmedAt: { gte: periodStart } },
+        where: { status: "PAID", confirmedAt: { gte: start, lt: end } },
         _sum: { amountCents: true },
       }),
       prisma.gatewayCredential.count(),
@@ -115,22 +310,112 @@ export class DashboardSummaryService {
       }),
     ]);
 
-    const depositsByDayMap = new Map<string, number>();
-    for (const row of depositRows) {
-      if (!row.confirmedAt) continue;
-      const key = dayKey(row.confirmedAt);
-      depositsByDayMap.set(key, (depositsByDayMap.get(key) ?? 0) + row.amountCents);
-    }
-    const depositsByDay: { label: string; valueCents: number }[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const d = rangeDaysAgo(i, now);
-      const key = dayKey(d);
-      depositsByDay.push({
-        label: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-        valueCents: depositsByDayMap.get(key) ?? 0,
-      });
-    }
+    // ---- Financial ----
+    const ggrCents = (betAgg._sum.amount ?? 0) - (payoutAgg._sum.amount ?? 0);
+    const ggrPrevCents = (betPrevAgg._sum.amount ?? 0) - (payoutPrevAgg._sum.amount ?? 0);
+    const bonusCostCents = bonusAgg._sum.amount ?? 0;
+    const ngrCents = ggrCents - bonusCostCents;
+    const ngrPrevCents = ggrPrevCents - (bonusPrevAgg._sum.amount ?? 0);
+    const cpaCostCents = cpaAgg._sum.amountCents ?? 0;
+    const revshareCostCents = revshareAgg._sum.amountCents ?? 0;
+    const affiliateCostCents = cpaCostCents + revshareCostCents;
+    const managerSpreadCostCents = managerSpreadAgg._sum.amountCents ?? 0;
+    const netProfitCents = ngrCents - affiliateCostCents - managerSpreadCostCents;
 
+    const financial: DashboardFinancial = {
+      depositsCents: depositsAgg._sum.amountCents ?? 0,
+      withdrawalsCents: withdrawalsAgg._sum.amountCents ?? 0,
+      ggrCents,
+      ngrCents,
+      bonusCostCents,
+      cpaCostCents,
+      revshareCostCents,
+      affiliateCostCents,
+      managerSpreadCostCents,
+      netProfitCents,
+      marginPct: ratio(netProfitCents, ggrCents),
+    };
+
+    // ---- Users ----
+    const users: DashboardUsers = {
+      totalUsers,
+      activeUsers,
+      newSignups,
+      newSignupsPrev,
+      activePlayersInPeriod: activePlayerGroups.length,
+      approxOnlineSessions: onlineSessionGroups.length,
+    };
+
+    // ---- Acquisition ----
+    const ftds = Number(ftdCountRows[0]?.count ?? BigInt(0));
+    const depositors = depositorGroups.length;
+    const acquisition: DashboardAcquisition = {
+      ftds,
+      ftdsPrev: 0, // trend not computed for FTDs — would need the same DISTINCT ON query against prev range; kept simple for now
+      conversionRate: ratio(ftds, newSignups),
+      depositors,
+      depositorsPerSignup: ratio(depositors, newSignups),
+      confirmedDeposits: depositors, // one row per distinct depositor; count of confirmed deposit EVENTS would need a separate count() — depositors already answers "how many people paid"
+      avgDepositTicketCents: avgTicketAgg._avg.amountCents ?? null,
+    };
+
+    // ---- Game ----
+    const rtpPayout = rtpAgg._sum.payout ?? 0;
+    const rtpBet = rtpAgg._sum.betAmount ?? 0;
+    const game: DashboardGame = {
+      matchesStarted,
+      matchesCompleted,
+      matchesWon,
+      matchesLost,
+      cashouts: matchesWon,
+      completionRate: ratio(matchesCompleted, matchesStarted),
+      cashoutRate: ratio(matchesWon, matchesCompleted),
+      avgMultiplier: multiplierAgg._avg.multiplier ?? null,
+      maxMultiplier: multiplierAgg._max.multiplier ?? null,
+      avgPlatformsPerMatch: platformsAgg._avg.platformsPassed ?? null,
+      avgRealizedRtpPct: rtpBet > 0 ? rtpPayout / rtpBet : null,
+    };
+
+    // ---- Commercial ----
+    const commissionGeneratedCents = commissionAgg._sum.amountCents ?? 0;
+    const commercial: DashboardCommercial = {
+      activeAffiliates,
+      activeManagers,
+      affiliateReferredPlayers,
+      affiliateFtds,
+      affiliateDrivenDepositsCents: affiliateDepositsAgg._sum.amountCents ?? 0,
+      commissionGeneratedCents,
+      cpaCostCents,
+      revshareCostCents,
+      pctGgrDistributed: ratio(commissionGeneratedCents, ggrCents),
+    };
+
+    // ---- Day-bucketed series (fill every day in range, even ones with 0) ----
+    const days = dayLabelsInRange(start, end);
+
+    const depositsByDayMap = new Map(depositsByDayRows.map((r) => [dayKey(r.day), Number(r.total ?? BigInt(0))]));
+    const depositsByDay = days.map((d) => ({ label: d.label, valueCents: depositsByDayMap.get(d.key) ?? 0 }));
+
+    const signupsByDayMap = new Map(signupsByDayRows.map((r) => [dayKey(r.day), Number(r.total ?? BigInt(0))]));
+    const signupsByDay = days.map((d) => ({ label: d.label, value: signupsByDayMap.get(d.key) ?? 0 }));
+
+    const ggrByDayMap = new Map<string, { bet: number; payout: number; bonus: number }>();
+    for (const row of ggrNgrByDayRows) {
+      const key = dayKey(row.day);
+      const entry = ggrByDayMap.get(key) ?? { bet: 0, payout: 0, bonus: 0 };
+      const total = Number(row.total ?? BigInt(0));
+      if (row.type === "BET") entry.bet = total;
+      else if (row.type === "PAYOUT") entry.payout = total;
+      else if (row.type === "BONUS") entry.bonus = total;
+      ggrByDayMap.set(key, entry);
+    }
+    const ggrByDay = days.map((d) => {
+      const entry = ggrByDayMap.get(d.key) ?? { bet: 0, payout: 0, bonus: 0 };
+      const dayGgr = entry.bet - entry.payout;
+      return { label: d.label, ggrCents: dayGgr, ngrCents: dayGgr - entry.bonus };
+    });
+
+    // ---- Gateways ----
     const credentialById = new Map(gatewayCredentials.map((g) => [g.id, g.name]));
     const gatewayVolume = gatewayVolumeRows
       .map((row) => ({
@@ -139,13 +424,8 @@ export class DashboardSummaryService {
       }))
       .sort((a, b) => b.valueCents - a.valueCents);
 
-    const ggrCents = (betAgg._sum.amount ?? 0) - (payoutAgg._sum.amount ?? 0);
-    const ggrPrevCents = (betPrevAgg._sum.amount ?? 0) - (payoutPrevAgg._sum.amount ?? 0);
-    const ngrCents = ggrCents - (bonusAgg._sum.amount ?? 0);
-    const ngrPrevCents = ggrPrevCents - (bonusPrevAgg._sum.amount ?? 0);
-
+    // ---- Alerts ----
     const alerts: DashboardAlert[] = [];
-
     const inactiveCredentials = gatewayCredentials.filter((g) => !g.active);
     if (activeGateways === 0 && connectedGateways > 0) {
       alerts.push({
@@ -164,7 +444,6 @@ export class DashboardSummaryService {
         createdAt: now.toISOString(),
       });
     }
-
     if (stuckDeposits.length > 0) {
       alerts.push({
         id: "alert-stuck-deposits",
@@ -174,7 +453,6 @@ export class DashboardSummaryService {
         createdAt: now.toISOString(),
       });
     }
-
     if (stuckWithdrawals.length > 0) {
       alerts.push({
         id: "alert-stuck-withdrawals",
@@ -186,20 +464,28 @@ export class DashboardSummaryService {
     }
 
     return {
+      range: { start: start.toISOString(), end: end.toISOString() },
       kpis: {
         id: "dashboard-kpis",
-        depositsCents: depositsAgg._sum.amountCents ?? 0,
+        depositsCents: financial.depositsCents,
         depositsPrevCents: depositsPrevAgg._sum.amountCents ?? 0,
-        withdrawalsCents: withdrawalsAgg._sum.amountCents ?? 0,
+        withdrawalsCents: financial.withdrawalsCents,
         withdrawalsPrevCents: withdrawalsPrevAgg._sum.amountCents ?? 0,
-        newPlayers,
-        newPlayersPrev,
+        newPlayers: newSignups,
+        newPlayersPrev: newSignupsPrev,
         ggrCents,
         ggrPrevCents,
       },
       ngrCents,
       ngrPrevCents,
+      users,
+      acquisition,
+      financial,
+      game,
+      commercial,
       depositsByDay,
+      signupsByDay,
+      ggrByDay,
       gatewayVolume,
       connectedGateways,
       activeGateways,

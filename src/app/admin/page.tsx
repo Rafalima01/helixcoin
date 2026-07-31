@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { AlertTriangle, Download, RefreshCw, CreditCard, Building2 } from "lucide-react";
@@ -18,10 +19,25 @@ import { DashboardAdminApi } from "@/lib/admin/dashboard-api";
 import { IdentityAdminApi } from "@/lib/admin/identity-api";
 import { notImplemented } from "@/lib/admin/use-admin-data";
 import type { KpiDTO } from "@/lib/admin/types";
+import type { DateRangePreset } from "@/lib/date-range";
 import type { AuditLogResponseDto } from "@/modules/identity/dto/audit.dto";
 import { formatCurrency, cn } from "@/lib/utils";
 
-const DASHBOARD_DAYS = 7;
+const PRESET_OPTIONS: { value: DateRangePreset; label: string }[] = [
+  { value: "today", label: "Hoje" },
+  { value: "yesterday", label: "Ontem" },
+  { value: "7d", label: "Últimos 7 dias" },
+  { value: "15d", label: "Últimos 15 dias" },
+  { value: "month", label: "Este mês" },
+  { value: "custom", label: "Personalizado" },
+];
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function daysAgoISO(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
 function pctDelta(current: number, prev: number): { delta?: string; trend: "up" | "down" | "flat" } {
   if (prev === 0) {
@@ -35,6 +51,19 @@ function pctDelta(current: number, prev: number): { delta?: string; trend: "up" 
 
 function centsToReais(cents: number): number {
   return cents / 100;
+}
+
+/** null means "indisponível" (e.g. divide-by-zero) — never fabricated. */
+function fmtPct(ratio: number | null, digits = 1): string {
+  return ratio === null ? "indisponível" : `${(ratio * 100).toFixed(digits)}%`;
+}
+
+function fmtNumber(n: number | null): string {
+  return n === null ? "indisponível" : n.toLocaleString("pt-BR");
+}
+
+function fmtMultiplier(n: number | null): string {
+  return n === null ? "indisponível" : `${n.toFixed(2)}x`;
 }
 
 const eventColumns: TableColumn<AuditLogResponseDto>[] = [
@@ -71,12 +100,71 @@ const eventColumns: TableColumn<AuditLogResponseDto>[] = [
   },
 ];
 
+function PeriodFilter({
+  preset,
+  onPresetChange,
+  customFrom,
+  customTo,
+  onCustomFromChange,
+  onCustomToChange,
+}: {
+  preset: DateRangePreset;
+  onPresetChange: (p: DateRangePreset) => void;
+  customFrom: string;
+  customTo: string;
+  onCustomFromChange: (v: string) => void;
+  onCustomToChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <select
+        value={preset}
+        onChange={(e) => onPresetChange(e.target.value as DateRangePreset)}
+        className="h-10 rounded-xl border border-border bg-white/[0.03] px-3 text-sm outline-none focus:border-purple/60"
+      >
+        {PRESET_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value} className="bg-[#0B0815]">
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {preset === "custom" && (
+        <>
+          <input
+            type="date"
+            value={customFrom}
+            max={customTo}
+            onChange={(e) => onCustomFromChange(e.target.value)}
+            className="h-10 rounded-xl border border-border bg-white/[0.03] px-3 text-sm outline-none focus:border-purple/60"
+          />
+          <span className="text-xs text-text-muted">até</span>
+          <input
+            type="date"
+            value={customTo}
+            min={customFrom}
+            max={todayISO()}
+            onChange={(e) => onCustomToChange(e.target.value)}
+            className="h-10 rounded-xl border border-border bg-white/[0.03] px-3 text-sm outline-none focus:border-purple/60"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
+  const [preset, setPreset] = useState<DateRangePreset>("7d");
+  const [customFrom, setCustomFrom] = useState(daysAgoISO(7));
+  const [customTo, setCustomTo] = useState(todayISO());
+
+  const customReady = preset !== "custom" || (!!customFrom && !!customTo && customFrom <= customTo);
+  const queryKey = ["admin", "dashboard", "summary", preset, preset === "custom" ? customFrom : null, preset === "custom" ? customTo : null];
 
   const { data: summaryRes, isLoading: summaryLoading } = useQuery({
-    queryKey: ["admin", "dashboard", "summary", DASHBOARD_DAYS],
-    queryFn: () => DashboardAdminApi.getSummary(DASHBOARD_DAYS),
+    queryKey,
+    queryFn: () => DashboardAdminApi.getSummary(preset, preset === "custom" ? { dateFrom: customFrom, dateTo: customTo } : undefined),
+    enabled: customReady,
   });
   const { data: eventsRes, isLoading: eventsLoading } = useQuery({
     queryKey: ["admin", "dashboard", "recent-events"],
@@ -91,51 +179,124 @@ export default function AdminDashboardPage() {
     toast.success("Dados atualizados");
   };
 
-  const kpis: KpiDTO[] | undefined = summary
-    ? [
-        {
-          id: "deposits",
-          label: `Depósitos (${DASHBOARD_DAYS}d)`,
-          value: formatCurrency(centsToReais(summary.kpis.depositsCents)),
-          ...pctDelta(summary.kpis.depositsCents, summary.kpis.depositsPrevCents),
-        },
-        {
-          id: "withdrawals",
-          label: `Saques (${DASHBOARD_DAYS}d)`,
-          value: formatCurrency(centsToReais(summary.kpis.withdrawalsCents)),
-          ...pctDelta(summary.kpis.withdrawalsCents, summary.kpis.withdrawalsPrevCents),
-        },
-        {
-          id: "new-players",
-          label: `Novos jogadores (${DASHBOARD_DAYS}d)`,
-          value: String(summary.kpis.newPlayers),
-          ...pctDelta(summary.kpis.newPlayers, summary.kpis.newPlayersPrev),
-        },
-        {
-          id: "ggr",
-          label: `GGR (${DASHBOARD_DAYS}d)`,
-          value: formatCurrency(centsToReais(summary.kpis.ggrCents)),
-          ...pctDelta(summary.kpis.ggrCents, summary.kpis.ggrPrevCents),
-        },
-        {
-          id: "ngr",
-          label: `NGR (${DASHBOARD_DAYS}d)`,
-          value: formatCurrency(centsToReais(summary.ngrCents)),
-          ...pctDelta(summary.ngrCents, summary.ngrPrevCents),
-        },
-      ]
-    : undefined;
+  const overviewKpis: KpiDTO[] | undefined = useMemo(() => {
+    if (!summary) return undefined;
+    return [
+      { id: "total-users", label: "Usuários totais", value: fmtNumber(summary.users.totalUsers) },
+      { id: "active-users", label: "Usuários ativos", value: fmtNumber(summary.users.activeUsers) },
+      { id: "online", label: "Sessões recentes (~15min, aprox.)", value: fmtNumber(summary.users.approxOnlineSessions) },
+      {
+        id: "new-signups",
+        label: "Novos cadastros",
+        value: fmtNumber(summary.users.newSignups),
+        ...pctDelta(summary.users.newSignups, summary.users.newSignupsPrev),
+      },
+      { id: "active-players", label: "Jogadores ativos no período", value: fmtNumber(summary.users.activePlayersInPeriod) },
+      { id: "ftds", label: "FTDs", value: fmtNumber(summary.acquisition.ftds) },
+      { id: "conversion", label: "Taxa de conversão (FTD/cadastro)", value: fmtPct(summary.acquisition.conversionRate) },
+      { id: "depositors", label: "Depositantes", value: fmtNumber(summary.acquisition.depositors) },
+      {
+        id: "avg-ticket",
+        label: "Ticket médio de depósito",
+        value: summary.acquisition.avgDepositTicketCents === null ? "indisponível" : formatCurrency(centsToReais(summary.acquisition.avgDepositTicketCents)),
+      },
+    ];
+  }, [summary]);
+
+  const financialKpis: KpiDTO[] | undefined = useMemo(() => {
+    if (!summary) return undefined;
+    return [
+      {
+        id: "deposits",
+        label: "Depósitos",
+        value: formatCurrency(centsToReais(summary.kpis.depositsCents)),
+        ...pctDelta(summary.kpis.depositsCents, summary.kpis.depositsPrevCents),
+      },
+      {
+        id: "withdrawals",
+        label: "Saques",
+        value: formatCurrency(centsToReais(summary.kpis.withdrawalsCents)),
+        ...pctDelta(summary.kpis.withdrawalsCents, summary.kpis.withdrawalsPrevCents),
+      },
+      {
+        id: "ggr",
+        label: "GGR",
+        value: formatCurrency(centsToReais(summary.kpis.ggrCents)),
+        ...pctDelta(summary.kpis.ggrCents, summary.kpis.ggrPrevCents),
+      },
+      {
+        id: "ngr",
+        label: "NGR",
+        value: formatCurrency(centsToReais(summary.ngrCents)),
+        ...pctDelta(summary.ngrCents, summary.ngrPrevCents),
+      },
+      { id: "bonus-cost", label: "Custo de bônus", value: formatCurrency(centsToReais(summary.financial.bonusCostCents)) },
+      { id: "affiliate-cost", label: "Custo de afiliados (CPA + RevShare)", value: formatCurrency(centsToReais(summary.financial.affiliateCostCents)) },
+      { id: "manager-cost", label: "Custo de gerentes (spread)", value: formatCurrency(centsToReais(summary.financial.managerSpreadCostCents)) },
+      { id: "net-profit", label: "Lucro líquido", value: formatCurrency(centsToReais(summary.financial.netProfitCents)) },
+      { id: "margin", label: "Margem líquida (lucro/GGR)", value: fmtPct(summary.financial.marginPct) },
+    ];
+  }, [summary]);
+
+  const gameKpis: KpiDTO[] | undefined = useMemo(() => {
+    if (!summary) return undefined;
+    return [
+      { id: "matches-started", label: "Partidas iniciadas", value: fmtNumber(summary.game.matchesStarted) },
+      { id: "matches-completed", label: "Partidas concluídas", value: fmtNumber(summary.game.matchesCompleted) },
+      { id: "matches-won", label: "Vitórias (cashout)", value: fmtNumber(summary.game.matchesWon) },
+      { id: "matches-lost", label: "Derrotas", value: fmtNumber(summary.game.matchesLost) },
+      { id: "completion-rate", label: "Taxa de conclusão", value: fmtPct(summary.game.completionRate) },
+      { id: "cashout-rate", label: "Taxa de cashout", value: fmtPct(summary.game.cashoutRate) },
+      { id: "avg-multiplier", label: "Multiplicador médio", value: fmtMultiplier(summary.game.avgMultiplier) },
+      { id: "max-multiplier", label: "Maior multiplicador", value: fmtMultiplier(summary.game.maxMultiplier) },
+      { id: "avg-platforms", label: "Plataformas/partida (média)", value: summary.game.avgPlatformsPerMatch === null ? "indisponível" : summary.game.avgPlatformsPerMatch.toFixed(1) },
+      { id: "rtp", label: "RTP médio (realizado)", value: fmtPct(summary.game.avgRealizedRtpPct) },
+    ];
+  }, [summary]);
+
+  const commercialKpis: KpiDTO[] | undefined = useMemo(() => {
+    if (!summary) return undefined;
+    return [
+      { id: "active-affiliates", label: "Afiliados ativos", value: fmtNumber(summary.commercial.activeAffiliates) },
+      { id: "active-managers", label: "Gerentes ativos", value: fmtNumber(summary.commercial.activeManagers) },
+      { id: "affiliate-players", label: "Jogadores via afiliados (nível 1)", value: fmtNumber(summary.commercial.affiliateReferredPlayers) },
+      { id: "affiliate-ftds", label: "FTDs de afiliados", value: fmtNumber(summary.commercial.affiliateFtds) },
+      { id: "affiliate-deposits", label: "Depósitos gerados (nível 1)", value: formatCurrency(centsToReais(summary.commercial.affiliateDrivenDepositsCents)) },
+      { id: "commission-generated", label: "Comissão gerada (total)", value: formatCurrency(centsToReais(summary.commercial.commissionGeneratedCents)) },
+      { id: "cpa-paid", label: "CPA pago", value: formatCurrency(centsToReais(summary.commercial.cpaCostCents)) },
+      { id: "revshare-paid", label: "Revenue Share pago", value: formatCurrency(centsToReais(summary.commercial.revshareCostCents)) },
+      { id: "pct-distributed", label: "% da receita distribuída", value: fmtPct(summary.commercial.pctGgrDistributed) },
+    ];
+  }, [summary]);
 
   const depositsByDay = summary?.depositsByDay.map((p) => ({ label: p.label, value: centsToReais(p.valueCents) })) ?? [];
+  const signupsByDay = summary?.signupsByDay.map((p) => ({ label: p.label, value: p.value })) ?? [];
+  const ggrByDay = summary?.ggrByDay.map((p) => ({ label: p.label, value: centsToReais(p.ggrCents) })) ?? [];
   const gatewayVolume = summary?.gatewayVolume.map((p) => ({ label: p.label, value: centsToReais(p.valueCents) })) ?? [];
+
+  const skeleton = (n: number) => (
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+      {Array.from({ length: n }, (_, i) => (
+        <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+      ))}
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Dashboard Geral"
-        description="Visão em tempo real da operação, últimos 7 dias."
+        description="Visão operacional da plataforma — dados reais, filtrados pelo período selecionado."
         actions={
           <>
+            <PeriodFilter
+              preset={preset}
+              onPresetChange={setPreset}
+              customFrom={customFrom}
+              customTo={customTo}
+              onCustomFromChange={setCustomFrom}
+              onCustomToChange={setCustomTo}
+            />
             <Button variant="secondary" size="sm" onClick={notImplemented}>
               <Download className="size-4" /> Exportar
             </Button>
@@ -146,33 +307,28 @@ export default function AdminDashboardPage() {
         }
       />
 
-      {summaryLoading || !kpis ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
-          ))}
-        </div>
-      ) : (
-        <KpiGrid kpis={kpis} />
-      )}
+      <SectionCard title="Visão geral" description="Usuários, cadastros e aquisição no período">
+        {summaryLoading || !overviewKpis ? skeleton(9) : <KpiGrid kpis={overviewKpis} />}
+      </SectionCard>
+
+      <SectionCard title="Financeiro" description="Depósitos, saques, GGR/NGR e custos no período">
+        {summaryLoading || !financialKpis ? skeleton(9) : <KpiGrid kpis={financialKpis} accents={["#16F2A5", "#FF4FAE", "#8B5CF6", "#7DD3FC"]} />}
+      </SectionCard>
+
+      <SectionCard title="Jogo" description="Partidas, cashouts e RTP realizado no período">
+        {summaryLoading || !gameKpis ? skeleton(10) : <KpiGrid kpis={gameKpis} accents={["#8B5CF6", "#7DD3FC", "#16F2A5", "#FF4FAE"]} />}
+      </SectionCard>
+
+      <SectionCard title="Comercial" description="Afiliados, gerentes e comissões no período — nível 1 direto">
+        {summaryLoading || !commercialKpis ? skeleton(9) : <KpiGrid kpis={commercialKpis} accents={["#FF4FAE", "#8B5CF6", "#16F2A5", "#7DD3FC"]} />}
+      </SectionCard>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard
-          title="Depósitos por dia"
-          description={`Volume bruto — últimos ${DASHBOARD_DAYS} dias`}
-          className="xl:col-span-2"
-        >
-          {summaryLoading ? (
-            <Skeleton className="h-[210px] w-full rounded-xl" />
-          ) : (
-            <AreaChart data={depositsByDay} formatValue={(v) => formatCurrency(v)} height={210} />
-          )}
+        <SectionCard title="Depósitos por dia" description="Volume bruto — período selecionado" className="xl:col-span-2">
+          {summaryLoading ? <Skeleton className="h-[210px] w-full rounded-xl" /> : <AreaChart data={depositsByDay} formatValue={(v) => formatCurrency(v)} height={210} />}
         </SectionCard>
 
-        <SectionCard
-          title="Volume por gateway"
-          description={`Depósitos confirmados — últimos ${DASHBOARD_DAYS} dias`}
-        >
+        <SectionCard title="Volume por gateway" description="Depósitos confirmados — período selecionado">
           {summaryLoading ? (
             <Skeleton className="h-40 w-full rounded-xl" />
           ) : gatewayVolume.length > 0 ? (
@@ -200,16 +356,8 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard
-          title="Depósitos por dia (barras)"
-          description="Mesma série, visão em barras"
-          className="xl:col-span-2"
-        >
-          {summaryLoading ? (
-            <Skeleton className="h-[210px] w-full rounded-xl" />
-          ) : (
-            <BarChart data={depositsByDay} formatValue={(v) => formatCurrency(v)} height={210} />
-          )}
+        <SectionCard title="Novos cadastros por dia" description="Jogadores (role USER) — período selecionado" className="xl:col-span-2">
+          {summaryLoading ? <Skeleton className="h-[210px] w-full rounded-xl" /> : <BarChart data={signupsByDay} height={210} />}
         </SectionCard>
 
         <SectionCard title="Alertas ativos" description="Eventos que exigem atenção">
@@ -257,6 +405,10 @@ export default function AdminDashboardPage() {
           )}
         </SectionCard>
       </div>
+
+      <SectionCard title="GGR / NGR por dia" description="Receita bruta e líquida — período selecionado">
+        {summaryLoading ? <Skeleton className="h-[210px] w-full rounded-xl" /> : <AreaChart data={ggrByDay} formatValue={(v) => formatCurrency(v)} height={210} />}
+      </SectionCard>
 
       <SectionCard
         title="Eventos recentes"

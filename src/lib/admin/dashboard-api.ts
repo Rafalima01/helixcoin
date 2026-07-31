@@ -4,6 +4,7 @@
  * `{ data }` / `{ error }` envelope as src/lib/admin/identity-api.ts.
  */
 import type { DashboardSummary } from "@/server/reports/dashboard-summary.service";
+import type { DateRangePreset } from "@/lib/date-range";
 
 export class ApiError extends Error {
   constructor(
@@ -27,7 +28,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<{ data: T }>
 }
 
 export const DashboardAdminApi = {
-  async getSummary(days = 7) {
-    return request<DashboardSummary>(`/api/admin/dashboard/summary?days=${days}`);
+  async getSummary(preset: DateRangePreset, custom?: { dateFrom: string; dateTo: string }) {
+    const params = new URLSearchParams({ preset });
+    if (custom) {
+      params.set("dateFrom", custom.dateFrom);
+      params.set("dateTo", custom.dateTo);
+    }
+    return request<DashboardSummary>(`/api/admin/dashboard/summary?${params.toString()}`);
   },
 };
