@@ -57,6 +57,22 @@ export interface CreateDepositResult {
   expiresAt: string | null;
   amountCents: number;
   status: string;
+  canSimulate: boolean;
+}
+
+export interface PaymentLimits {
+  depositMin: number;
+  depositMax: number;
+  withdrawMin: number;
+  withdrawMax: number;
+}
+
+/** GET /api/payments/limits — the same PaymentSettings the admin "Limites financeiros" screen edits. */
+export function usePaymentLimits() {
+  return useQuery({
+    queryKey: ["payments", "limits"],
+    queryFn: () => fetchJson<PaymentLimits>("/api/payments/limits"),
+  });
 }
 
 /** POST /api/payments/deposits — the backend picks the gateway (routing/failover); the frontend never learns which one. */
@@ -95,7 +111,7 @@ export interface RequestWithdrawResult {
 export function useWithdraw() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { amount: number; pixKey: string }) =>
+    mutationFn: (data: { amount: number; pixKey: string; pixKeyType: string }) =>
       envelopeFetch<RequestWithdrawResult>("/api/payments/withdrawals", {
         method: "POST",
         body: JSON.stringify(data),

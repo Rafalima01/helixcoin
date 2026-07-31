@@ -47,6 +47,8 @@ export interface CreateDepositResult {
   expiresAt: string | null;
   amountCents: number;
   status: DepositStatus;
+  /** Whether "Simular Pagamento" is a valid next step for this deposit — true only for MOCK, so the UI never offers a fake-payment button against a real gateway. */
+  canSimulate: boolean;
 }
 
 export interface RequestWithdrawResult {
@@ -161,6 +163,7 @@ export class PaymentService {
       expiresAt: deposit.expiresAt ? deposit.expiresAt.toISOString() : null,
       amountCents: deposit.amountCents,
       status: deposit.status,
+      canSimulate: credential.provider === "MOCK",
     };
   }
 

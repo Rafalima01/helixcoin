@@ -6,22 +6,40 @@ import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useWallet, useWithdraw } from "@/hooks/use-wallet";
+import { useWallet, useWithdraw, usePaymentLimits } from "@/hooks/use-wallet";
 import { formatCurrency } from "@/lib/utils";
 import { centsToReais } from "@/lib/multiplier";
+
+const PIX_KEY_TYPES = [
+  { value: "CPF", label: "CPF" },
+  { value: "CNPJ", label: "CNPJ" },
+  { value: "EMAIL", label: "E-mail" },
+  { value: "PHONE", label: "Telefone" },
+  { value: "RANDOM", label: "Chave aleatória (EVP)" },
+];
+
+const FALLBACK_MIN = 10; // used only while /api/payments/limits is still loading
 
 export function WithdrawPanel() {
   const [amount, setAmount] = useState<number | "">("");
   const [pixKey, setPixKey] = useState("");
+  const [pixKeyType, setPixKeyType] = useState("CPF");
   const { data } = useWallet();
+  const { data: limits } = usePaymentLimits();
   const withdraw = useWithdraw();
 
   const balance = data?.balance ?? 0;
   const balanceReais = centsToReais(balance);
+  const withdrawMin = limits?.withdrawMin ?? FALLBACK_MIN;
+  const withdrawMax = limits?.withdrawMax;
 
   const handleSubmit = async () => {
-    if (!amount || amount < 10) {
-      toast.error("Valor mínimo de R$ 10,00");
+    if (!amount || amount < withdrawMin) {
+      toast.error(`Valor mínimo de ${formatCurrency(withdrawMin)}`);
+      return;
+    }
+    if (withdrawMax && amount > withdrawMax) {
+      toast.error(`Valor máximo por saque: ${formatCurrency(withdrawMax)}`);
       return;
     }
     if (amount > balanceReais) {
@@ -33,7 +51,7 @@ export function WithdrawPanel() {
       return;
     }
     try {
-      const result = await withdraw.mutateAsync({ amount, pixKey });
+      const result = await withdraw.mutateAsync({ amount, pixKey, pixKeyType });
       toast.success(
         result.status === "PENDING"
           ? `Saque de ${formatCurrency(amount)} solicitado — aguardando aprovação.`
@@ -57,13 +75,29 @@ export function WithdrawPanel() {
         <Input
           label="Valor do saque"
           type="number"
-          min={10}
+          min={withdrawMin}
+          max={withdrawMax}
           step="0.01"
           placeholder="0,00"
           value={amount}
           onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : "")}
-          hint="Valor mínimo de R$ 10,00"
+          hint={`Valor mínimo de ${formatCurrency(withdrawMin)}${withdrawMax ? ` · máximo de ${formatCurrency(withdrawMax)}` : ""}`}
         />
+
+        <div className="flex flex-col gap-1.5 w-full">
+          <label className="text-sm font-medium text-text-secondary">Tipo de chave PIX</label>
+          <select
+            value={pixKeyType}
+            onChange={(e) => setPixKeyType(e.target.value)}
+            className="w-full h-12 rounded-2xl bg-white/[0.03] border border-border px-4 text-[15px] text-text outline-none transition-all duration-200 focus:border-purple/60 focus:bg-white/[0.05] focus:shadow-[0_0_0_4px_rgba(139,92,246,0.12)]"
+          >
+            {PIX_KEY_TYPES.map((t) => (
+              <option key={t.value} value={t.value} className="bg-[#0B0815]">
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <Input
           label="Chave PIX"

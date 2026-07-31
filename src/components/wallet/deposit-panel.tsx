@@ -8,16 +8,21 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PixQr } from "@/components/wallet/pix-qr";
-import { useCreateDeposit, useSimulateDepositPayment } from "@/hooks/use-wallet";
+import { useCreateDeposit, useSimulateDepositPayment, usePaymentLimits } from "@/hooks/use-wallet";
 import { formatCurrency, cn } from "@/lib/utils";
 
 const QUICK_AMOUNTS = [50, 100, 200, 500];
+const FALLBACK_MIN = 5; // used only while /api/payments/limits is still loading
 
 export function DepositPanel() {
   const [amount, setAmount] = useState<number | "">(100);
   const [step, setStep] = useState<"amount" | "pix">("amount");
-  const [pix, setPix] = useState<{ depositId: string; pixCode: string } | null>(null);
+  const [pix, setPix] = useState<{ depositId: string; pixCode: string; canSimulate: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const { data: limits } = usePaymentLimits();
+  const depositMin = limits?.depositMin ?? FALLBACK_MIN;
+  const depositMax = limits?.depositMax;
 
   const createDeposit = useCreateDeposit();
   const simulateDeposit = useSimulateDepositPayment(pix?.depositId ?? null);
@@ -30,13 +35,17 @@ export function DepositPanel() {
   };
 
   const handleGenerate = async () => {
-    if (!amount || amount < 5) {
-      toast.error("Informe um valor válido (mín. R$ 5,00)");
+    if (!amount || amount < depositMin) {
+      toast.error(`Informe um valor válido (mín. ${formatCurrency(depositMin)})`);
+      return;
+    }
+    if (depositMax && amount > depositMax) {
+      toast.error(`Valor máximo por depósito: ${formatCurrency(depositMax)}`);
       return;
     }
     try {
       const res = await createDeposit.mutateAsync(amount);
-      setPix({ depositId: res.depositId, pixCode: res.pixCode });
+      setPix({ depositId: res.depositId, pixCode: res.pixCode, canSimulate: res.canSimulate });
       setStep("pix");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar PIX");
@@ -94,11 +103,12 @@ export function DepositPanel() {
             <Input
               label="Valor personalizado"
               type="number"
-              min={5}
+              min={depositMin}
+              max={depositMax}
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : "")}
-              hint="Valor mínimo de R$ 5,00"
+              hint={`Valor mínimo de ${formatCurrency(depositMin)}${depositMax ? ` · máximo de ${formatCurrency(depositMax)}` : ""}`}
             />
 
             <Button
@@ -143,24 +153,32 @@ export function DepositPanel() {
               Aguardando confirmação do pagamento...
             </div>
 
-            <Button
-              variant="success"
-              size="lg"
-              loading={simulateDeposit.isPending}
-              onClick={handleConfirm}
-              className="w-full"
-            >
-              Simular Pagamento (Demo)
-            </Button>
+            {pix?.canSimulate && (
+              <Button
+                variant="success"
+                size="lg"
+                loading={simulateDeposit.isPending}
+                onClick={handleConfirm}
+                className="w-full"
+              >
+                Simular Pagamento (Demo)
+              </Button>
+            )}
             <button
               onClick={reset}
               className="text-xs text-text-secondary hover:text-white transition-colors"
             >
               Alterar valor
             </button>
-            <p className="text-[11px] text-text-muted text-center -mt-2">
-              Ambiente de demonstração — nenhum valor real é cobrado.
-            </p>
+            {pix?.canSimulate ? (
+              <p className="text-[11px] text-text-muted text-center -mt-2">
+                Ambiente de demonstração — nenhum valor real é cobrado.
+              </p>
+            ) : (
+              <p className="text-[11px] text-text-muted text-center -mt-2">
+                Pague o PIX acima com seu banco — a confirmação é automática.
+              </p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
