@@ -16,6 +16,7 @@ import {
 import { generateRings } from "@/game-engine/generator";
 import { AudioManager } from "@/game-engine/audio";
 import {
+  advanceRotation,
   clampFallSpeed,
   handleTouch,
   stepGameplay,
@@ -28,6 +29,9 @@ import { CameraRig } from "@/game-engine/components/camera-rig";
 import { Particles } from "@/game-engine/components/particles";
 import { useGameStore } from "@/store/game-store";
 
+/** Must match the fixed `timeStep` passed to `<Physics>` below — shared so the two never drift apart. */
+const PHYSICS_DT = 1 / 60;
+
 /** Frame-loop host: gameplay bookkeeping + fall-speed clamp. */
 function EngineSystems({
   runtime,
@@ -38,15 +42,27 @@ function EngineSystems({
   callbacks: EngineCallbacks;
   onNeedMoreRings: () => void;
 }) {
-  useFrame((_, rawDt) => {
+  useFrame(() => {
     try {
-      stepGameplay(runtime, callbacks, Math.min(rawDt, 1 / 30));
+      stepGameplay(runtime, callbacks);
     } catch (err) {
       if (process.env.NODE_ENV !== "production") console.error("gameplay step:", err);
     }
     const passes = useGameStore.getState().platformsPassed;
     if (passes > runtime.rings.length - CFG.extendWhenRemaining) {
       onNeedMoreRings();
+    }
+  });
+
+  // Registered before TowerPhysics's useBeforePhysicsStep (this component
+  // must mount first inside <Physics> — see the JSX below) so the kinematic
+  // ring collider always rotates from THIS sub-step's runtime.time, never
+  // last frame's. See advanceRotation()'s doc comment for why this matters.
+  useBeforePhysicsStep(() => {
+    try {
+      advanceRotation(runtime, PHYSICS_DT);
+    } catch (err) {
+      if (process.env.NODE_ENV !== "production") console.error("rotation advance:", err);
     }
   });
 
@@ -245,14 +261,15 @@ export function GameEngine({
           <pointLight position={[3, -6, -2]} intensity={6} color="#16F2A5" distance={10} />
 
           <Suspense fallback={null}>
-            <Physics gravity={[0, CFG.gravity, 0]} paused={paused} timeStep={1 / 60}>
-              <Ball runtime={runtime} />
-              <TowerPhysics runtime={runtime} windowRings={windowRings} touch={touch} />
+            <Physics gravity={[0, CFG.gravity, 0]} paused={paused} timeStep={PHYSICS_DT}>
+              {/* Must mount before TowerPhysics — see EngineSystems's useBeforePhysicsStep comment. */}
               <EngineSystems
                 runtime={runtime}
                 callbacks={callbacks}
                 onNeedMoreRings={handleNeedMoreRings}
               />
+              <Ball runtime={runtime} />
+              <TowerPhysics runtime={runtime} windowRings={windowRings} touch={touch} />
             </Physics>
           </Suspense>
 

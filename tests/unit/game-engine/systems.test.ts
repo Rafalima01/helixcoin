@@ -23,7 +23,7 @@ vi.mock("@/game-engine/components/particles", () => ({
 import { AudioManager } from "@/game-engine/audio";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
 import { createRuntime, type EngineRuntime } from "@/game-engine/types";
-import { handleTouch, stepGameplay, type EngineCallbacks } from "@/game-engine/systems";
+import { advanceRotation, handleTouch, stepGameplay, type EngineCallbacks } from "@/game-engine/systems";
 import { ringVisible } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
 
@@ -47,10 +47,16 @@ function fakeBall(initialY: number) {
   };
 }
 
-/** y such that stepGameplay's depth-crossing math reports exactly `crossed` rings passed. */
+/**
+ * y such that stepGameplay's depth-crossing math reports exactly `crossed`
+ * rings passed. Nudged fractionally past the boundary (not landed exactly on
+ * it) so floating-point rounding of the clearance sum can never flip which
+ * bracket `Math.floor` picks — the real ball is never at an exact analytic
+ * boundary either.
+ */
 function yForCrossed(crossed: number): number {
   const depth = Math.max(0, crossed - 1) * CFG.ringSpacing;
-  return -depth - CFG.ballRadius * 1.4;
+  return -depth - (CFG.ringThickness + CFG.ballRadius) - 1e-6;
 }
 
 function buildRuntime(y: number) {
@@ -64,6 +70,41 @@ function buildCallbacks(): EngineCallbacks {
   return { bumpPhysicsVersion: vi.fn(), onDeath: vi.fn() };
 }
 
+describe("systems — advanceRotation", () => {
+  it("advances runtime.time by exactly dt, every call, regardless of match status", () => {
+    const { runtime } = buildRuntime(0);
+    useGameStore.getState().reset(); // status !== "playing" here — must still advance
+
+    advanceRotation(runtime, 1 / 60);
+    expect(runtime.time).toBeCloseTo(1 / 60, 10);
+
+    advanceRotation(runtime, 1 / 60);
+    expect(runtime.time).toBeCloseTo(2 / 60, 10);
+  });
+
+  it("chases rot.target smoothly instead of snapping instantly", () => {
+    const { runtime } = buildRuntime(0);
+    runtime.rot.target = Math.PI;
+    expect(runtime.rot.current).toBe(0);
+
+    advanceRotation(runtime, 1 / 60);
+
+    expect(runtime.rot.current).toBeGreaterThan(0);
+    expect(runtime.rot.current).toBeLessThan(Math.PI);
+  });
+
+  it("applies fling momentum to the target while not dragging, and decays it", () => {
+    const { runtime } = buildRuntime(0);
+    runtime.rot.velPs = 2;
+    runtime.rot.dragging = false;
+
+    advanceRotation(runtime, 1 / 60);
+
+    expect(runtime.rot.target).toBeGreaterThan(0);
+    expect(runtime.rot.velPs).toBeLessThan(2);
+  });
+});
+
 describe("systems — platform consumption (ring passed -> broken)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -76,7 +117,7 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
     const cb = buildCallbacks();
     ball.setY(yForCrossed(1));
 
-    stepGameplay(runtime, cb, 1 / 60);
+    stepGameplay(runtime, cb);
 
     expect(runtime.broken.has(0)).toBe(true);
     expect(runtime.broken.has(1)).toBe(false);
@@ -88,7 +129,7 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
     const cb = buildCallbacks();
     ball.setY(yForCrossed(3));
 
-    stepGameplay(runtime, cb, 1 / 60);
+    stepGameplay(runtime, cb);
 
     expect(runtime.broken.has(0)).toBe(true);
     expect(runtime.broken.has(1)).toBe(true);
@@ -100,8 +141,8 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
     const { runtime, ball } = buildRuntime(yForCrossed(0));
     const cb = buildCallbacks();
     ball.setY(yForCrossed(1));
-    stepGameplay(runtime, cb, 1 / 60);
-    stepGameplay(runtime, cb, 1 / 60); // ball hasn't moved further
+    stepGameplay(runtime, cb);
+    stepGameplay(runtime, cb); // ball hasn't moved further
 
     expect(useGameStore.getState().platformsPassed).toBe(1);
     expect(runtime.broken.size).toBe(1);
@@ -112,9 +153,39 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
     const cb = buildCallbacks();
     ball.setY(yForCrossed(2));
 
-    stepGameplay(runtime, cb, 1 / 60);
+    stepGameplay(runtime, cb);
 
     expect(AudioManager.coin).toHaveBeenCalledTimes(2);
+  });
+
+  it("bouncing/resting on a ring, even with contact-penetration jitter short of full clearance, never consumes that ring", () => {
+    const { runtime, ball } = buildRuntime(yForCrossed(0));
+    const cb = buildCallbacks();
+    // Land on ring 1 (consumes ring 0, matching the "landed past it" rule).
+    const restY = -1 * CFG.ringSpacing + CFG.ballRadius;
+    ball.setY(restY);
+    stepGameplay(runtime, cb);
+    expect(useGameStore.getState().platformsPassed).toBe(1);
+    expect(runtime.broken.has(1)).toBe(false);
+
+    // Descent required, below the resting contact point, before ring 1
+    // itself (not just ring 0) counts as passed: the ball's top must clear
+    // the ring's full physical slab (ring.y - ringThickness), i.e. it must
+    // fall an extra `2*ballRadius + ringThickness` below where it rests.
+    const consumeGap = 2 * CFG.ballRadius + CFG.ringThickness;
+
+    // Simulate a bounce's contact penetration: the ball dips below its own
+    // resting contact point, but well short of that gap.
+    ball.setY(restY - consumeGap * 0.5);
+    stepGameplay(runtime, cb);
+    expect(useGameStore.getState().platformsPassed).toBe(1);
+    expect(runtime.broken.has(1)).toBe(false);
+
+    // Only once the ball has cleared the ring's full physical slab does it count.
+    ball.setY(restY - consumeGap - 0.05);
+    stepGameplay(runtime, cb);
+    expect(useGameStore.getState().platformsPassed).toBe(2);
+    expect(runtime.broken.has(1)).toBe(true);
   });
 
   it("a consumed ring is invisible (no longer rendered) via the same ringVisible gate physics uses", () => {

@@ -49,23 +49,23 @@ export function GameHud({
   }, [goalReached]);
 
   return (
-    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-between p-4 md:p-6 z-10">
+    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-between p-2.5 md:p-6 z-10">
       <RewardPopups />
 
       {/* Current multiplier + always-visible goal state */}
-      <div className="flex flex-col items-center gap-2">
-        <div className="glass-card px-6 py-3 flex flex-col items-center glow-purple">
-          <span className="text-xs text-text-muted flex items-center gap-1">
-            <TrendingUp className="size-3" /> Multiplicador
+      <div className="flex flex-col items-center gap-1 md:gap-2">
+        <div className="glass-card px-3.5 py-1.5 md:px-6 md:py-3 flex flex-col items-center glow-purple">
+          <span className="text-[10px] md:text-xs text-text-muted flex items-center gap-1">
+            <TrendingUp className="size-2.5 md:size-3" /> Multiplicador
           </span>
-          <span className="text-3xl md:text-4xl font-extrabold text-gradient-brand tabular-nums">
+          <span className="text-xl md:text-4xl font-extrabold text-gradient-brand tabular-nums">
             <AnimatedNumber value={multiplier} format={formatMultiplier} duration={0.3} />
           </span>
         </div>
 
         <span
           className={cn(
-            "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold backdrop-blur-md transition-colors duration-500",
+            "flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 md:px-3 md:py-1 text-[10px] md:text-[11px] font-semibold backdrop-blur-md transition-colors duration-500",
             goalReached
               ? "border-green/50 bg-green/15 text-green"
               : "border-border bg-black/40 text-text-secondary"
@@ -89,18 +89,20 @@ export function GameHud({
         </span>
       </div>
 
-      <div className="pointer-events-auto flex w-full max-w-md flex-col items-center gap-3">
+      <div className="pointer-events-auto flex w-full max-w-md flex-col items-center gap-1.5 md:gap-3">
         {/* Bet / current value / goal */}
-        <div className="flex w-full gap-2">
-          <div className="flex-1 glass-card px-3 py-2.5 flex flex-col items-center">
-            <span className="text-[11px] text-text-muted flex items-center gap-1">
-              <Wallet className="size-3" /> Apostado
+        <div className="flex w-full gap-1.5 md:gap-2">
+          <div className="flex-1 glass-card px-2 py-1.5 md:px-3 md:py-2.5 flex flex-col items-center">
+            <span className="text-[9px] md:text-[11px] text-text-muted flex items-center gap-1">
+              <Wallet className="size-2.5 md:size-3" /> Apostado
             </span>
-            <span className="font-bold text-[15px] tabular-nums">{formatCurrency(betReais)}</span>
+            <span className="font-bold text-[12px] md:text-[15px] tabular-nums">
+              {formatCurrency(betReais)}
+            </span>
           </div>
-          <div className="flex-1 glass-card px-3 py-2.5 flex flex-col items-center">
-            <span className="text-[11px] text-text-muted">Valor atual</span>
-            <span className="font-bold text-[15px] text-green tabular-nums">
+          <div className="flex-1 glass-card px-2 py-1.5 md:px-3 md:py-2.5 flex flex-col items-center">
+            <span className="text-[9px] md:text-[11px] text-text-muted">Valor atual</span>
+            <span className="font-bold text-[12px] md:text-[15px] text-green tabular-nums">
               <AnimatedNumber
                 value={currentValue}
                 format={(v) => formatCurrency(v)}
@@ -108,24 +110,26 @@ export function GameHud({
               />
             </span>
           </div>
-          <div className="flex-1 glass-card px-3 py-2.5 flex flex-col items-center">
-            <span className="text-[11px] text-text-muted flex items-center gap-1">
-              <Target className="size-3" /> Meta {formatMultiplier(targetMultiplier)}
+          <div className="flex-1 glass-card px-2 py-1.5 md:px-3 md:py-2.5 flex flex-col items-center">
+            <span className="text-[9px] md:text-[11px] text-text-muted flex items-center gap-1">
+              <Target className="size-2.5 md:size-3" /> Meta {formatMultiplier(targetMultiplier)}
             </span>
-            <span className="font-bold text-[15px] tabular-nums">{formatCurrency(goalValue)}</span>
+            <span className="font-bold text-[12px] md:text-[15px] tabular-nums">
+              {formatCurrency(goalValue)}
+            </span>
           </div>
         </div>
 
         {/* Goal progress */}
         <div
           className={cn(
-            "w-full rounded-2xl border px-4 py-3 backdrop-blur-md transition-all duration-500",
+            "w-full rounded-2xl border px-3 py-2 md:px-4 md:py-3 backdrop-blur-md transition-all duration-500",
             goalReached
               ? "border-green/50 bg-green/10 shadow-[0_0_28px_rgba(22,242,165,0.25)]"
               : "border-border bg-black/40"
           )}
         >
-          <div className="mb-2 flex items-center justify-between text-[11px]">
+          <div className="mb-1.5 md:mb-2 flex items-center justify-between text-[10px] md:text-[11px]">
             {goalReached ? (
               <motion.span
                 initial={{ opacity: 0, y: 4 }}
@@ -150,7 +154,7 @@ export function GameHud({
               {Math.round(progress * 100)}%
             </span>
           </div>
-          <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+          <div className="relative h-1.5 md:h-2.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
             <motion.div
               className={cn(
                 "absolute inset-y-0 left-0 rounded-full",
@@ -170,29 +174,28 @@ export function GameHud({
           </div>
         </div>
 
-        {/* Cashout — locked until the goal is reached */}
-        <div
-          className="w-full"
-          title={isPlaying && !goalReached ? "Atinja a meta para liberar o resgate." : undefined}
-        >
-          <Button
-            variant={canCashout ? "success" : "secondary"}
-            size="lg"
-            onClick={onCashout}
-            loading={cashoutLoading}
-            disabled={!canCashout}
-            aria-disabled={!canCashout}
-            className={cn(
-              "w-full text-base transition-all duration-500",
-              canCashout
-                ? "shadow-[0_0_32px_rgba(22,242,165,0.45)] bg-gradient-to-r from-green to-emerald-400 text-[#05261c]"
-                : "opacity-60 cursor-not-allowed border border-border"
-            )}
+        {/* Cashout — only rendered once the goal is actually reached; no
+            space reserved for it before that (see GameStatus/goalReached in
+            game-store.ts, server-enforced the same way in the Match Engine). */}
+        {canCashout && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: "spring", stiffness: 260, damping: 22 }}
+            className="w-full"
           >
-            {canCashout ? <Unlock className="size-4" /> : <Lock className="size-4" />}
-            Resgatar {formatCurrency(currentValue)}
-          </Button>
-        </div>
+            <Button
+              variant="success"
+              size="lg"
+              onClick={onCashout}
+              loading={cashoutLoading}
+              className="w-full text-base shadow-[0_0_32px_rgba(22,242,165,0.45)] bg-gradient-to-r from-green to-emerald-400 text-[#05261c]"
+            >
+              <Unlock className="size-4" />
+              Resgatar {formatCurrency(currentValue)}
+            </Button>
+          </motion.div>
+        )}
       </div>
     </div>
   );

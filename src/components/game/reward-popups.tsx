@@ -40,7 +40,7 @@ export function RewardPopups() {
   if (rewardEvents.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-28 z-20 flex flex-col items-center gap-1.5">
+    <div className="pointer-events-none absolute inset-x-0 top-20 md:top-28 z-20 flex flex-col items-center gap-1.5">
       <AnimatePresence>
         {rewardEvents.map((r) => (
           <RewardPopup key={r.id} amountCents={r.amountCents} onDone={() => dismissReward(r.id)} />

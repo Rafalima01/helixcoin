@@ -2,6 +2,7 @@ import { activeEngineConfig as CFG } from "@/game-engine/config";
 import type { EngineRuntime, TouchKind } from "@/game-engine/types";
 import { AudioManager } from "@/game-engine/audio";
 import { particleBus } from "@/game-engine/components/particles";
+import { passesForHeight } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
 
 /**
@@ -167,11 +168,21 @@ export function handleTouch(
   }
 }
 
-/** Per-frame gameplay bookkeeping (called from the systems component). */
-export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks, dt: number) {
-  const store = useGameStore.getState();
+/**
+ * Advances `runtime.time` and the smoothed tower rotation. MUST run inside a
+ * `useBeforePhysicsStep` registered before TowerPhysics's own (see
+ * game-engine.tsx's EngineSystems) — every physics sub-step (there can be
+ * several in one rendered frame after a stutter, since `<Physics
+ * timeStep={1/60}>` uses a fixed-step accumulator) needs the collider
+ * rotation and this value in sync, or the kinematic collider and the
+ * rendered mesh drift apart by up to a frame's worth of rotation. This used
+ * to run inside stepGameplay()'s plain useFrame (after the physics step had
+ * already used the PREVIOUS frame's runtime.time) — that one-frame lag is
+ * exactly what made the ball look like it was floating off a platform's
+ * surface while still being treated as grounded.
+ */
+export function advanceRotation(runtime: EngineRuntime, dt: number): void {
   runtime.time += dt;
-  const now = runtime.time;
 
   // Input smoothing: momentum after release + exponential chase. The actual
   // angular speed of the tower is capped — the kinematic solver must never
@@ -184,6 +195,12 @@ export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks, dt: nu
   const chase = (r.target - r.current) * (1 - Math.exp(-CFG.rotationSmoothing * dt));
   const maxStep = CFG.maxFlingSpeed * 1.5 * dt;
   r.current += Math.max(-maxStep, Math.min(maxStep, chase));
+}
+
+/** Per-frame gameplay bookkeeping (called from the systems component, after advanceRotation has already run this frame). */
+export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks) {
+  const store = useGameStore.getState();
+  const now = runtime.time;
 
   if (store.status !== "playing" || runtime.dead) return;
 
@@ -193,11 +210,19 @@ export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks, dt: nu
   const vy = body.linvel().y;
 
   // ---- Pass detection: counting plane crossings, not contacts ----
-  const depth = -(y + CFG.ballRadius * 1.4);
-  const crossed = depth < 0 ? 0 : Math.floor(depth / CFG.ringSpacing) + 1;
+  // Sole source of truth for "did the ball really clear this ring" —
+  // see passesForHeight's doc comment (tower-state.ts) for the clearance math.
+  const crossed = passesForHeight(y);
   if (crossed > store.platformsPassed) {
     const firstConsumedIndex = store.platformsPassed;
     const gained = crossed - firstConsumedIndex;
+    if (gained > 1 && process.env.NODE_ENV !== "production") {
+      // Purely diagnostic — each index is still only ever consumed once
+      // (platformsPassed is monotonic, runtime.broken.add is idempotent).
+      // A burst this large usually means a stutter caused the physics
+      // accumulator to catch up several ring-depths in one frame.
+      console.warn(`stepGameplay: consuming ${gained} platforms in one frame (index ${firstConsumedIndex}..${crossed - 1})`);
+    }
     for (let i = 0; i < gained; i++) {
       // Platform ultrapassada: nunca mais colide nem renderiza — reusa o
       // mesmo mecanismo de rings "broken" (fire/fragile) que já exclui um

@@ -9,6 +9,32 @@ import type { EngineRuntime } from "@/game-engine/types";
 const radial = new THREE.Vector3();
 const lookTarget = new THREE.Vector3();
 
+// Three.js's PerspectiveCamera FOV is always vertical, so visible world
+// height at a given distance is already aspect-independent — only visible
+// WIDTH shrinks as aspect narrows. Below this fraction of the half-frustum
+// width, the tower's fixed world-space outer radius would consume too much
+// of the screen (the "espremida nas bordas" complaint on phone portrait
+// viewports), so the camera dollies back just enough to keep it under this
+// fraction — the same fixed FOV/pitch, just farther away.
+const HALF_FRUSTUM_FILL = 0.8;
+const HALF_FOV_TAN = Math.tan((CFG.cameraFov * Math.PI) / 360);
+const MIN_HALF_WIDTH = CFG.ringOuterRadius / HALF_FRUSTUM_FILL;
+// Guards only truly extreme/degenerate aspects (e.g. a mid-resize glitch
+// frame) — ordinary phone portrait aspects stay well under this.
+const MAX_DISTANCE_SCALE = 2.2;
+// Flat ~8% pull-back on top of the aspect-adaptive distance below — approved
+// framing/angle/lookAt/FOV are otherwise untouched; this only scales the
+// radial (X/Z) distance, uniformly at every aspect.
+const DISTANCE_BOOST = 1.08;
+
+/** Aspect-adaptive radial camera distance — unchanged (== CFG.cameraDistance) whenever that distance already keeps the tower under HALF_FRUSTUM_FILL, i.e. at desktop/landscape aspects. */
+function framingDistance(aspect: number): number {
+  if (!Number.isFinite(aspect) || aspect <= 0) return CFG.cameraDistance * DISTANCE_BOOST;
+  const required = MIN_HALF_WIDTH / (HALF_FOV_TAN * aspect);
+  const base = Math.min(CFG.cameraDistance * MAX_DISTANCE_SCALE, Math.max(CFG.cameraDistance, required));
+  return base * DISTANCE_BOOST;
+}
+
 /**
  * Helix Jump camera: the ball is the anchor of the frame, ALWAYS at the exact
  * horizontal center of the screen — the tower is what appears to move.
@@ -40,8 +66,9 @@ export function CameraRig({ runtime }: { runtime: EngineRuntime }) {
     if (radial.lengthSq() < 1e-6) radial.set(1, 0, 0);
     radial.normalize();
 
-    const targetX = radial.x * CFG.cameraDistance;
-    const targetZ = radial.z * CFG.cameraDistance;
+    const distance = framingDistance((camera as THREE.PerspectiveCamera).aspect);
+    const targetX = radial.x * distance;
+    const targetZ = radial.z * distance;
     const targetY = bp.y + CFG.cameraOffsetY;
 
     if (smooth.current === null) {

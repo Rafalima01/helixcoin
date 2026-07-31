@@ -44,9 +44,22 @@ export function ringIndexBelow(ballY: number): number {
   return Math.max(0, Math.ceil(-ballY / CFG.ringSpacing));
 }
 
+/**
+ * Clearance the ball's underside must fall below a ring's own plane before
+ * that ring counts as passed: the ring's full physical slab (its collider
+ * spans `ringThickness` below `ring.y`, see tower-physics.tsx's RingBody)
+ * plus the ball's own radius. Consuming a platform is a pure function of the
+ * ball's true vertical position — never of a contact/collision event, never
+ * of elapsed time — so a ring can only ever be marked passed once the ball
+ * has genuinely fallen clear of it, bounce/contact jitter included: this
+ * margin is comfortably larger than any plausible single-substep contact
+ * penetration.
+ */
+const PASS_CLEARANCE = CFG.ringThickness + CFG.ballRadius;
+
 /** How many rings the ball has fully passed at a given height. */
 export function passesForHeight(ballY: number): number {
-  const depth = -(ballY + CFG.ballRadius * 1.4);
+  const depth = -(ballY + PASS_CLEARANCE);
   if (depth < 0) return 0;
   return Math.floor(depth / CFG.ringSpacing) + 1;
 }

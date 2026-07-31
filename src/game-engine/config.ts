@@ -10,7 +10,10 @@ export const ENGINE_CONFIG = {
   ringInnerRadius: 1.05,
   ringOuterRadius: 2.35,
   ringThickness: 0.34,
-  columnRadius: 0.55,
+  // Purely decorative (see tower-renderer.tsx's plain <mesh>, no RigidBody/
+  // collider) — kept just under ringInnerRadius so the column visually meets
+  // the platforms with only a hairline technical gap, no physics impact.
+  columnRadius: 0.98,
 
   // ---- Ball ----
   ballRadius: 0.17,
