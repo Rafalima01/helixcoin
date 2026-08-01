@@ -81,8 +81,8 @@ export class DatabaseError extends AppError {
 export class ExternalServiceError extends AppError {
   readonly statusCode = 502;
   readonly code = "EXTERNAL_SERVICE_ERROR";
-  constructor(service: string, message?: string) {
-    super(message ?? `Upstream service "${service}" failed`);
+  constructor(service: string, message?: string, details?: unknown) {
+    super(message ?? `Upstream service "${service}" failed`, details);
   }
 }
 

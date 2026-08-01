@@ -660,6 +660,17 @@ export class PaymentService {
             });
           }
 
+          // Providers (e.g. AmploPay) attach the raw upstream status/body as
+          // ExternalServiceError.details — surface it here so a rejection
+          // explained only in the response body (not a `message` field, see
+          // e.g. AmploPay's non-"OK" status) is visible in the admin's
+          // "Logs de Gateway" screen instead of collapsing into just the
+          // fallback error string.
+          const providerDetails =
+            err instanceof ExternalServiceError && err.details && typeof err.details === "object"
+              ? (err.details as { httpStatus?: number; response?: Record<string, unknown> | null })
+              : undefined;
+
           await this.logGateway({
             direction: "outbound",
             endpoint,
@@ -667,9 +678,11 @@ export class PaymentService {
             gatewayCredentialId: credential.id,
             success: false,
             durationMs,
+            statusCode: providerDetails?.httpStatus,
             correlationId,
             errorMessage: timedOut ? `timeout after ${credential.timeoutMs}ms` : err instanceof Error ? err.message : "unknown error",
             requestSummary: { correlationId, attempt, maxRetries: credential.maxRetries, timedOut },
+            responseSummary: providerDetails?.response ?? undefined,
           });
         }
       }
@@ -719,6 +732,7 @@ export class PaymentService {
     correlationId?: string;
     errorMessage?: string;
     requestSummary?: Record<string, unknown>;
+    responseSummary?: Record<string, unknown> | null;
   }): Promise<void> {
     try {
       await this.logs.create({
@@ -732,6 +746,7 @@ export class PaymentService {
         errorMessage: input.errorMessage ?? null,
         correlationId: input.correlationId ?? null,
         requestSummary: input.requestSummary ?? (input.correlationId ? { correlationId: input.correlationId } : null),
+        responseSummary: input.responseSummary ?? null,
       });
     } catch {
       // Logging must never break the payment flow itself.

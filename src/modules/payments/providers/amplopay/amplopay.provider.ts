@@ -169,6 +169,11 @@ export class AmploPayProvider implements PaymentProvider {
     }
   }
 
+  /** Attaches the raw HTTP status + response body as the error's `details` — surfaced as `GatewayLog.responseSummary` in the admin "Logs de Gateway" screen (see PaymentService.withFailover), so a rejection AmploPay explains only in the body (not `message`) is still visible instead of collapsing into a generic "(HTTP 200)" string. */
+  private fail(message: string, res: Response, json: Record<string, unknown> | null): never {
+    throw new ExternalServiceError("AMPLOPAY", message, { httpStatus: res.status, response: json });
+  }
+
   async createPixDeposit(input: CreatePixDepositInput): Promise<CreatePixDepositResult> {
     if (!input.payerDocument) {
       throw new BusinessRuleError("CPF/CNPJ do pagador é obrigatório para depósito via AmploPay");
@@ -189,14 +194,18 @@ export class AmploPayProvider implements PaymentProvider {
     const res = await this.call("/gateway/pix/receive", { method: "POST", body: JSON.stringify(body) });
     const json = await this.readJson(res);
     if (!res.ok || json?.status !== "OK") {
-      throw new ExternalServiceError("AMPLOPAY", (json?.message as string) ?? `Falha ao criar cobrança PIX (HTTP ${res.status})`);
+      this.fail(
+        (json?.message as string) ?? `Falha ao criar cobrança PIX: status="${json?.status ?? "desconhecido"}" (HTTP ${res.status})`,
+        res,
+        json
+      );
     }
 
     const providerTransactionId = json.transactionId as string | undefined;
     const pix = json.pix as Record<string, unknown> | undefined;
     const pixCode = pix?.code as string | undefined;
     if (!providerTransactionId || !pixCode) {
-      throw new ExternalServiceError("AMPLOPAY", "Resposta de criação de cobrança sem transactionId/pix.code");
+      this.fail("Resposta de criação de cobrança sem transactionId/pix.code", res, json);
     }
 
     return {
@@ -212,10 +221,10 @@ export class AmploPayProvider implements PaymentProvider {
     const res = await this.call(`/gateway/transactions?id=${encodeURIComponent(input.providerTransactionId)}`);
     const json = await this.readJson(res);
     if (!res.ok) {
-      throw new ExternalServiceError("AMPLOPAY", (json?.message as string) ?? `Falha ao consultar transação (HTTP ${res.status})`);
+      this.fail((json?.message as string) ?? `Falha ao consultar transação (HTTP ${res.status})`, res, json);
     }
     const status = json?.status as string | undefined;
-    if (!status) throw new ExternalServiceError("AMPLOPAY", "Transação não encontrada na AmploPay");
+    if (!status) this.fail("Transação não encontrada na AmploPay", res, json);
 
     return {
       providerTransactionId: (json?.id as string) ?? input.providerTransactionId,
@@ -255,7 +264,7 @@ export class AmploPayProvider implements PaymentProvider {
     const res = await this.call("/gateway/transfers", { method: "POST", body: JSON.stringify(body) });
     const json = await this.readJson(res);
     if (!res.ok) {
-      throw new ExternalServiceError("AMPLOPAY", (json?.message as string) ?? `Falha ao solicitar transferência (HTTP ${res.status})`);
+      this.fail((json?.message as string) ?? `Falha ao solicitar transferência (HTTP ${res.status})`, res, json);
     }
 
     // The docs never fully expanded `withdraw`'s own fields, only its
@@ -266,7 +275,7 @@ export class AmploPayProvider implements PaymentProvider {
     const w = (json?.withdraw as Record<string, unknown> | undefined) ?? {};
     const providerTransactionId = (w.id ?? w.transactionId ?? json?.id ?? json?.transactionId) as string | undefined;
     if (!providerTransactionId) {
-      throw new ExternalServiceError("AMPLOPAY", "Resposta de transferência sem id da transação");
+      this.fail("Resposta de transferência sem id da transação", res, json);
     }
 
     return { providerTransactionId, status: mapWithdrawStatus(w.status as string | undefined), raw: json ?? undefined };
@@ -284,10 +293,10 @@ export class AmploPayProvider implements PaymentProvider {
     const res = await this.call(`/gateway/transfers?id=${encodeURIComponent(input.providerTransactionId)}`);
     const json = await this.readJson(res);
     if (!res.ok) {
-      throw new ExternalServiceError("AMPLOPAY", (json?.message as string) ?? `Falha ao consultar transferência (HTTP ${res.status})`);
+      this.fail((json?.message as string) ?? `Falha ao consultar transferência (HTTP ${res.status})`, res, json);
     }
     const status = (json?.status ?? (json?.withdraw as Record<string, unknown> | undefined)?.status) as string | undefined;
-    if (!status) throw new ExternalServiceError("AMPLOPAY", "Transferência não encontrada na AmploPay");
+    if (!status) this.fail("Transferência não encontrada na AmploPay", res, json);
 
     return {
       providerTransactionId: (json?.id as string) ?? input.providerTransactionId,
