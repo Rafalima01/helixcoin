@@ -118,7 +118,7 @@ export function BetPanel() {
         </div>
       </div>
 
-      <Button variant="primary" size="lg" onClick={handlePlay} className="w-full text-base">
+      <Button variant="arcade" size="lg" onClick={handlePlay} className="w-full text-base uppercase">
         <Play className="size-5" fill="currentColor" />
         Jogar Agora
       </Button>

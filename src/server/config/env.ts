@@ -87,6 +87,13 @@ const envSchema = z.object({
    * hostname suffix like `.helixcoin.bet`, not a URL.
    */
   NEXT_PUBLIC_COOKIE_DOMAIN: z.string().optional().default(""),
+
+  /**
+   * Official community link (WhatsApp) — src/config/community.ts. Optional
+   * and empty by default; the WhatsApp button only renders once this is
+   * actually set, never falls back to a guessed URL.
+   */
+  NEXT_PUBLIC_COMMUNITY_URL: z.string().optional().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;

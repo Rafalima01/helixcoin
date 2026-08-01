@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     balance: balances.main,
+    bonus: balances.bonus,
     recentTransactions,
     recentMatches,
     user,

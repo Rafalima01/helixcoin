@@ -5,6 +5,8 @@ import type { WalletTransaction, Match } from "@prisma/client";
 
 interface WalletResponse {
   balance: number;
+  /** Saldo Bônus (Wallet.bonusBalance) — separate bucket, same source WalletService already tracks. */
+  bonus: number;
   recentTransactions: WalletTransaction[];
   recentMatches: Match[];
   user: {
@@ -72,6 +74,21 @@ export function usePaymentLimits() {
   return useQuery({
     queryKey: ["payments", "limits"],
     queryFn: () => fetchJson<PaymentLimits>("/api/payments/limits"),
+  });
+}
+
+export interface DepositOffer {
+  promoEnabled: boolean;
+  promoDurationSeconds: number;
+  secondDepositBonusPercent: number;
+  quickAmounts: Array<{ amount: number; highlightEnabled: boolean; highlightLabel: string | null }>;
+}
+
+/** GET /api/promotions/deposit-offer — the same PromotionSettings the admin "Promoções" screen edits (countdown, second-deposit bonus copy, quick-amount buttons). Never hardcoded on the frontend. */
+export function useDepositOffer() {
+  return useQuery({
+    queryKey: ["promotions", "deposit-offer"],
+    queryFn: () => envelopeFetch<DepositOffer>("/api/promotions/deposit-offer"),
   });
 }
 

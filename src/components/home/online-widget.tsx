@@ -15,7 +15,7 @@ export function OnlineWidget() {
   }, []);
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-green/25 bg-green/10 px-3 py-1.5 text-xs font-semibold text-green">
+    <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-text-muted">
       <span className="relative flex size-1.5">
         <motion.span
           className="absolute inline-flex size-full rounded-full bg-green"
@@ -24,7 +24,7 @@ export function OnlineWidget() {
         />
         <span className="relative inline-flex size-1.5 rounded-full bg-green" />
       </span>
-      <span className="tabular-nums">
+      <span className="tabular-nums font-semibold text-text-secondary">
         <AnimatedNumber value={count} format={(v) => Math.round(v).toLocaleString("pt-BR")} />
       </span>
       online agora

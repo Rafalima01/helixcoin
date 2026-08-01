@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Baloo_2 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers/providers";
 import { PLAYER_URL } from "@/config/domains";
@@ -8,6 +8,15 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800", "900"],
+});
+
+// Display face for the "arcade" identity — headlines, multipliers, game CTAs
+// only (see --font-display in globals.css). Body/labels/forms/tables stay on
+// Inter; never swap those to this face.
+const baloo = Baloo_2({
+  variable: "--font-baloo",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
 });
 
 const title = "HeliJump — Gire e Ganhe";
@@ -75,7 +84,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} h-full antialiased`}>
+    <html lang="pt-BR" className={`${inter.variable} ${baloo.variable} h-full antialiased`}>
       <head>
         {/* See the `appleWebApp` comment above — this version's Metadata API has no field for it. */}
         <meta name="apple-mobile-web-app-capable" content="yes" />

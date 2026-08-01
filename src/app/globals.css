@@ -1,43 +1,74 @@
 @import "tailwindcss";
 
 :root {
-  /* Core surface tokens */
-  --color-bg: #0b0815;
-  --color-bg-elevated: #120c20;
-  --color-card: #1a1228;
-  --color-card-hover: #221631;
+  /*
+   * ============ Canonical design tokens ("Arcade dourado sobre roxo profundo") ============
+   * Single source of truth for the visual system. Everything below this block
+   * (the "legacy" section) is kept as pure aliases of these so the ~30+
+   * existing components that already consume the old Tailwind utility names
+   * (bg-card, text-purple, border-border-strong, ...) keep working unchanged
+   * — nothing was renamed at the call site, only consolidated at the token
+   * source. New work (P0 onward) should reach for these names directly.
+   */
+  --color-background: #0b0815;
+  --color-surface: #1a1228;
+  --color-surface-elevated: #221631;
+  --color-primary: #8b5cf6;
+  --color-primary-hover: #a476f7;
+  --color-gold: #f0a83c;
+  --color-gold-bright: #ffd479;
+  --color-positive: #16f2a5;
+  --color-danger: #ff4d6d;
+  --color-text: #ffffff;
+  --color-muted: #726e85;
   --color-border: rgba(255, 255, 255, 0.08);
+  --color-glow: rgba(139, 92, 246, 0.45);
+  --shadow-button: 0 4px 0 rgba(0, 0, 0, 0.35);
+
+  /* ============ Legacy aliases (unchanged values — do not remove) ============ */
+  --color-bg: var(--color-background);
+  --color-bg-elevated: #120c20;
+  --color-card: var(--color-surface);
+  --color-card-hover: var(--color-surface-elevated);
   --color-border-strong: rgba(255, 255, 255, 0.14);
 
-  /* Brand */
-  --color-purple: #8b5cf6;
+  --color-purple: var(--color-primary);
   --color-purple-dim: #6d3fd1;
   --color-pink: #ff4fae;
-  --color-green: #16f2a5;
+  --color-green: var(--color-positive);
 
   /* Prize accent — reserved for conversion CTAs (hero, cadastro, final CTA), never used as a general brand tint. */
-  --color-gold: #f0a83c;
   --color-gold-dim: #c96a0b;
   --color-gold-soft: rgba(240, 168, 60, 0.14);
 
   /* Focal-point accent — the hero illustration's glowing ball and matching decorative highlights only. */
   --color-coral: #ef4444;
 
-  /* Text */
-  --color-text: #ffffff;
   --color-text-secondary: #b2afc2;
-  --color-text-muted: #726e85;
+  --color-text-muted: var(--color-muted);
 
-  /* Semantic */
-  --color-error: #ff4d6d;
+  --color-error: var(--color-danger);
   --color-warning: #ffd166;
-  --color-success: #16f2a5;
+  --color-success: var(--color-positive);
 
   --radius-card: 20px;
   --radius-btn: 14px;
 }
 
 @theme inline {
+  /* Canonical tokens — generate utilities like bg-surface, text-primary, border-glow, etc. */
+  --color-background: var(--color-background);
+  --color-surface: var(--color-surface);
+  --color-surface-elevated: var(--color-surface-elevated);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-gold-bright: var(--color-gold-bright);
+  --color-positive: var(--color-positive);
+  --color-danger: var(--color-danger);
+  --color-muted: var(--color-muted);
+  --color-glow: var(--color-glow);
+  --shadow-button: var(--shadow-button);
+
   --color-bg: var(--color-bg);
   --color-bg-elevated: var(--color-bg-elevated);
   --color-card: var(--color-card);
@@ -63,6 +94,8 @@
   --color-success: var(--color-success);
 
   --font-sans: var(--font-inter);
+  /* Display face — headlines, multipliers, important values, game CTAs, promo elements only. Never for body/labels/forms/tables. */
+  --font-display: var(--font-baloo);
 
   --animate-float: float 6s ease-in-out infinite;
   --animate-glow-pulse: glow-pulse 2.4s ease-in-out infinite;

@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Check, Loader2, QrCode } from "lucide-react";
+import { Copy, Check, Loader2, QrCode, Flame } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PixQr } from "@/components/wallet/pix-qr";
-import { useCreateDeposit, useSimulateDepositPayment, usePaymentLimits } from "@/hooks/use-wallet";
+import { DepositPromoBanner } from "@/components/wallet/deposit-promo-banner";
+import { useCreateDeposit, useSimulateDepositPayment, usePaymentLimits, useDepositOffer } from "@/hooks/use-wallet";
 import { formatCurrency, cn } from "@/lib/utils";
 
-const QUICK_AMOUNTS = [50, 100, 200, 500];
 const FALLBACK_MIN = 5; // used only while /api/payments/limits is still loading
+const FALLBACK_QUICK_AMOUNTS = [50, 100, 200, 500]; // used only while /api/promotions/deposit-offer is still loading
 
 export function DepositPanel() {
   const [amount, setAmount] = useState<number | "">(100);
@@ -23,6 +24,10 @@ export function DepositPanel() {
   const { data: limits } = usePaymentLimits();
   const depositMin = limits?.depositMin ?? FALLBACK_MIN;
   const depositMax = limits?.depositMax;
+
+  const { data: offer } = useDepositOffer();
+  const quickAmounts = offer?.quickAmounts ?? FALLBACK_QUICK_AMOUNTS.map((v) => ({ amount: v, highlightEnabled: false, highlightLabel: null }));
+  const secondDepositPercent = offer ? Math.round(offer.secondDepositBonusPercent * 100) : null;
 
   const createDeposit = useCreateDeposit();
   const simulateDeposit = useSimulateDepositPayment(pix?.depositId ?? null);
@@ -83,20 +88,36 @@ export function DepositPanel() {
             transition={{ duration: 0.2 }}
             className="flex flex-col gap-5"
           >
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {QUICK_AMOUNTS.map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setAmount(v)}
-                  className={cn(
-                    "h-11 rounded-xl border text-sm font-semibold transition-all",
-                    amount === v
-                      ? "border-green bg-green/15 text-green"
-                      : "border-border bg-white/[0.02] text-text-secondary hover:border-border-strong"
+            {offer?.promoEnabled && <DepositPromoBanner durationSeconds={offer.promoDurationSeconds} />}
+
+            {!!secondDepositPercent && secondDepositPercent > 0 && (
+              <p className="text-center text-xs font-semibold text-gold">
+                Garanta {secondDepositPercent}% de bônus a partir do segundo depósito
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-3">
+              {quickAmounts.map((q) => (
+                <div key={q.amount} className="relative">
+                  {q.highlightEnabled && (
+                    <span className="absolute -top-2 -right-1.5 z-10 flex items-center gap-0.5 whitespace-nowrap rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#3a1e00] shadow-[0_2px_6px_rgba(240,168,60,0.55)]">
+                      <Flame className="size-2.5" /> {q.highlightLabel || "Quente"}
+                    </span>
                   )}
-                >
-                  R${v}
-                </button>
+                  <button
+                    onClick={() => setAmount(q.amount)}
+                    className={cn(
+                      "h-11 w-full rounded-xl border text-sm font-semibold transition-all",
+                      amount === q.amount
+                        ? "border-green bg-green/15 text-green"
+                        : q.highlightEnabled
+                          ? "border-gold bg-gold/10 text-text hover:bg-gold/15"
+                          : "border-border bg-white/[0.02] text-text-secondary hover:border-border-strong"
+                    )}
+                  >
+                    {formatCurrency(q.amount)}
+                  </button>
+                </div>
               ))}
             </div>
 

@@ -3,12 +3,16 @@ import type {
   UpdatePromotionSettingsInput,
 } from "@/modules/promotions/interfaces/promotion-settings-repository.interface";
 import type { PromotionSettings } from "@/modules/promotions/entities/promotions.entity";
-import { DEFAULT_PROMOTION_SETTINGS_ID } from "@/modules/promotions/constants/promotions.constants";
+import { DEFAULT_PROMOTION_SETTINGS_ID, DEFAULT_DEPOSIT_QUICK_AMOUNTS } from "@/modules/promotions/constants/promotions.constants";
 
 function defaults(): PromotionSettings {
   return {
     id: DEFAULT_PROMOTION_SETTINGS_ID,
     firstDepositBonusPercent: 0.5,
+    secondDepositBonusPercent: 0.2,
+    depositPromoEnabled: true,
+    depositPromoDurationSeconds: 300,
+    depositQuickAmounts: DEFAULT_DEPOSIT_QUICK_AMOUNTS,
     updatedAt: new Date(),
   };
 }

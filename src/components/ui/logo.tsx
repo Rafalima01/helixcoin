@@ -17,7 +17,10 @@ export function Logo({ className, iconOnly }: { className?: string; iconOnly?: b
 
   return (
     <Image
-      src="/logo-full.png"
+      // Renamed from /logo-full.png -> /logo-icon.png in a prior commit
+      // (public/ dir), but this reference was never updated — that's why
+      // the full logo was 404ing and silently disappearing app-wide.
+      src="/logo-icon.png"
       alt="HeliJump"
       width={1823}
       height={649}

@@ -13,10 +13,16 @@ const buttonVariants = cva(
       variant: {
         primary:
           "bg-gradient-to-r from-purple to-pink text-white shadow-[0_8px_24px_-4px_rgba(139,92,246,0.55)] hover:shadow-[0_8px_32px_-2px_rgba(255,79,174,0.6)]",
-        // Reserved for conversion CTAs only (hero, cadastro embutido, CTA final, submit de login/signup) — never used
-        // in game/wallet/admin surfaces. Layered inset shadows simulate a physical bevel; active state presses down.
+        // "Arcade dourado sobre roxo profundo" — the two game-CTA variants. Used
+        // for Jogar/Jogar Agora/Registrar/promo CTAs only, never for
+        // wallet/admin/utility actions (those stay on primary/secondary/etc.
+        // below). Layered inset shadows simulate a physical bevel; active
+        // state presses down. font-display carries the arcade identity into
+        // the label itself — see globals.css --font-display.
         gold:
-          "bg-gradient-to-b from-[#ffd479] via-[#f0a83c] to-[#c96a0b] text-[#3a1e00] border border-[#8f4c06]/70 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.65),inset_0_-3px_0_rgba(0,0,0,0.25),0_8px_20px_-4px_rgba(201,106,11,0.6)] hover:shadow-[inset_0_1.5px_0_rgba(255,255,255,0.7),inset_0_-3px_0_rgba(0,0,0,0.3),0_10px_28px_-2px_rgba(201,106,11,0.75)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.3),0_4px_10px_-2px_rgba(201,106,11,0.5)] active:translate-y-[1px]",
+          "font-display tracking-wide bg-gradient-to-b from-gold-bright via-gold to-gold-dim text-[#3a1e00] border border-[#8f4c06]/70 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.65),inset_0_-3px_0_rgba(0,0,0,0.25),0_8px_20px_-4px_rgba(201,106,11,0.6)] hover:shadow-[inset_0_1.5px_0_rgba(255,255,255,0.7),inset_0_-3px_0_rgba(0,0,0,0.3),0_10px_28px_-2px_rgba(201,106,11,0.75)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.3),0_4px_10px_-2px_rgba(201,106,11,0.5)] active:translate-y-[1px]",
+        arcade:
+          "font-display tracking-wide bg-gradient-to-b from-[#a98bfa] via-primary to-purple-dim text-white border border-[#4c2a99]/70 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.5),inset_0_-3px_0_rgba(0,0,0,0.25),0_8px_20px_-4px_rgba(139,92,246,0.6)] hover:shadow-[inset_0_1.5px_0_rgba(255,255,255,0.55),inset_0_-3px_0_rgba(0,0,0,0.3),0_10px_28px_-2px_rgba(139,92,246,0.75)] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_-1px_0_rgba(0,0,0,0.3),0_4px_10px_-2px_rgba(139,92,246,0.5)] active:translate-y-[1px]",
         secondary:
           "glass-panel text-text border border-border hover:border-border-strong hover:bg-card-hover",
         success:

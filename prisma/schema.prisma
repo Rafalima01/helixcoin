@@ -1406,6 +1406,33 @@ model PromotionSettings {
   /// Fraction, not percent (0.5 = 50%). 0 = disabled.
   firstDepositBonusPercent Float @default(0.5)
 
+  /// Shown as marketing copy on the Deposit screen ("Garanta X% de bônus a
+  /// partir do segundo depósito"). Fraction, not percent (0.2 = 20%). 0 hides
+  /// the line entirely. This phase only surfaces the configured percentage in
+  /// the UI — it does not credit anything automatically (unlike
+  /// firstDepositBonusPercent, which has a real crediting trigger wired in
+  /// PromotionsService); wiring an actual second-deposit credit is a
+  /// follow-up, not part of this change.
+  secondDepositBonusPercent Float @default(0.2)
+
+  /// Countdown banner on the Deposit screen. false = timer never renders.
+  depositPromoEnabled Boolean @default(true)
+  /// Timer duration in seconds — never hardcoded in the frontend. Anchored
+  /// client-side per browser session (see useDepositPromoCountdown): the
+  /// deadline is computed once and persisted, so it never resets just from
+  /// navigating within the app — only when it actually expires or this value
+  /// changes.
+  depositPromoDurationSeconds Int @default(300)
+
+  /// Quick-amount buttons on the Deposit screen — same concept as
+  /// GameEconomyConfig.general.quickBetAmounts (admin-configurable,
+  /// array order = display order), but each entry also carries enabled/
+  /// highlight metadata, so it's an array of objects instead of plain
+  /// numbers. Cents. Shape:
+  /// [{ amountCents: number, enabled: boolean, highlightEnabled: boolean, highlightLabel: string | null }]
+  /// Null/empty falls back to DEFAULT_DEPOSIT_QUICK_AMOUNTS in application code.
+  depositQuickAmounts Json?
+
   updatedAt DateTime @updatedAt
 }
 

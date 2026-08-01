@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Coins,
-  Wallet,
-  Gamepad2,
-  TrendingUp,
-} from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Coins, Wallet, Gamepad2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,7 +11,6 @@ import { formatCurrency, cn } from "@/lib/utils";
 export function AccountStats() {
   const { data, isLoading } = useAccountStats();
 
-  const net = centsToReais(data?.netProfit ?? 0);
   const stats = [
     {
       label: "Total depositado",
@@ -40,12 +32,6 @@ export function AccountStats() {
       tone: "text-green",
     },
     { label: "Total apostado", icon: Gamepad2, value: centsToReais(data?.totalBet ?? 0), tone: "" },
-    {
-      label: "Lucro líquido",
-      icon: TrendingUp,
-      value: net,
-      tone: net >= 0 ? "text-green" : "text-error",
-    },
   ];
 
   return (

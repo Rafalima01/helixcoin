@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ArrowUpRight, Plus, Gift, User } from "lucide-react";
+import { ArrowUpRight, Plus, Play, Gift, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const LEFT = [
-  { href: "/home", label: "Início", icon: Home },
+  { href: "/deposit", label: "Depositar", icon: Plus },
   { href: "/withdraw", label: "Sacar", icon: ArrowUpRight },
 ];
 
@@ -23,7 +23,7 @@ function NavItem({
 }: {
   href: string;
   label: string;
-  icon: typeof Home;
+  icon: typeof Plus;
   active: boolean;
 }) {
   return (
@@ -50,7 +50,9 @@ function NavItem({
 
 /**
  * Fixed bottom navigation dock — the app's primary navigation on every
- * breakpoint. Exactly five options; "Depositar" is the elevated central CTA.
+ * breakpoint. Exactly five options, in order: Depositar, Sacar, Jogar
+ * (elevated central CTA — same /home route as before, just renamed/re-iconed
+ * from "Início"), Indique, Perfil.
  */
 export function BottomNav() {
   const pathname = usePathname();
@@ -63,10 +65,10 @@ export function BottomNav() {
             <NavItem key={item.href} {...item} active={pathname === item.href} />
           ))}
 
-          {/* Central CTA — Depositar */}
+          {/* Central CTA — Jogar (same /home route/behavior as the former "Início") */}
           <Link
-            href="/deposit"
-            aria-current={pathname === "/deposit" ? "page" : undefined}
+            href="/home"
+            aria-current={pathname === "/home" ? "page" : undefined}
             className="group relative flex flex-1 flex-col items-center justify-end gap-1 pb-2 text-[11px] font-semibold min-w-0"
           >
             <span
@@ -75,20 +77,20 @@ export function BottomNav() {
                 "bg-gradient-to-br from-green to-emerald-400 text-[#05261c]",
                 "border border-white/25 shadow-[0_10px_32px_rgba(22,242,165,0.45)]",
                 "transition-transform duration-200 group-hover:scale-105 group-hover:-translate-y-0.5",
-                pathname === "/deposit" && "ring-2 ring-green/60"
+                pathname === "/home" && "ring-2 ring-green/60"
               )}
             >
-              <Plus className="size-7" strokeWidth={2.6} />
+              <Play className="size-7" fill="currentColor" strokeWidth={2.6} />
             </span>
             <span
               className={cn(
                 "truncate",
-                pathname === "/deposit"
+                pathname === "/home"
                   ? "text-green"
                   : "text-text-secondary group-hover:text-green"
               )}
             >
-              Depositar
+              Jogar
             </span>
           </Link>
 

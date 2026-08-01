@@ -1,23 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { User, ShieldCheck, Monitor, Receipt, Gamepad2, type LucideIcon } from "lucide-react";
+import { User, ShieldCheck, Receipt, Gamepad2, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWallet } from "@/hooks/use-wallet";
 import { AccountStats } from "@/components/profile/account-stats";
 import { SecuritySection } from "@/components/profile/security-section";
-import { SessionsSection } from "@/components/profile/sessions-section";
 import { TransactionsList } from "@/components/profile/transactions-list";
 import { GameHistory } from "@/components/profile/game-history";
 import { cn } from "@/lib/utils";
 
-type TabKey = "conta" | "seguranca" | "sessoes" | "transacoes" | "historico";
+type TabKey = "conta" | "seguranca" | "transacoes" | "historico";
 
 const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "conta", label: "Conta", icon: User },
   { key: "seguranca", label: "Segurança", icon: ShieldCheck },
-  { key: "sessoes", label: "Sessões", icon: Monitor },
   { key: "transacoes", label: "Transações", icon: Receipt },
   { key: "historico", label: "Histórico de jogo", icon: Gamepad2 },
 ];
@@ -125,7 +123,6 @@ export function ProfileScreen() {
       {/* Tab content */}
       {tab === "conta" && <AccountStats />}
       {tab === "seguranca" && <SecuritySection email={email} />}
-      {tab === "sessoes" && <SessionsSection />}
       {tab === "transacoes" && <TransactionsList />}
       {tab === "historico" && <GameHistory />}
     </div>

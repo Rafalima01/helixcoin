@@ -10,6 +10,7 @@ export default function SignupPage() {
     <AuthShell
       title="Crie sua conta"
       subtitle="Leva menos de um minuto. Sem cartão de crédito."
+      banner={{ src: "/auth-banner-signup.webp", width: 1672, height: 941, alt: "HelixCoin" }}
       centered
     >
       <Suspense fallback={null}>
