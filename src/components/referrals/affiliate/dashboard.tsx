@@ -1,191 +1,321 @@
 "use client";
 
-import { useState } from "react";
-import { Copy, Check, Users, TrendingUp, MousePointerClick, Wallet, Link2, UserPlus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import {
+  PercentIcon as Percent,
+  UsersIcon as Users,
+  HandshakeIcon as Handshake,
+  CoinsIcon as Coins,
+  TrophyIcon as Trophy,
+  ClockIcon as Clock,
+  ArrowLineUpIcon as ArrowLineUp,
+  CopyIcon as Copy,
+  CheckIcon as Check,
+  ShareNetworkIcon as ShareNetwork,
+  PaperPlaneTiltIcon as PaperPlaneTilt,
+  ShieldCheckIcon as ShieldCheck,
+  GiftIcon as Gift,
+} from "@phosphor-icons/react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PseudoQr } from "@/components/wallet/pseudo-qr";
 import { useWallet } from "@/hooks/use-wallet";
-import { useAffiliateDashboard, useAffiliateCommissions } from "@/hooks/use-affiliate";
-import { formatCurrency } from "@/lib/utils";
+import { useAffiliateDashboard, useAssignAffiliateManager } from "@/hooks/use-affiliate";
+import { formatCurrency, cn } from "@/lib/utils";
 import { centsToReais } from "@/lib/multiplier";
 import type { AffiliateMyProfileDto } from "@/modules/affiliate/dto/affiliate.dto";
 
-const STATUS_BADGE: Record<string, string> = {
-  AVAILABLE: "text-green",
-  LOCKED: "text-warning",
-  REJECTED: "text-error",
+const STEPS = [
+  {
+    title: "Compartilhe seu link",
+    description: "Envie pelo WhatsApp, Telegram, Instagram ou qualquer rede social.",
+  },
+  {
+    title: "Seus amigos se cadastram",
+    description: "Quando criarem uma conta utilizando seu link, ficam vinculados automaticamente.",
+  },
+  {
+    title: "Ganhe recompensas",
+    description: "Receba comissão conforme seus indicados realizarem depósitos e continuarem ativos.",
+  },
+];
+
+const HIGHLIGHTS = [
+  { icon: ShareNetwork, tone: "purple" as const, title: "Compartilhe", description: "Compartilhe seu link facilmente." },
+  {
+    icon: ShieldCheck,
+    tone: "cool" as const,
+    title: "Fluxo Seguro",
+    description: "Sistema de rastreamento automático das indicações.",
+  },
+  { icon: Gift, tone: "gold" as const, title: "Reward Combo", description: "Receba recompensas conforme sua rede cresce." },
+];
+
+const TONE_CLASSES: Record<"purple" | "cool" | "gold", string> = {
+  purple: "bg-purple/15 text-purple",
+  cool: "bg-accent-cool/15 text-accent-cool",
+  gold: "bg-gold/15 text-gold",
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  AVAILABLE: "Disponível",
-  LOCKED: "Bloqueada",
-  REJECTED: "Rejeitada",
-};
-
-function StatCard({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Users }) {
+function StatTile({
+  icon: Icon,
+  tone,
+  label,
+  value,
+  loading,
+}: {
+  icon: typeof Users;
+  tone: "purple" | "cool" | "gold" | "green";
+  label: string;
+  value: string;
+  loading: boolean;
+}) {
   return (
-    <Card className="p-4 flex items-center gap-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-purple/15 text-purple">
-        <Icon className="size-4" />
+    <Card className="flex flex-col gap-2 p-4">
+      <span
+        className={cn(
+          "flex size-9 items-center justify-center rounded-xl",
+          tone === "green" ? "bg-green/15 text-green" : TONE_CLASSES[tone]
+        )}
+      >
+        <Icon className="size-[18px]" weight="duotone" />
       </span>
-      <div className="min-w-0">
-        <p className="text-[11px] text-text-muted truncate">{label}</p>
-        <p className="text-sm font-bold truncate">{value}</p>
-      </div>
+      {loading ? (
+        <Skeleton className="h-7 w-16" />
+      ) : (
+        <p className="font-display text-xl md:text-2xl font-extrabold tabular-nums">{value}</p>
+      )}
+      <p className="text-xs text-text-secondary leading-tight">{label}</p>
     </Card>
   );
 }
 
-function CopyLinkRow({ label, url }: { label: string; url: string }) {
+function CopyLinkCard({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
+    if (!url) return;
     await navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("Link copiado!");
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleShare = async () => {
+    if (!url) return;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: "Indique o HeliJump", url });
+      } catch {
+        /* user dismissed the share sheet */
+      }
+    } else {
+      await handleCopy();
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-sm font-medium text-text-secondary">{label}</p>
+    <Card className="p-6 flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-purple/15 text-purple">
+          <PaperPlaneTilt className="size-5" weight="duotone" />
+        </span>
+        <div>
+          <p className="font-bold text-base leading-tight">Seu Link de Indicação</p>
+          <p className="text-xs text-text-secondary">Compartilhe com seus amigos para ganharem juntos</p>
+        </div>
+      </div>
+
       <button
         onClick={handleCopy}
-        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-black/30 px-4 py-3 text-left w-full"
+        className="flex items-center justify-between gap-3 rounded-[var(--radius-input)] border border-border bg-black/30 px-4 py-3 text-left"
       >
-        <p className="text-xs text-text-secondary truncate">{url}</p>
-        {copied ? <Check className="size-4 text-green shrink-0" /> : <Copy className="size-4 text-text-muted shrink-0" />}
+        <p className="text-xs md:text-sm text-text-secondary truncate">{url}</p>
+        {copied ? (
+          <Check className="size-4 text-green shrink-0" weight="duotone" />
+        ) : (
+          <Copy className="size-4 text-text-muted shrink-0" weight="duotone" />
+        )}
       </button>
-    </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Button variant="outline" onClick={handleCopy}>
+          <Copy className="size-4" weight="duotone" /> Copiar
+        </Button>
+        <Button variant="gold" onClick={handleShare}>
+          <ShareNetwork className="size-4" weight="duotone" /> Compartilhar
+        </Button>
+      </div>
+    </Card>
   );
 }
 
-export function AffiliateDashboard({ profile }: { profile: AffiliateMyProfileDto }) {
+export function AffiliateDashboard({
+  profile,
+  managerCode,
+}: {
+  profile: AffiliateMyProfileDto;
+  managerCode?: string;
+}) {
   const { data: wallet } = useWallet();
   const { data: stats, isLoading: statsLoading } = useAffiliateDashboard();
-  const { data: commissions, isLoading: commissionsLoading } = useAffiliateCommissions();
+  const { mutate: assignManager } = useAssignAffiliateManager();
+  const attemptedManagerAssign = useRef(false);
+
+  // First-touch attribution for someone who arrived via a Manager's
+  // "Convidar Afiliados" link — see AffiliateService.assignManagerIfUnset.
+  // Only fires once, and only if there's no manager attached yet.
+  useEffect(() => {
+    if (managerCode && !profile.managerId && !attemptedManagerAssign.current) {
+      attemptedManagerAssign.current = true;
+      assignManager(managerCode);
+    }
+  }, [managerCode, profile.managerId, assignManager]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const referralCode = wallet?.user?.referralCode ?? "";
   const directLink = referralCode ? `${origin}/r/${referralCode}` : "";
-  const subAffiliateLink = profile.managerId && profile.canInviteAffiliates && profile.managerInviteCode
-    ? `${origin}/affiliate-invite/${profile.managerInviteCode}`
-    : null;
+
+  const availableCents = stats?.balanceAvailableCents ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Resumo */}
-      <div>
-        <h2 className="text-lg font-bold mb-3">Resumo</h2>
-        {statsLoading || !stats ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="h-[68px] w-full rounded-2xl" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-            <StatCard label="Minha comissão" value={`${profile.resolvedCommissionPercent}%`} icon={TrendingUp} />
-            <StatCard label="Total gerado" value={formatCurrency(centsToReais(stats.commissionTotalCents))} icon={Wallet} />
-            <StatCard label="Comissão disponível" value={formatCurrency(centsToReais(stats.balanceAvailableCents))} icon={Wallet} />
-            <StatCard label="Jogadores indicados" value={String(stats.referredCount)} icon={Users} />
-            <StatCard label="Depósitos confirmados" value={String(stats.confirmedDeposits)} icon={TrendingUp} />
-            <StatCard label="Conversão" value={`${stats.conversionPercent}%`} icon={TrendingUp} />
-            <StatCard label="Cliques nos links" value={String(stats.linkClicks)} icon={MousePointerClick} />
-          </div>
-        )}
-      </div>
-
-      {/* Links */}
-      <div>
-        <h2 className="text-lg font-bold mb-3">Links</h2>
-        <Card className="p-5 flex flex-col md:flex-row gap-5">
-          <div className="flex-1 flex flex-col justify-center gap-4">
-            <CopyLinkRow label="Link direto" url={directLink} />
-            {subAffiliateLink && (
-              <CopyLinkRow label="Link de convite para afiliados" url={subAffiliateLink} />
-            )}
-          </div>
-          {directLink && (
-            <div className="flex flex-col items-center gap-2 shrink-0">
-              <PseudoQr data={directLink} size={140} />
-              <p className="text-[11px] text-text-muted">QR Code</p>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Subafiliados */}
-      {profile.managerId && profile.canInviteAffiliates && (
-        <div>
-          <h2 className="text-lg font-bold mb-3">Subafiliados</h2>
-          <Card className="p-5 flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-purple/15 text-purple">
-              <UserPlus className="size-4" />
+      {/* Header */}
+      <div className="text-center sm:text-left">
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            Indique e <span className="text-gradient-brand">Ganhe</span>
+          </h1>
+          {referralCode && (
+            <span className="rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold tabular-nums">
+              Seu código: {referralCode}
             </span>
-            <p className="text-sm text-text-secondary">
-              Compartilhe o link acima para recrutar novos afiliados — eles ficam vinculados ao mesmo gerente que você.
-            </p>
-          </Card>
+          )}
         </div>
-      )}
+        <p className="text-text-secondary mt-2 max-w-xl leading-relaxed mx-auto sm:mx-0">
+          Convide seus amigos para jogarem no HeliJump! Quanto mais amigos, mais recompensas.
+        </p>
+      </div>
 
-      {/* Histórico */}
-      <div>
-        <h2 className="text-lg font-bold mb-3">Histórico</h2>
-        {commissionsLoading ? (
-          <div className="flex flex-col gap-2.5">
-            <Skeleton className="h-14 w-full rounded-2xl" />
-            <Skeleton className="h-14 w-full rounded-2xl" />
+      {/* Stats — 4 metrics of equal weight, not the point (see the Comissões card below for the number that matters). */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile
+          icon={Percent}
+          tone="gold"
+          label="Comissão"
+          value={`${profile.resolvedCommissionPercent}%`}
+          loading={false}
+        />
+        <StatTile
+          icon={Users}
+          tone="purple"
+          label="Indicações"
+          value={String(stats?.referredCount ?? 0)}
+          loading={statsLoading}
+        />
+        <StatTile
+          icon={Handshake}
+          tone="cool"
+          label="FTDs"
+          value={String(stats?.confirmedDeposits ?? 0)}
+          loading={statsLoading}
+        />
+        <StatTile
+          icon={Coins}
+          tone="green"
+          label="Total Depositado"
+          value={formatCurrency(centsToReais(stats?.referredDepositTotalCents ?? 0))}
+          loading={statsLoading}
+        />
+      </div>
+
+      {/* Comissões */}
+      <Card variant="hero-number" className="flex flex-col gap-5">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-gold/15 text-gold">
+              <Trophy className="size-4" weight="duotone" />
+            </span>
+            {statsLoading ? (
+              <Skeleton className="h-7 w-20 mt-1" />
+            ) : (
+              <p className="font-display text-xl md:text-2xl font-extrabold text-gradient-gold tabular-nums">
+                {formatCurrency(centsToReais(stats?.commissionTotalCents ?? 0))}
+              </p>
+            )}
+            <p className="text-xs text-text-secondary">Comissões ganhas</p>
           </div>
-        ) : !commissions?.data || commissions.data.length === 0 ? (
-          <Card className="p-10 flex flex-col items-center gap-3 text-center">
-            <Link2 className="size-8 text-text-muted" />
-            <p className="font-semibold">Nenhuma comissão ainda</p>
-            <p className="text-sm text-text-secondary max-w-sm">
-              Compartilhe seu link direto para começar a receber comissões.
-            </p>
-          </Card>
+          <div className="flex flex-col gap-1.5">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-warning/15 text-warning">
+              <Clock className="size-4" weight="duotone" />
+            </span>
+            {statsLoading ? (
+              <Skeleton className="h-7 w-20 mt-1" />
+            ) : (
+              <p className="font-display text-xl md:text-2xl font-extrabold tabular-nums">
+                {formatCurrency(centsToReais(stats?.balanceLockedCents ?? 0))}
+              </p>
+            )}
+            <p className="text-xs text-text-secondary">Comissões pendentes</p>
+          </div>
+        </div>
+
+        {availableCents > 0 ? (
+          <Link href="/withdraw">
+            <Button variant="gold" size="lg" className="w-full">
+              <ArrowLineUp className="size-4" weight="duotone" /> Resgatar
+            </Button>
+          </Link>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-text-muted">
-                  <th className="px-4 py-3 font-semibold">Data</th>
-                  <th className="px-4 py-3 font-semibold">Jogador</th>
-                  <th className="px-4 py-3 font-semibold">Depósito</th>
-                  <th className="px-4 py-3 font-semibold">%</th>
-                  <th className="px-4 py-3 font-semibold">Comissão</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {commissions.data.map((c) => (
-                  <tr key={c.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 whitespace-nowrap text-text-secondary">
-                      {new Date(c.createdAt).toLocaleDateString("pt-BR")}
-                    </td>
-                    <td className="px-4 py-3 truncate">{c.playerName}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-text-secondary">
-                      {c.depositAmountCents !== null ? formatCurrency(centsToReais(c.depositAmountCents)) : "—"}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-text-secondary">
-                      {c.percentApplied !== null ? `${Math.round(c.percentApplied * 1000) / 10}%` : "—"}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-semibold">
-                      {formatCurrency(centsToReais(c.amountCents))}
-                    </td>
-                    <td className={`px-4 py-3 whitespace-nowrap font-semibold ${STATUS_BADGE[c.status] ?? ""}`}>
-                      {STATUS_LABEL[c.status] ?? c.status}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-1.5">
+            <Button variant="gold" size="lg" className="w-full" disabled>
+              <ArrowLineUp className="size-4" weight="duotone" /> Resgatar
+            </Button>
+            <p className="text-[11px] text-text-muted text-center">
+              Você ainda não tem comissões disponíveis para saque.
+            </p>
           </div>
         )}
+      </Card>
+
+      {/* Link */}
+      <CopyLinkCard url={directLink} />
+
+      {/* Como Funciona */}
+      <div>
+        <h2 className="text-lg font-bold mb-3">Como Funciona</h2>
+        <div className="flex flex-col gap-2.5">
+          {STEPS.map((step, i) => (
+            <Card key={step.title} className="flex items-start gap-4 p-4">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple to-pink font-display text-sm font-extrabold text-white">
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="font-bold text-sm">{step.title}</p>
+                <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">{step.description}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-text-muted leading-relaxed">
+          <span className="font-semibold text-text-secondary">Dica:</span> quanto mais amigos você convidar, melhores
+          serão suas recompensas.
+        </p>
+      </div>
+
+      {/* Highlights */}
+      <div className="grid grid-cols-3 gap-3">
+        {HIGHLIGHTS.map((h) => (
+          <Card key={h.title} className="flex flex-col items-center gap-2 p-4 text-center">
+            <span className={cn("flex size-10 items-center justify-center rounded-2xl", TONE_CLASSES[h.tone])}>
+              <h.icon className="size-5" weight="duotone" />
+            </span>
+            <p className="font-bold text-sm">{h.title}</p>
+            <p className="text-[11px] text-text-secondary leading-tight">{h.description}</p>
+          </Card>
+        ))}
       </div>
     </div>
   );

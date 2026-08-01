@@ -28,6 +28,7 @@ const SIMULATED_FAULT_LABEL: Record<string, string> = {
 const PROVIDERS = [
   "MOCK",
   "VEOPAG",
+  "AMPLOPAY",
   "CARTPANDA",
   "CARTWAVEHUB",
   "MERCADO_PAGO",
@@ -39,7 +40,7 @@ const PROVIDERS = [
 ];
 
 /** Providers with a real PaymentProvider implementation — the rest resolve to NotImplementedProvider (see provider.factory.ts). */
-const IMPLEMENTED_PROVIDERS = new Set(["MOCK", "VEOPAG"]);
+const IMPLEMENTED_PROVIDERS = new Set(["MOCK", "VEOPAG", "AMPLOPAY"]);
 
 export default function AdminGatewaysPage() {
   const [creating, setCreating] = useState(false);
@@ -264,6 +265,13 @@ function GatewayFormDrawer({ onClose }: { onClose: () => void }) {
               gerados em dashboard.veopag.com/credentials. URL Base não é necessária (fixa em api.veopag.com).
             </p>
           )}
+          {form.provider === "AMPLOPAY" && (
+            <p className="mt-1 text-[11px] text-text-muted">
+              Use Chave pública para <code>x-public-key</code> e Chave privada para <code>x-secret-key</code> —
+              gerados em app.amplopay.com (Integrações &gt; API). Saques exigem que o suporte da AmploPay ative o
+              módulo de transferências e que o IP deste servidor esteja cadastrado no painel deles.
+            </p>
+          )}
         </div>
 
         <div>
@@ -320,6 +328,13 @@ function GatewayFormDrawer({ onClose }: { onClose: () => void }) {
             placeholder="Mín. 8 caracteres — armazenado criptografado"
             className="h-11 w-full rounded-xl border border-border bg-white/[0.03] px-3 text-sm outline-none focus:border-purple/60 font-mono"
           />
+          {form.provider === "AMPLOPAY" && (
+            <p className="mt-1 text-[11px] text-text-muted">
+              A AmploPay não assina webhooks por header — cadastre um webhook interno no painel deles
+              (Configurações &gt; Webhooks) para os eventos de Transação e Transferência apontando para{" "}
+              <code>/api/payments/webhook/AMPLOPAY</code> e cole aqui o token exclusivo gerado nessa tela.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-4 gap-2">

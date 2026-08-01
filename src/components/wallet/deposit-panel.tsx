@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Check, Loader2, QrCode, Flame } from "lucide-react";
+import confetti from "canvas-confetti";
+import { Loader2 } from "lucide-react";
+import {
+  CopyIcon as Copy,
+  CheckIcon as Check,
+  QrCodeIcon as QrCode,
+  FlameIcon as Flame,
+} from "@phosphor-icons/react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +76,16 @@ export function DepositPanel() {
     if (!pix) return;
     try {
       await simulateDeposit.mutateAsync();
+      // Money-in celebration — gold/green palette (financial success), distinct
+      // from the purple/pink/green cannons used for game victories.
+      confetti({
+        particleCount: 60,
+        spread: 65,
+        startVelocity: 42,
+        gravity: 1.1,
+        origin: { x: 0.5, y: 0.6 },
+        colors: ["#FFD479", "#F0A83C", "#16F2A5"],
+      });
       toast.success(`Depósito de ${formatCurrency(Number(amount))} confirmado!`);
       reset();
     } catch (e) {
@@ -101,7 +118,7 @@ export function DepositPanel() {
                 <div key={q.amount} className="relative">
                   {q.highlightEnabled && (
                     <span className="absolute -top-2 -right-1.5 z-10 flex items-center gap-0.5 whitespace-nowrap rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#3a1e00] shadow-[0_2px_6px_rgba(240,168,60,0.55)]">
-                      <Flame className="size-2.5" /> {q.highlightLabel || "Quente"}
+                      <Flame className="size-2.5" weight="duotone" /> {q.highlightLabel || "Quente"}
                     </span>
                   )}
                   <button
@@ -133,12 +150,12 @@ export function DepositPanel() {
             />
 
             <Button
-              variant="success"
+              variant="gold"
               size="lg"
               loading={createDeposit.isPending}
               onClick={handleGenerate}
             >
-              <QrCode className="size-5" />
+              <QrCode className="size-5" weight="duotone" />
               Gerar QR Code PIX
             </Button>
           </motion.div>
@@ -163,9 +180,9 @@ export function DepositPanel() {
             >
               <span className="text-xs text-text-muted font-mono truncate">{pix?.pixCode}</span>
               {copied ? (
-                <Check className="size-4 text-green shrink-0" />
+                <Check className="size-4 text-green shrink-0" weight="duotone" />
               ) : (
-                <Copy className="size-4 text-text-secondary shrink-0" />
+                <Copy className="size-4 text-text-secondary shrink-0" weight="duotone" />
               )}
             </button>
 

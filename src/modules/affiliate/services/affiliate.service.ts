@@ -77,6 +77,58 @@ export class AffiliateService {
     return affiliate;
   }
 
+  /**
+   * Every player is a real, paid affiliate from the moment they sign up —
+   * no request/approval step (see the "Indique e Ganhe" screen). Called
+   * best-effort right after registration (auth.controller.ts) AND lazily
+   * from handleGetMyAffiliateProfile for any account created before this
+   * existed, so opening the tab is always enough to already have a link.
+   * Idempotent: returns the existing profile untouched if one is already
+   * there, never throws ConflictError like apply() does.
+   */
+  async autoEnroll(userId: string): Promise<AffiliateProfile> {
+    const existing = await this.affiliates.findByUserId(userId);
+    if (existing) return existing;
+
+    const affiliate = await this.affiliates.create({ userId, status: "APPROVED" });
+    const approved = await this.affiliates.update(affiliate.id, { approvedAt: new Date() });
+
+    eventBus.publish(AFFILIATE_EVENTS.approved, {
+      affiliateId: approved.id,
+      userId,
+      status: approved.status,
+      managerId: approved.managerId,
+    });
+
+    return approved;
+  }
+
+  /**
+   * First-touch manager attribution for someone who arrived via a Manager's
+   * "Convidar Afiliados" link (/affiliate-invite/[code]/route.ts redirects
+   * to /referrals?manager=CODE) — now that there's no apply form to collect
+   * the code, the "Indique" tab calls this once on mount instead. A no-op
+   * when the code doesn't resolve or the affiliate already has a manager
+   * (never overwrites an existing attribution).
+   */
+  async assignManagerIfUnset(userId: string, managerCode: string): Promise<AffiliateProfile> {
+    const affiliate = await this.affiliates.findByUserId(userId);
+    if (!affiliate) throw new NotFoundError("Perfil de afiliado");
+    if (affiliate.managerId) return affiliate;
+
+    const manager = await prisma.managerProfile.findUnique({ where: { inviteCode: managerCode } });
+    if (!manager) return affiliate;
+
+    const updated = await this.affiliates.update(affiliate.id, { managerId: manager.id });
+    eventBus.publish(AFFILIATE_EVENTS.managerAssigned, {
+      affiliateId: updated.id,
+      userId,
+      status: updated.status,
+      managerId: updated.managerId,
+    });
+    return updated;
+  }
+
   async getProfile(userId: string): Promise<AffiliateProfile> {
     const profile = await this.affiliates.findByUserId(userId);
     if (!profile) throw new NotFoundError("Perfil de afiliado");

@@ -46,13 +46,14 @@ export function useAffiliateProfile() {
   });
 }
 
-export function useApplyAffiliate() {
+/** First-touch manager attribution for the "veio de um link de Convidar Afiliados" case — see AffiliateService.assignManagerIfUnset. Safe to call even if already assigned (no-op server-side). */
+export function useAssignAffiliateManager() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { managerCode?: string; pixKey?: string }) =>
-      envelopeFetch<AffiliateMyProfileDto>("/api/affiliate/apply", {
+    mutationFn: (managerCode: string) =>
+      envelopeFetch<AffiliateMyProfileDto>("/api/affiliate/manager", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({ managerCode }),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: AFFILIATE_PROFILE_QUERY_KEY }),
   });

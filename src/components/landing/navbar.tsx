@@ -44,7 +44,7 @@ export function Navbar() {
             </Button>
           </Link>
           <Link href="/signup">
-            <Button variant="primary" size="sm">
+            <Button variant="gold" size="sm">
               Registrar
             </Button>
           </Link>

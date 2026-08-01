@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRightIcon as ArrowUpRight } from "@phosphor-icons/react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -107,13 +107,13 @@ export function WithdrawPanel() {
         />
 
         <Button
-          variant="primary"
+          variant="gold"
           size="lg"
           loading={withdraw.isPending}
           onClick={handleSubmit}
           disabled={balance === 0}
         >
-          <ArrowUpRight className="size-5" />
+          <ArrowUpRight className="size-5" weight="duotone" />
           Confirmar Saque
         </Button>
         {balance === 0 && (

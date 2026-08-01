@@ -74,10 +74,16 @@ export function BottomNav() {
             <span
               className={cn(
                 "absolute -top-7 flex size-14 items-center justify-center rounded-2xl",
-                "bg-gradient-to-br from-green to-emerald-400 text-[#05261c]",
-                "border border-white/25 shadow-[0_10px_32px_rgba(22,242,165,0.45)]",
-                "transition-transform duration-200 group-hover:scale-105 group-hover:-translate-y-0.5",
-                pathname === "/home" && "ring-2 ring-green/60"
+                // Same gummy/arcade gold material as the app's primary CTAs
+                // (Entrar, Cadastrar-se, Gerar QR Code PIX, Confirmar Saque) —
+                // see the Button component's "gold" variant.
+                "bg-gradient-to-b from-gold-bright via-gold to-gold-dim text-[#3a1e00]",
+                "border border-[#8f4c06]/70",
+                "shadow-[inset_0_1.5px_0_rgba(255,255,255,0.65),inset_0_-3px_0_rgba(0,0,0,0.25),0_10px_28px_-4px_rgba(201,106,11,0.6)]",
+                "transition-all duration-200",
+                "group-hover:scale-105 group-hover:-translate-y-0.5 group-hover:shadow-[inset_0_1.5px_0_rgba(255,255,255,0.7),inset_0_-3px_0_rgba(0,0,0,0.3),0_12px_32px_-2px_rgba(201,106,11,0.75)]",
+                "group-active:scale-100 group-active:translate-y-0 group-active:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.3),0_4px_10px_-2px_rgba(201,106,11,0.5)]",
+                pathname === "/home" && "ring-2 ring-gold-bright/60"
               )}
             >
               <Play className="size-7" fill="currentColor" strokeWidth={2.6} />
@@ -86,8 +92,8 @@ export function BottomNav() {
               className={cn(
                 "truncate",
                 pathname === "/home"
-                  ? "text-green"
-                  : "text-text-secondary group-hover:text-green"
+                  ? "text-gold"
+                  : "text-text-secondary group-hover:text-gold"
               )}
             >
               Jogar

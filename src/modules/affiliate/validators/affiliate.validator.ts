@@ -11,6 +11,12 @@ export const applyAffiliateSchema = z.object({
 });
 export type ApplyAffiliateInput = z.infer<typeof applyAffiliateSchema>;
 
+/** POST /api/affiliate/manager — first-touch attribution, see AffiliateService.assignManagerIfUnset. */
+export const assignAffiliateManagerSchema = z.object({
+  managerCode: z.string().trim().min(1, "Código do gerente obrigatório"),
+});
+export type AssignAffiliateManagerInput = z.infer<typeof assignAffiliateManagerSchema>;
+
 export const createAffiliateLinkSchema = z.object({
   name: z.string().trim().min(2, "Nome obrigatório").max(60),
 });

@@ -145,7 +145,7 @@ export function PlayScreen() {
           <Button variant="secondary" onClick={() => router.push("/home")}>
             Voltar
           </Button>
-          <Button variant="primary" onClick={startNewMatch}>
+          <Button variant="gold" onClick={startNewMatch}>
             Tentar novamente
           </Button>
         </div>

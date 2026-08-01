@@ -6,10 +6,10 @@ import { SkullIcon, RotateCcw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useGameStore } from "@/store/game-store";
 import { centsToReais } from "@/lib/multiplier";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatMultiplier } from "@/lib/utils";
 
 export function DefeatOverlay({ onTryAgain }: { onTryAgain: () => void }) {
-  const { betAmountCents, platformsPassed } = useGameStore();
+  const { betAmountCents, platformsPassed, multiplier } = useGameStore();
   const lost = centsToReais(betAmountCents);
 
   return (
@@ -18,7 +18,7 @@ export function DefeatOverlay({ onTryAgain }: { onTryAgain: () => void }) {
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="glass-card max-w-md w-full p-8 flex flex-col items-center text-center border-error/30"
+        className="glass-card max-w-md w-full p-8 flex flex-col items-center text-center border-error/30 shadow-[0_0_40px_-8px_rgba(255,77,109,0.3),0_24px_60px_rgba(0,0,0,0.5)]"
       >
         <motion.div
           initial={{ scale: 0.7, rotate: -8 }}
@@ -32,9 +32,16 @@ export function DefeatOverlay({ onTryAgain }: { onTryAgain: () => void }) {
         <p className="text-sm font-semibold text-error uppercase tracking-widest mb-2">
           Fim de jogo
         </p>
-        <p className="text-5xl font-extrabold text-error mb-3 tabular-nums">
+        <p className="text-xs text-text-secondary mb-1">Valor perdido</p>
+        <p className="font-display text-5xl font-extrabold text-error mb-5 tabular-nums">
           -{formatCurrency(lost)}
         </p>
+
+        <div className="w-full rounded-xl border border-border bg-white/[0.03] px-4 py-3 flex flex-col gap-0.5 mb-6">
+          <span className="text-xs text-text-muted">Multiplicador alcançado</span>
+          <span className="font-display font-bold text-white">{formatMultiplier(multiplier)}</span>
+        </div>
+
         <p className="text-sm text-text-secondary mb-8">
           Você atravessou {platformsPassed} plataformas antes de cair. Tente de novo e resgate antes
           do buraco te pegar.
@@ -47,7 +54,7 @@ export function DefeatOverlay({ onTryAgain }: { onTryAgain: () => void }) {
               Início
             </Button>
           </Link>
-          <Button variant="primary" size="lg" onClick={onTryAgain} className="flex-1">
+          <Button variant="gold" size="lg" onClick={onTryAgain} className="flex-1">
             <RotateCcw className="size-4" />
             Tentar Novamente
           </Button>

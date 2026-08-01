@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Chip } from "@/components/ui/chip";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useMatchesList } from "@/hooks/use-profile";
 import { centsToReais } from "@/lib/multiplier";
@@ -191,43 +192,45 @@ export function GameHistory() {
   const losses = matches.length - wins;
   const winRate = matches.length > 0 ? Math.round((wins / matches.length) * 100) : 0;
 
-  const stats = [
-    { label: "Partidas", icon: Gamepad2, value: matches.length, suffix: "" },
-    { label: "Resgates", icon: Trophy, value: wins, suffix: "" },
-    { label: "Derrotas", icon: Skull, value: losses, suffix: "" },
-    { label: "Taxa de vitória", icon: Percent, value: winRate, suffix: "%" },
+  const secondary = [
+    { label: "Partidas", icon: Gamepad2, value: matches.length },
+    { label: "Resgates", icon: Trophy, value: wins },
+    { label: "Derrotas", icon: Skull, value: losses },
   ];
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {stats.map((s) => (
-          <Card key={s.label} className="p-4 flex flex-col gap-1.5">
-            <s.icon className="size-4 text-purple" />
-            <p className="text-xl font-extrabold tabular-nums">
-              <AnimatedNumber value={s.value} format={(v) => `${Math.round(v)}${s.suffix}`} />
-            </p>
-            <p className="text-xs text-text-secondary">{s.label}</p>
-          </Card>
-        ))}
+      {/* Stats — 1 hero number (the one that summarizes performance) + the
+          rest grouped as a compact list, not 4 identical boxes. */}
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <Card variant="hero-number" className="flex flex-col gap-2">
+          <Percent className="size-5 text-gold" />
+          <p className="font-display text-3xl md:text-4xl font-extrabold text-gradient-gold tabular-nums">
+            <AnimatedNumber value={winRate} format={(v) => `${Math.round(v)}%`} />
+          </p>
+          <p className="text-sm text-text-secondary">Taxa de vitória</p>
+        </Card>
+        <div className="flex sm:flex-col gap-2 sm:w-52">
+          {secondary.map((s) => (
+            <Card key={s.label} variant="list-row" className="flex flex-1 items-center gap-2.5">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-purple/15 text-purple">
+                <s.icon className="size-3.5" />
+              </span>
+              <p className="flex-1 text-xs text-text-secondary min-w-0 truncate">{s.label}</p>
+              <p className="text-sm font-bold tabular-nums shrink-0">
+                <AnimatedNumber value={s.value} format={(v) => `${Math.round(v)}`} />
+              </p>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all",
-              filter === f.key
-                ? "border-purple bg-purple/15 text-purple"
-                : "border-border bg-white/[0.02] text-text-secondary hover:border-border-strong"
-            )}
-          >
+          <Chip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)}>
             {f.label}
-          </button>
+          </Chip>
         ))}
       </div>
 

@@ -1,6 +1,7 @@
 import { decrypt } from "@/server/security/crypto-utils";
 import { MockProvider } from "@/modules/payments/providers/mock/mock.provider";
 import { VeoPagProvider } from "@/modules/payments/providers/veopag/veopag.provider";
+import { AmploPayProvider } from "@/modules/payments/providers/amplopay/amplopay.provider";
 import { NotImplementedProvider } from "@/modules/payments/providers/not-implemented.provider";
 import type { PaymentProvider } from "@/modules/payments/interfaces/payment-provider.interface";
 import type { GatewayCredential } from "@/modules/payments/entities/payments.entity";
@@ -31,6 +32,14 @@ export class ProviderFactory {
         clientId: raw.publicKey ?? "",
         clientSecret: raw.privateKey ?? "",
       });
+    }
+    if (credential.provider === "AMPLOPAY") {
+      // Same generic "Chave pública"/"Chave privada" admin fields, reused
+      // here as x-public-key/x-secret-key — AmploPay has no login/token
+      // exchange (see amplopay.provider.ts's doc comment), so no auth
+      // module or Redis cache is needed the way VeoPag's is.
+      const raw = JSON.parse(decrypt(credential.credentialsEncrypted)) as { publicKey?: string; privateKey?: string };
+      return new AmploPayProvider({ publicKey: raw.publicKey ?? "", secretKey: raw.privateKey ?? "" });
     }
     return new NotImplementedProvider(credential.provider);
   }

@@ -18,6 +18,15 @@ export function Hero() {
     <section className="relative flex justify-center overflow-hidden bg-[#12081f]">
       <h1 className="sr-only">Helix Coin</h1>
 
+      {/* Ambient glow bleeding into the empty side margins on wide viewports —
+          the mobile-first composition below is intentionally width-capped, so
+          without this the desktop sides read as flat dead space. Invisible on
+          mobile since there's no margin to bleed into there. */}
+      <div className="pointer-events-none absolute inset-0 hidden md:block" aria-hidden>
+        <div className="absolute left-0 top-1/4 size-[440px] -translate-x-1/2 rounded-full bg-purple/25 blur-[140px]" />
+        <div className="absolute right-0 bottom-1/4 size-[440px] translate-x-1/2 rounded-full bg-gold/20 blur-[140px]" />
+      </div>
+
       <div className="relative w-full max-w-md min-h-dvh flex flex-col">
         <Image
           src="/hero-background.png"

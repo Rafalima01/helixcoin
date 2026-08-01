@@ -77,8 +77,6 @@ export function ProfileScreen() {
 
   const name = data?.user?.name ?? "Jogador";
   const email = data?.user?.email ?? "";
-  const level = data?.user?.level ?? 1;
-  const xp = data?.user?.xp ?? 0;
   const initial = name.charAt(0).toUpperCase();
 
   return (
@@ -105,12 +103,6 @@ export function ProfileScreen() {
                   {name}
                 </h1>
                 <p className="text-sm text-text-secondary truncate">{email}</p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="rounded-full bg-purple/15 border border-purple/25 px-2.5 py-0.5 text-[11px] font-bold text-purple">
-                    Nível {level}
-                  </span>
-                  <span className="text-[11px] text-text-muted">{xp} XP</span>
-                </div>
               </>
             )}
           </div>

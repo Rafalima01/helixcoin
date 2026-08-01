@@ -8,6 +8,8 @@ export interface CreatePixDepositInput {
   payerName?: string;
   /** Required by some gateways (e.g. VeoPag) alongside payerName/payerDocument — optional here since MOCK ignores it. */
   payerEmail?: string;
+  /** Required by AmploPay's client object — optional here since MOCK/VeoPag ignore it. */
+  payerPhone?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -40,6 +42,8 @@ export interface CreateWithdrawInput {
   payeeName?: string;
   /** Recipient's CPF/CNPJ — some gateways (e.g. VeoPag) require this whenever pixKeyType isn't itself CPF/CNPJ. */
   payeeDocument?: string;
+  /** Requester's own IPv4 — AmploPay's antifraud requires this on every transfer (must differ from the app server's IP); optional here since MOCK/VeoPag ignore it. */
+  payerIp?: string;
   metadata?: Record<string, unknown>;
 }
 

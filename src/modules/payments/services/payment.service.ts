@@ -125,6 +125,7 @@ export class PaymentService {
           expiresAt,
           payerName: user ? `${user.firstName} ${user.lastName}`.trim() : undefined,
           payerEmail: user?.email,
+          payerPhone: user?.phone ?? undefined,
           payerDocument: user?.cpf ?? undefined,
         })
     );
@@ -240,6 +241,7 @@ export class PaymentService {
           pixKeyType,
           payeeName: user ? `${user.firstName} ${user.lastName}`.trim() : undefined,
           payeeDocument: user?.cpf ?? undefined,
+          payerIp: actor.ip ?? undefined,
         })
       );
       credential = outcome.credential;

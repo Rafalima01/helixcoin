@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Chip } from "@/components/ui/chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTransactionsList } from "@/hooks/use-profile";
 import { centsToReais } from "@/lib/multiplier";
@@ -60,18 +61,9 @@ export function TransactionsList() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={cn(
-              "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all",
-              filter === f.key
-                ? "border-purple bg-purple/15 text-purple"
-                : "border-border bg-white/[0.02] text-text-secondary hover:border-border-strong"
-            )}
-          >
+          <Chip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)}>
             {f.label}
-          </button>
+          </Chip>
         ))}
       </div>
 

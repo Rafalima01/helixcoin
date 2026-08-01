@@ -41,6 +41,13 @@ export async function handleRegister(req: NextRequest) {
     affiliateLinkId
   );
 
+  // Every player is a real, paid affiliate from the moment they sign up —
+  // no request/approval step (see AffiliateService.autoEnroll's doc
+  // comment). Best-effort: enrollment failing must never fail signup
+  // itself — handleGetMyAffiliateProfile self-heals this on first visit to
+  // the "Indique" tab if this call is ever skipped or races a cold start.
+  await affiliateContainer.affiliateService.autoEnroll(user.id).catch(() => {});
+
   return created({ user: toUserResponseDto(user) });
 }
 

@@ -225,4 +225,6 @@ export interface AffiliateDashboardDto {
   /** confirmedDeposits / referredCount * 100, 0 quando referredCount é 0. */
   conversionPercent: number;
   linkClicks: number;
+  /** Soma de Deposit.amountCents (status PAID) dos usuários com referredById = este afiliado — volume bruto depositado pela rede, não o valor da comissão. */
+  referredDepositTotalCents: number;
 }

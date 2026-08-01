@@ -185,11 +185,11 @@ export function GameHud({
             className="w-full"
           >
             <Button
-              variant="success"
+              variant="gold"
               size="lg"
               onClick={onCashout}
               loading={cashoutLoading}
-              className="w-full text-base shadow-[0_0_32px_rgba(22,242,165,0.45)] bg-gradient-to-r from-green to-emerald-400 text-[#05261c]"
+              className="w-full text-base"
             >
               <Unlock className="size-4" />
               Resgatar {formatCurrency(currentValue)}

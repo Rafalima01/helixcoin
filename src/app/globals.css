@@ -19,6 +19,10 @@
   --color-gold-bright: #ffd479;
   --color-positive: #16f2a5;
   --color-danger: #ff4d6d;
+  /* Second accent, reserved for "social/network" signal (referred players,
+     link clicks) so it reads as distinct from financial data (gold/purple)
+     without introducing a 3rd brand color into CTAs or backgrounds. */
+  --color-accent-cool: #38bdf8;
   --color-text: #ffffff;
   --color-muted: #726e85;
   --color-border: rgba(255, 255, 255, 0.08);
@@ -53,6 +57,10 @@
 
   --radius-card: 20px;
   --radius-btn: 14px;
+  /* Names the radius already practiced ad-hoc on inputs (rounded-xl/rounded-2xl)
+     and on pill-shaped elements (badges, chips, status dots) — not new values. */
+  --radius-input: 16px;
+  --radius-pill: 999px;
 }
 
 @theme inline {
@@ -65,6 +73,7 @@
   --color-gold-bright: var(--color-gold-bright);
   --color-positive: var(--color-positive);
   --color-danger: var(--color-danger);
+  --color-accent-cool: var(--color-accent-cool);
   --color-muted: var(--color-muted);
   --color-glow: var(--color-glow);
   --shadow-button: var(--shadow-button);

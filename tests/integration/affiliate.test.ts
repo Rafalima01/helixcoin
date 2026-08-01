@@ -18,15 +18,19 @@ vi.mock("@/modules/identity/container", () => ({
 
 const userCountMock = vi.fn().mockResolvedValue(0);
 const managerProfileFindUniqueMock = vi.fn().mockResolvedValue(null);
+const depositAggregateMock = vi.fn().mockResolvedValue({ _sum: { amountCents: 0 } });
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { count: (...args: unknown[]) => userCountMock(...args) },
     managerProfile: { findUnique: (...args: unknown[]) => managerProfileFindUniqueMock(...args) },
+    deposit: { aggregate: (...args: unknown[]) => depositAggregateMock(...args) },
   },
 }));
 
 const applyMock = vi.fn();
 const getProfileMock = vi.fn();
+const autoEnrollMock = vi.fn();
+const assignManagerIfUnsetMock = vi.fn();
 const listAdminMock = vi.fn();
 const getByIdAdminMock = vi.fn();
 const decideMock = vi.fn();
@@ -48,6 +52,8 @@ vi.mock("@/modules/affiliate/container", () => ({
     affiliateService: {
       apply: (...args: unknown[]) => applyMock(...args),
       getProfile: (...args: unknown[]) => getProfileMock(...args),
+      autoEnroll: (...args: unknown[]) => autoEnrollMock(...args),
+      assignManagerIfUnset: (...args: unknown[]) => assignManagerIfUnsetMock(...args),
       listAdmin: (...args: unknown[]) => listAdminMock(...args),
       getByIdAdmin: (...args: unknown[]) => getByIdAdminMock(...args),
       decide: (...args: unknown[]) => decideMock(...args),
@@ -180,17 +186,20 @@ describe("/api/affiliate routes (integration)", () => {
       expect(res.status).toBe(200);
     });
 
-    it("200s with null data when no profile exists — the panel branches its own UI on this instead of an error state", async () => {
+    it("self-heals via autoEnroll when no profile exists yet — every account is an auto-approved affiliate, never a null/pending state", async () => {
       const { NotFoundError } = await import("@/server/errors");
       getProfileMock.mockRejectedValue(new NotFoundError("Perfil de afiliado"));
+      autoEnrollMock.mockResolvedValue(fakeProfile);
       const token = await playerToken();
       const res = await getMeRoute(
         new NextRequest("http://localhost/api/affiliate/me", { headers: { authorization: `Bearer ${token}` } }),
         {}
       );
       expect(res.status).toBe(200);
+      expect(autoEnrollMock).toHaveBeenCalledWith("user-1");
       const json = await res.json();
-      expect(json.data).toBeNull();
+      expect(json.data).not.toBeNull();
+      expect(json.data.status).toBe("APPROVED");
     });
   });
 
@@ -205,6 +214,7 @@ describe("/api/affiliate routes (integration)", () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.data.commissionTotalCents).toBe(0);
+      expect(json.data.referredDepositTotalCents).toBe(0);
     });
   });
 

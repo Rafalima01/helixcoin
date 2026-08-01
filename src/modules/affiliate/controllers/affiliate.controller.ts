@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { affiliateContainer } from "@/modules/affiliate/container";
 import {
   applyAffiliateSchema,
+  assignAffiliateManagerSchema,
   createAffiliateLinkSchema,
   updateAffiliateLinkSchema,
 } from "@/modules/affiliate/validators/affiliate.validator";
@@ -37,9 +38,16 @@ export async function handleApplyAffiliate(req: NextRequest, auth: AuthContext) 
   return created(toAffiliateProfileDto(profile));
 }
 
-/** Returns `null` (200) rather than 404 when the user has no affiliate profile yet — the player-facing panel branches its own UI on this (sem perfil vs. pendente vs. aprovado), so a thrown error would collapse all three into one client-side error state. */
+/**
+ * Every player is auto-enrolled as an APPROVED affiliate at signup (see
+ * AffiliateService.autoEnroll) — this self-heals any account created before
+ * that existed, so `data` is effectively never `null` in practice. The
+ * return type keeps the `| null` union anyway since it costs nothing and
+ * protects the frontend if enrollment ever genuinely fails.
+ */
 export async function handleGetMyAffiliateProfile(_req: NextRequest, auth: AuthContext) {
-  const profile = await affiliateService.getProfile(auth.userId).catch(() => null);
+  let profile = await affiliateService.getProfile(auth.userId).catch(() => null);
+  if (!profile) profile = await affiliateService.autoEnroll(auth.userId).catch(() => null);
   if (!profile) return ok(null);
   const settings = await affiliateService.getSettings();
 
@@ -65,16 +73,25 @@ export async function handleGetAffiliateDashboard(_req: NextRequest, auth: AuthC
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const [total, today, last7d, last30d, available, locked, referredCount, confirmedDeposits] = await Promise.all([
-    commissionRepository.sumAmountCents({ affiliateId: profile.id }),
-    commissionRepository.sumAmountCents({ affiliateId: profile.id, from: startOfToday }),
-    commissionRepository.sumAmountCents({ affiliateId: profile.id, from: sevenDaysAgo }),
-    commissionRepository.sumAmountCents({ affiliateId: profile.id, from: thirtyDaysAgo }),
-    commissionRepository.sumAmountCents({ affiliateId: profile.id, status: "AVAILABLE" }),
-    commissionRepository.sumAmountCents({ affiliateId: profile.id, status: "LOCKED" }),
-    prisma.user.count({ where: { referredById: auth.userId } }),
-    commissionRepository.countConfirmedDeposits(profile.id),
-  ]);
+  const [total, today, last7d, last30d, available, locked, referredCount, confirmedDeposits, referredDeposits] =
+    await Promise.all([
+      commissionRepository.sumAmountCents({ affiliateId: profile.id }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, from: startOfToday }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, from: sevenDaysAgo }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, from: thirtyDaysAgo }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, status: "AVAILABLE" }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, status: "LOCKED" }),
+      prisma.user.count({ where: { referredById: auth.userId } }),
+      commissionRepository.countConfirmedDeposits(profile.id),
+      // Direct read, same precedent as the manager-code resolution above —
+      // gross deposit volume by this affiliate's referred players ("Total
+      // Depositado"), not something commission.service.ts tracks (it only
+      // knows the commission cut, not the underlying deposit total).
+      prisma.deposit.aggregate({
+        where: { user: { referredById: auth.userId }, status: "PAID" },
+        _sum: { amountCents: true },
+      }),
+    ]);
 
   return ok({
     commissionTotalCents: total,
@@ -87,7 +104,15 @@ export async function handleGetAffiliateDashboard(_req: NextRequest, auth: AuthC
     confirmedDeposits,
     conversionPercent: referredCount > 0 ? Math.round((confirmedDeposits / referredCount) * 1000) / 10 : 0,
     linkClicks: profile.linkClicks,
+    referredDepositTotalCents: referredDeposits._sum.amountCents ?? 0,
   });
+}
+
+/** Self-service first-touch manager attribution — see AffiliateService.assignManagerIfUnset's doc comment. */
+export async function handleAssignAffiliateManager(req: NextRequest, auth: AuthContext) {
+  const body = assignAffiliateManagerSchema.parse(await req.json());
+  const profile = await affiliateService.assignManagerIfUnset(auth.userId, body.managerCode);
+  return ok(toAffiliateProfileDto(profile));
 }
 
 export async function handleListMyLinks(_req: NextRequest, auth: AuthContext) {

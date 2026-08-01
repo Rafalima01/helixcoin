@@ -528,6 +528,7 @@ enum GatewayProvider {
   PAY2M
   OPENPIX
   VEOPAG
+  AMPLOPAY
   OUTROS
 }
 
