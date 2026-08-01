@@ -193,27 +193,41 @@ export class AmploPayProvider implements PaymentProvider {
 
     const res = await this.call("/gateway/pix/receive", { method: "POST", body: JSON.stringify(body) });
     const json = await this.readJson(res);
-    if (!res.ok || json?.status !== "OK") {
+    const status = json?.status as string | undefined;
+    // "PENDING" is the normal, expected status for a just-created charge
+    // (it only becomes "COMPLETED" once the payer actually pays — see
+    // mapDepositStatus for the query-side vocabulary) — only FAILED/
+    // REJECTED/CANCELED are real creation failures. A real production
+    // response confirmed this: status="PENDING" with a fully valid
+    // transactionId/pix.code, which an earlier "must equal OK" check here
+    // was incorrectly rejecting as a failure.
+    if (!res.ok || status === "FAILED" || status === "REJECTED" || status === "CANCELED") {
       this.fail(
-        (json?.message as string) ?? `Falha ao criar cobrança PIX: status="${json?.status ?? "desconhecido"}" (HTTP ${res.status})`,
+        (json?.message as string) ?? `Falha ao criar cobrança PIX: status="${status ?? "desconhecido"}" (HTTP ${res.status})`,
         res,
         json
       );
     }
 
-    const providerTransactionId = json.transactionId as string | undefined;
-    const pix = json.pix as Record<string, unknown> | undefined;
+    const providerTransactionId = json?.transactionId as string | undefined;
+    const pix = json?.pix as Record<string, unknown> | undefined;
     const pixCode = pix?.code as string | undefined;
     if (!providerTransactionId || !pixCode) {
       this.fail("Resposta de criação de cobrança sem transactionId/pix.code", res, json);
     }
 
+    // Field is `pix.base64` (a raw base64 PNG payload), not `pix.image` —
+    // confirmed against a real response. The app's own PixQr component
+    // renders the QR client-side from `pixCode` regardless, so this is
+    // only ever a fallback image source.
+    const base64 = pix?.base64 as string | undefined;
+
     return {
       providerTransactionId,
       pixCode,
-      qrCodeUrl: (pix?.image as string | undefined) || undefined,
+      qrCodeUrl: base64 ? `data:image/png;base64,${base64}` : undefined,
       expiresAt: input.expiresAt,
-      raw: json,
+      raw: json ?? undefined,
     };
   }
 

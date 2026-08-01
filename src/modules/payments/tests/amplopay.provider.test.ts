@@ -41,7 +41,7 @@ describe("AmploPayProvider", () => {
     stubFetchOnce(201, {
       status: "OK",
       transactionId: "tx-1",
-      pix: { code: "00020126...", image: "https://amplopay.example/qr/tx-1", base64: "" },
+      pix: { code: "00020126...", base64: "iVBORw0KGgo=" },
     });
     const provider = buildProvider();
     const result = await provider.createPixDeposit({
@@ -56,7 +56,7 @@ describe("AmploPayProvider", () => {
 
     expect(result.providerTransactionId).toBe("tx-1");
     expect(result.pixCode).toBe("00020126...");
-    expect(result.qrCodeUrl).toBe("https://amplopay.example/qr/tx-1");
+    expect(result.qrCodeUrl).toBe("data:image/png;base64,iVBORw0KGgo=");
 
     const headers = lastRequestHeaders();
     expect(headers["x-public-key"]).toBe("pub_test");
@@ -82,7 +82,7 @@ describe("AmploPayProvider", () => {
   });
 
   it("createPixDeposit defaults missing name/email/phone to safe placeholders", async () => {
-    stubFetchOnce(201, { status: "OK", transactionId: "tx-2", pix: { code: "code", image: "" } });
+    stubFetchOnce(201, { status: "OK", transactionId: "tx-2", pix: { code: "code", base64: "" } });
     const provider = buildProvider();
     await provider.createPixDeposit({ depositId: "dep-3", amountCents: 1000, expiresAt: new Date(), payerDocument: "12345678901" });
     const body = lastRequestBody();
@@ -92,12 +92,30 @@ describe("AmploPayProvider", () => {
     expect(client.phone).toBe("(11) 99999-9999");
   });
 
-  it("createPixDeposit throws when the API reports a non-OK status even on a 2xx response", async () => {
+  it("createPixDeposit throws when the API reports a terminal failure status even on a 2xx response", async () => {
     stubFetchOnce(201, { status: "FAILED", message: "Documento inválido" });
     const provider = buildProvider();
     await expect(
       provider.createPixDeposit({ depositId: "dep-4", amountCents: 1000, expiresAt: new Date(), payerDocument: "12345678901" })
     ).rejects.toThrow(/Documento inválido/);
+  });
+
+  it("createPixDeposit succeeds on status=\"PENDING\" — a real created-but-unpaid charge, not a failure (regression: was previously rejected by an overly strict status===\"OK\" check)", async () => {
+    stubFetchOnce(201, {
+      status: "PENDING",
+      transactionId: "tx-5",
+      pix: { code: "00020126...", base64: "" },
+      order: { id: "order-5" },
+    });
+    const provider = buildProvider();
+    const result = await provider.createPixDeposit({
+      depositId: "dep-5",
+      amountCents: 1000,
+      expiresAt: new Date(),
+      payerDocument: "12345678901",
+    });
+    expect(result.providerTransactionId).toBe("tx-5");
+    expect(result.pixCode).toBe("00020126...");
   });
 
   // ----------------------------------------------------------------- getDeposit
