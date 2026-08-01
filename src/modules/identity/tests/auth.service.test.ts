@@ -36,40 +36,50 @@ function buildService() {
 describe("AuthService.register", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("creates a PENDING user with a hashed password and a unique referral code", async () => {
+  it("creates a PENDING user with a hashed password, a unique referral code, and an auto-generated username/email", async () => {
     const { service } = buildService();
     const user = await service.register(
-      { firstName: "Rafael", lastName: "Lima", username: "rafa", email: "rafa@test.com", password: "Sup3rSecret!" },
+      {
+        firstName: "Rafael",
+        lastName: "Lima",
+        phone: "11999990001",
+        password: "Sup3rSecret!",
+        cpf: "11122233043",
+      },
       meta
     );
     expect(user.status).toBe("PENDING");
     expect(user.passwordHash).not.toBe("Sup3rSecret!");
     expect(user.referralCode).toBeTruthy();
+    expect(user.phone).toBe("11999990001");
+    // Player signup never collects these — see auto-identity.util.ts.
+    expect(user.username).toMatch(/^player_[a-z0-9]+$/);
+    expect(user.email).toBe(`${user.username}@player.helixcoin.internal`);
   });
 
-  it("rejects a duplicate email", async () => {
+  it("rejects a duplicate phone", async () => {
     const { service } = buildService();
     await service.register(
-      { firstName: "A", lastName: "B", username: "userone", email: "dup@test.com", password: "Sup3rSecret!" },
+      { firstName: "A", lastName: "B", phone: "11999990002", password: "Sup3rSecret!", cpf: "22233344073" },
       meta
     );
     await expect(
       service.register(
-        { firstName: "C", lastName: "D", username: "usertwo", email: "dup@test.com", password: "Sup3rSecret!" },
+        { firstName: "C", lastName: "D", phone: "11999990002", password: "Sup3rSecret!", cpf: "33344455001" },
         meta
       )
     ).rejects.toThrow(ConflictError);
   });
 
-  it("rejects a duplicate username", async () => {
+  it("rejects a duplicate CPF", async () => {
     const { service } = buildService();
     await service.register(
-      { firstName: "A", lastName: "B", username: "sameuser", email: "one@test.com", password: "Sup3rSecret!" },
+      { firstName: "A", lastName: "B", phone: "11999990003", password: "Sup3rSecret!", cpf: "44455566023" },
       meta
     );
     await expect(
       service.register(
-        { firstName: "C", lastName: "D", username: "sameuser", email: "two@test.com", password: "Sup3rSecret!" },
+        { firstName: "C", lastName: "D", phone: "11999990004", password: "Sup3rSecret!", cpf: "44455566023" },
         meta
       )
     ).rejects.toThrow(ConflictError);
@@ -93,9 +103,9 @@ describe("AuthService.register", () => {
       {
         firstName: "Novo",
         lastName: "Jogador",
-        username: "novojogador",
-        email: "novo@test.com",
+        phone: "11999990005",
         password: "Sup3rSecret!",
+        cpf: "66677788083",
         referralCode: demoReferrer.referralCode,
       },
       meta
@@ -173,6 +183,23 @@ describe("AuthService.login", () => {
 
     const active = await sessions.listByUser(user.id);
     expect(active).toHaveLength(1);
+  });
+
+  it("logs in a player by phone number (no '@', starts with a digit) via phone lookup", async () => {
+    const { service, users } = buildService();
+    const user = await users.create({
+      firstName: "Player",
+      lastName: "Um",
+      username: "player_abc123xyz9",
+      email: "player_abc123xyz9@player.helixcoin.internal",
+      phone: "11999990009",
+      passwordHash: await hashPassword("correct-password"),
+      status: "ACTIVE",
+      referralCode: "PLAYER001",
+    });
+
+    const result = await service.login({ email: "(11) 99999-0009", password: "correct-password" }, meta);
+    expect(result.user.id).toBe(user.id);
   });
 
   it("logs in a Conta Demo by its bare login (no '@') via username lookup", async () => {

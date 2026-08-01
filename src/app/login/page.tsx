@@ -14,7 +14,7 @@ export default function LoginPage() {
       centered
     >
       <Suspense fallback={null}>
-        <LoginForm submitVariant="gold" />
+        <LoginForm submitVariant="gold" identityMode="phone" />
       </Suspense>
     </AuthShell>
   );

@@ -291,6 +291,11 @@ async function main() {
       username: "jogador_demo",
       email: "demo@helijump.gg",
       passwordHash: demoPasswordHash,
+      // Well-known valid test CPF (passes the real check-digit algorithm) —
+      // required now that CPF is mandatory at signup and AmploPay rejects
+      // deposits without one; lets local PIX deposit testing work out of
+      // the box against this seeded account.
+      cpf: "52998224725",
       status: "ACTIVE",
       role: "USER",
       emailVerifiedAt: new Date(),

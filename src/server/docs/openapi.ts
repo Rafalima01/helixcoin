@@ -1704,30 +1704,40 @@ export const openApiSpec = {
 
       RegisterInput: {
         type: "object",
+        description: "Player self-signup. username/email are auto-generated internally and never collected here — phone is the login identifier (see AuthService.login()).",
         properties: {
           firstName: { type: "string" },
           lastName: { type: "string" },
-          username: { type: "string", pattern: "^[a-z0-9_]{3,24}$" },
-          email: { type: "string", format: "email" },
+          phone: { type: "string", description: "Brazilian phone, any punctuation — normalized to digits-only" },
           password: { type: "string", minLength: 8, maxLength: 72 },
+          cpf: { type: "string", description: "Required — the AmploPay gateway rejects PIX deposits without a payer CPF" },
           referralCode: { type: "string" },
         },
-        required: ["firstName", "lastName", "username", "email", "password"],
+        required: ["firstName", "lastName", "phone", "password", "cpf"],
       },
       LoginInput: {
         type: "object",
         properties: {
-          email: { type: "string", description: "Email, or a Conta Demo login (e.g. \"demo47291\")" },
+          email: { type: "string", description: "A real email (staff/admin/manager), a Conta Demo login (e.g. \"demo47291\"), or a player's phone number" },
           password: { type: "string" },
           rememberMe: { type: "boolean", default: false },
         },
         required: ["email", "password"],
       },
       AdminCreateUserInput: {
-        allOf: [
-          { $ref: "#/components/schemas/RegisterInput" },
-          { type: "object", properties: { phone: { type: "string" }, role: { $ref: "#/components/schemas/Role" }, status: { $ref: "#/components/schemas/UserStatus" } } },
-        ],
+        type: "object",
+        description: "Admin-created accounts (backoffice /admin/users) still require a real username/email, unlike public player signup — see RegisterInput.",
+        properties: {
+          firstName: { type: "string" },
+          lastName: { type: "string" },
+          username: { type: "string", pattern: "^[a-z0-9_]{3,24}$" },
+          email: { type: "string", format: "email" },
+          password: { type: "string", minLength: 8, maxLength: 72 },
+          phone: { type: "string" },
+          role: { $ref: "#/components/schemas/Role" },
+          status: { $ref: "#/components/schemas/UserStatus" },
+        },
+        required: ["firstName", "lastName", "username", "email", "password"],
       },
       AdminUpdateUserInput: {
         type: "object",

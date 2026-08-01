@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { isValidCpf, onlyDigits } from "@/lib/cpf";
+import { isValidBrazilianPhone } from "@/lib/phone";
 
 const usernameSchema = z
   .string()
@@ -12,13 +14,27 @@ const passwordSchema = z
   .min(8, "A senha deve ter ao menos 8 caracteres")
   .max(72, "A senha deve ter no máximo 72 caracteres");
 
+/** Required at signup — the payment gateway (AmploPay) rejects PIX deposits without a payer CPF, so collecting it upfront avoids a dead end at first deposit. Normalized to digits-only before storage/gateway calls. */
+const cpfSchema = z
+  .string()
+  .trim()
+  .transform(onlyDigits)
+  .refine((v) => isValidCpf(v), "CPF inválido");
+
+/** The player's login identifier (see AuthService.login()) — username/email are no longer collected at signup, only auto-generated internally. Normalized to digits-only before storage. */
+const phoneSchema = z
+  .string()
+  .trim()
+  .transform(onlyDigits)
+  .refine((v) => isValidBrazilianPhone(v), "Telefone inválido");
+
 export const registerSchema = z
   .object({
     firstName: z.string().trim().min(1, "Informe seu nome").max(60),
     lastName: z.string().trim().min(1, "Informe seu sobrenome").max(60),
-    username: usernameSchema,
-    email: z.string().trim().toLowerCase().email("Email inválido"),
+    phone: phoneSchema,
     password: passwordSchema,
+    cpf: cpfSchema,
     referralCode: z.string().trim().optional().or(z.literal("")),
     affiliateLinkSlug: z.string().trim().optional().or(z.literal("")),
     /** ?source= at signup — "demo" flags eligibility for the first-deposit bonus (see promotions.service.ts). */

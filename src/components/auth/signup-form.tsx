@@ -6,11 +6,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { User, AtSign, Mail, Lock, Gift } from "lucide-react";
+import { User, Lock, CreditCard, Phone } from "lucide-react";
 import toast from "react-hot-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { registerSchema } from "@/modules/identity/validators/auth.validator";
+import { onlyDigits } from "@/lib/cpf";
+import { formatPhone } from "@/lib/phone";
+
+function formatCpf(raw: string): string {
+  const digits = onlyDigits(raw).slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
 
 const signupFormSchema = registerSchema.extend({
   terms: z.boolean().refine((v) => v === true, {
@@ -28,10 +38,14 @@ export function SignupForm() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<SignupFormInput>({
     resolver: zodResolver(signupFormSchema),
     defaultValues: {
+      // No visible field for these — they're only ever set via a referral
+      // link's query params (?ref=/?l=), never typed by the player, per the
+      // decluttered signup (nome/sobrenome/telefone/cpf/senha only).
       referralCode: searchParams.get("ref") ?? "",
       affiliateLinkSlug: searchParams.get("l") ?? "",
       terms: false,
@@ -47,9 +61,9 @@ export function SignupForm() {
         body: JSON.stringify({
           firstName: data.firstName,
           lastName: data.lastName,
-          username: data.username,
-          email: data.email,
+          phone: data.phone,
           password: data.password,
+          cpf: data.cpf,
           referralCode: data.referralCode,
           affiliateLinkSlug: data.affiliateLinkSlug,
           source: searchParams.get("source") === "demo" ? "demo" : undefined,
@@ -63,10 +77,12 @@ export function SignupForm() {
         return;
       }
 
+      // Phone is the player's login identifier (see AuthService.login()) —
+      // username/email no longer exist from the player's perspective.
       const loginRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: data.email, password: data.password }),
+        body: JSON.stringify({ email: data.phone, password: data.password }),
       });
 
       const callbackUrl = searchParams.get("callbackUrl");
@@ -107,21 +123,26 @@ export function SignupForm() {
           />
         </div>
         <Input
-          label="Username"
-          icon={AtSign}
-          placeholder="seu_username"
-          autoComplete="username"
-          error={errors.username?.message}
-          {...register("username")}
+          label="Número"
+          icon={Phone}
+          placeholder="(11) 91234-5678"
+          inputMode="numeric"
+          maxLength={15}
+          autoComplete="tel"
+          error={errors.phone?.message}
+          {...register("phone")}
+          onChange={(e) => setValue("phone", formatPhone(e.target.value), { shouldValidate: false })}
         />
         <Input
-          label="Email"
-          type="email"
-          icon={Mail}
-          placeholder="voce@email.com"
-          autoComplete="email"
-          error={errors.email?.message}
-          {...register("email")}
+          label="CPF"
+          icon={CreditCard}
+          placeholder="000.000.000-00"
+          inputMode="numeric"
+          maxLength={14}
+          autoComplete="off"
+          error={errors.cpf?.message}
+          {...register("cpf")}
+          onChange={(e) => setValue("cpf", formatCpf(e.target.value), { shouldValidate: false })}
         />
         <Input
           label="Senha"
@@ -131,13 +152,6 @@ export function SignupForm() {
           autoComplete="new-password"
           error={errors.password?.message}
           {...register("password")}
-        />
-        <Input
-          label="Código de indicação (opcional)"
-          icon={Gift}
-          placeholder="Ex: AMIGO2026"
-          error={errors.referralCode?.message}
-          {...register("referralCode")}
         />
 
         <label className="flex items-start gap-3 cursor-pointer select-none">

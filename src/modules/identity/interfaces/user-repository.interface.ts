@@ -8,6 +8,7 @@ export interface CreateUserRecord {
   email: string;
   passwordHash: string;
   phone?: string | null;
+  cpf?: string | null;
   role?: UserEntity["role"];
   status?: UserEntity["status"];
   referralCode: string;
@@ -44,6 +45,8 @@ export interface IUserRepository {
   findById(id: string): Promise<UserEntity | null>;
   findByEmail(email: string): Promise<UserEntity | null>;
   findByUsername(username: string): Promise<UserEntity | null>;
+  findByCpf(cpf: string): Promise<UserEntity | null>;
+  findByPhone(phone: string): Promise<UserEntity | null>;
   findByReferralCode(referralCode: string): Promise<UserEntity | null>;
   create(data: CreateUserRecord): Promise<UserEntity>;
   update(id: string, data: UpdateUserRecord): Promise<UserEntity>;

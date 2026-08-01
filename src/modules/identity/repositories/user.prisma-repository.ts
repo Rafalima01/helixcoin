@@ -22,6 +22,14 @@ export class PrismaUserRepository implements IUserRepository {
     return prisma.user.findFirst({ where: { username, deletedAt: null } });
   }
 
+  async findByCpf(cpf: string): Promise<UserEntity | null> {
+    return prisma.user.findFirst({ where: { cpf, deletedAt: null } });
+  }
+
+  async findByPhone(phone: string): Promise<UserEntity | null> {
+    return prisma.user.findFirst({ where: { phone, deletedAt: null } });
+  }
+
   async findByReferralCode(referralCode: string): Promise<UserEntity | null> {
     return prisma.user.findFirst({ where: { referralCode, deletedAt: null } });
   }
@@ -35,6 +43,7 @@ export class PrismaUserRepository implements IUserRepository {
         email: data.email,
         passwordHash: data.passwordHash,
         phone: data.phone ?? null,
+        cpf: data.cpf ?? null,
         role: data.role ?? "USER",
         status: data.status ?? "PENDING",
         referralCode: data.referralCode,

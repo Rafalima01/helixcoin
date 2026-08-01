@@ -5,16 +5,18 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Lock } from "lucide-react";
+import { Mail, Lock, Phone } from "lucide-react";
 import toast from "react-hot-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { loginSchema, type LoginInput } from "@/modules/identity/validators/auth.validator";
+import { formatPhone } from "@/lib/phone";
 
 export function LoginForm({
   showSignupLink = true,
   fallbackPath = "/home",
   submitVariant = "primary",
+  identityMode = "email",
 }: {
   /** Admin/manager logins hide this — those roles are never self-registered. */
   showSignupLink?: boolean;
@@ -22,7 +24,19 @@ export function LoginForm({
   fallbackPath?: string;
   /** "gold" is the player-facing identity (hero/cadastro CTA tone) — admin/manager logins never pass this, so they keep the neutral "primary" look. */
   submitVariant?: "primary" | "gold";
+  /**
+   * "phone" is the player zone (phone is the login identifier — see
+   * AuthService.login()'s phone branch): swaps the field's label/icon/mask
+   * to match and hides "Esqueceu a senha?" (phone-only accounts have no
+   * email for self-service reset, see password.service.ts's requestReset,
+   * which is email-only). Admin/manager never pass this, so they keep
+   * today's email copy. A string (not a component/function prop) because
+   * this form is a Client Component rendered from Server Component pages
+   * (e.g. /login) — passing functions across that boundary isn't allowed.
+   */
+  identityMode?: "email" | "phone";
 }) {
+  const isPhone = identityMode === "phone";
   const router = useRouter();
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
@@ -30,6 +44,7 @@ export function LoginForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<LoginInput>({ resolver: zodResolver(loginSchema), defaultValues: { rememberMe: false } });
 
@@ -57,13 +72,18 @@ export function LoginForm({
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
         <Input
-          label="Email ou Login"
+          label={isPhone ? "Número" : "Email ou Login"}
           type="text"
-          icon={Mail}
-          placeholder="voce@email.com"
-          autoComplete="username"
+          icon={isPhone ? Phone : Mail}
+          placeholder={isPhone ? "(11) 91234-5678" : "voce@email.com"}
+          inputMode={isPhone ? "numeric" : undefined}
+          maxLength={isPhone ? 15 : undefined}
+          autoComplete={isPhone ? "tel" : "username"}
           error={errors.email?.message}
           {...register("email")}
+          {...(isPhone
+            ? { onChange: (e) => setValue("email", formatPhone(e.target.value), { shouldValidate: false }) }
+            : {})}
         />
         <Input
           label="Senha"
@@ -84,12 +104,14 @@ export function LoginForm({
             />
             Lembrar de mim
           </label>
-          <Link
-            href="/forgot-password"
-            className="text-sm text-purple hover:text-pink transition-colors font-medium"
-          >
-            Esqueceu a senha?
-          </Link>
+          {!isPhone && (
+            <Link
+              href="/forgot-password"
+              className="text-sm text-purple hover:text-pink transition-colors font-medium"
+            >
+              Esqueceu a senha?
+            </Link>
+          )}
         </div>
 
         <Button type="submit" variant={submitVariant} size="lg" loading={submitting} className="mt-1">

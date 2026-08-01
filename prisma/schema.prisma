@@ -112,7 +112,8 @@ model User {
   lastName     String
   username     String    @unique
   email        String    @unique
-  phone        String?
+  /// The player-facing login identifier since CPF-required signup (phone+senha) — nullable, unique when present.
+  phone        String?   @unique
   passwordHash String
   avatar       String?
   /// Prepared, not enforced yet — nullable, unique when present.

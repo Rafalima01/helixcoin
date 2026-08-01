@@ -19,6 +19,8 @@ import { ConflictError, ForbiddenError, UnauthorizedError, BusinessRuleError } f
 import { createChildLogger } from "@/server/logger";
 import { parseUserAgent } from "@/modules/identity/utils/user-agent.util";
 import { generateReferralCode } from "@/modules/identity/utils/referral-code.util";
+import { generateAutoUsername, autoEmailFor } from "@/modules/identity/utils/auto-identity.util";
+import { onlyDigits } from "@/lib/cpf";
 import { IDENTITY_EVENTS } from "@/modules/identity/events/identity.events";
 import {
   MAX_LOGIN_ATTEMPTS,
@@ -54,11 +56,11 @@ export class AuthService {
    * boundary instead. Analytics-only, never used for attribution.
    */
   async register(input: RegisterInput, meta: RequestMeta, affiliateLinkId?: string | null): Promise<UserEntity> {
-    if (await this.users.findByEmail(input.email)) {
-      throw new ConflictError("Este email já está cadastrado");
+    if (await this.users.findByPhone(input.phone)) {
+      throw new ConflictError("Este telefone já está cadastrado");
     }
-    if (await this.users.findByUsername(input.username)) {
-      throw new ConflictError("Este username já está em uso");
+    if (await this.users.findByCpf(input.cpf)) {
+      throw new ConflictError("Este CPF já está cadastrado");
     }
 
     let referredById: string | undefined;
@@ -78,12 +80,24 @@ export class AuthService {
       referralCode = generateReferralCode(input.firstName);
     }
 
+    // Player signup no longer collects username/email (phone is the login
+    // identifier — see login() below) but both columns are still
+    // required+unique, so they're auto-generated and never shown to the
+    // player, mirroring demo-accounts' synthetic-email convention.
+    let username = generateAutoUsername();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (!(await this.users.findByUsername(username))) break;
+      username = generateAutoUsername();
+    }
+
     const user = await this.users.create({
       firstName: input.firstName,
       lastName: input.lastName,
-      username: input.username,
-      email: input.email,
+      username,
+      email: autoEmailFor(username),
+      phone: input.phone,
       passwordHash,
+      cpf: input.cpf,
       referralCode,
       referredById,
       affiliateLinkId: affiliateLinkId ?? null,
@@ -110,13 +124,25 @@ export class AuthService {
 
   async login(input: LoginInput, meta: RequestMeta): Promise<LoginResult> {
     const logger = createChildLogger({ module: "identity.auth" });
-    // Conta Demo credentials (src/modules/demo-accounts) show a bare login
-    // like "demo47291", never the synthetic @demo.helixcoin.internal email
-    // behind it — so a value with no "@" is looked up by username instead.
+    // Three shapes share this one field: a real email (admin/manager staff,
+    // or a legacy player), a Conta Demo bare login like "demo47291" (see
+    // src/modules/demo-accounts — never the synthetic @domain.internal
+    // email behind it), or a phone number (regular player signup — see
+    // register() above, phone is the login identifier, username/email are
+    // auto-generated and never shown). The player zone's login field masks
+    // digits as "(11) 91234-5678" as the player types, so detection can't
+    // key off the first character — instead, a phone number is the only
+    // shape whose digits-only form is long enough to be one (a demo login's
+    // digit run is only 5 chars, e.g. "demo47291" -> "47291").
     const identifier = input.email;
-    const user = identifier.includes("@")
-      ? await this.users.findByEmail(identifier)
-      : await this.users.findByUsername(identifier);
+    let user: UserEntity | null;
+    if (identifier.includes("@")) {
+      user = await this.users.findByEmail(identifier);
+    } else if (onlyDigits(identifier).length >= 10) {
+      user = await this.users.findByPhone(onlyDigits(identifier));
+    } else {
+      user = await this.users.findByUsername(identifier);
+    }
 
     if (!user) {
       await AuditService.record({

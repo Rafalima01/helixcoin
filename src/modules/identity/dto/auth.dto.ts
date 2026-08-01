@@ -1,9 +1,9 @@
 export interface RegisterInput {
   firstName: string;
   lastName: string;
-  username: string;
-  email: string;
+  phone: string;
   password: string;
+  cpf: string;
   referralCode?: string;
   /** Phase 8 — optional AffiliateLink slug from `/r/{code}?l={slug}`, analytics-only. */
   affiliateLinkSlug?: string;

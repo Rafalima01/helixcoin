@@ -22,6 +22,14 @@ export class InMemoryUserRepository implements IUserRepository {
     return [...this.users.values()].find((u) => u.username === username && !u.deletedAt) ?? null;
   }
 
+  async findByCpf(cpf: string): Promise<UserEntity | null> {
+    return [...this.users.values()].find((u) => u.cpf === cpf && !u.deletedAt) ?? null;
+  }
+
+  async findByPhone(phone: string): Promise<UserEntity | null> {
+    return [...this.users.values()].find((u) => u.phone === phone && !u.deletedAt) ?? null;
+  }
+
   async findByReferralCode(referralCode: string): Promise<UserEntity | null> {
     return (
       [...this.users.values()].find((u) => u.referralCode === referralCode && !u.deletedAt) ?? null
@@ -39,7 +47,7 @@ export class InMemoryUserRepository implements IUserRepository {
       phone: data.phone ?? null,
       passwordHash: data.passwordHash,
       avatar: null,
-      cpf: null,
+      cpf: data.cpf ?? null,
       dateOfBirth: null,
       locale: "pt-BR",
       timezone: "America/Sao_Paulo",
