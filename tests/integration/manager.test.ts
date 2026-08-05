@@ -22,6 +22,7 @@ const listApprovalsMock = vi.fn();
 const decideApplicationMock = vi.fn();
 const getNetworkAffiliateMock = vi.fn();
 const listNetworkMock = vi.fn();
+const getNetworkWithStatsMock = vi.fn();
 const listAdminMock = vi.fn();
 const getByIdAdminMock = vi.fn();
 const activateProfileMock = vi.fn();
@@ -36,6 +37,7 @@ vi.mock("@/modules/manager/container", () => ({
       decideApplication: (...args: unknown[]) => decideApplicationMock(...args),
       getNetworkAffiliate: (...args: unknown[]) => getNetworkAffiliateMock(...args),
       listNetwork: (...args: unknown[]) => listNetworkMock(...args),
+      getNetworkWithStats: (...args: unknown[]) => getNetworkWithStatsMock(...args),
       listAdmin: (...args: unknown[]) => listAdminMock(...args),
       getByIdAdmin: (...args: unknown[]) => getByIdAdminMock(...args),
       activateProfile: (...args: unknown[]) => activateProfileMock(...args),
@@ -111,6 +113,17 @@ const fakeAffiliateRow = {
   updatedAt: new Date(),
 };
 
+const fakeNetworkStatsRow = {
+  ...fakeAffiliateRow,
+  depositTotalCents: 5000,
+  activePlayers: 1,
+  ftdCount: 1,
+  commissionGeneratedCents: 1000,
+  paidToAffiliateCents: 700,
+  keptByManagerCents: 300,
+  houseProfitCents: 4000,
+};
+
 describe("/api/manager routes (integration)", () => {
   beforeEach(() => {
     hasPermissionMock.mockReset().mockResolvedValue(true);
@@ -120,6 +133,7 @@ describe("/api/manager routes (integration)", () => {
     decideApplicationMock.mockReset();
     getNetworkAffiliateMock.mockReset();
     listNetworkMock.mockReset().mockResolvedValue({ items: [], total: 0 });
+    getNetworkWithStatsMock.mockReset().mockResolvedValue({ items: [], total: 0 });
   });
 
   describe("GET /api/manager/me", () => {
@@ -212,12 +226,15 @@ describe("/api/manager routes (integration)", () => {
   });
 
   describe("GET /api/manager/network", () => {
-    it("200s listing the manager's own affiliate network", async () => {
-      listNetworkMock.mockResolvedValue({ items: [fakeAffiliateRow], total: 1 });
+    it("200s listing the manager's own affiliate network with the financial rollup", async () => {
+      getNetworkWithStatsMock.mockResolvedValue({ items: [fakeNetworkStatsRow], total: 1 });
       const token = await managerToken();
       const res = await listNetworkRoute(getRequest("/api/manager/network", token), {});
       expect(res.status).toBe(200);
-      expect(listNetworkMock).toHaveBeenCalledWith(fakeManagerProfile.id);
+      expect(getNetworkWithStatsMock).toHaveBeenCalledWith(fakeManagerProfile.id);
+      const json = await res.json();
+      expect(json.data[0].depositTotalCents).toBe(5000);
+      expect(json.data[0].keptByManagerCents).toBe(300);
     });
   });
 

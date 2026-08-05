@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/utils";
 import {
   useManagerNetwork,
   useManagerProfile,
@@ -15,6 +16,7 @@ import {
   useUpdateNetworkAffiliateInvitePermission,
 } from "@/hooks/use-manager";
 import type { AffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
+import type { AffiliateNetworkStatsDto } from "@/modules/manager/dto/manager.dto";
 
 const STATUS_BADGE: Record<string, "green" | "warning" | "error" | "neutral"> = {
   APPROVED: "green",
@@ -129,6 +131,30 @@ function InvitePermissionToggle({ affiliate }: { affiliate: AffiliateProfileAdmi
   );
 }
 
+function StatTile({ label, value, tone }: { label: string; value: string; tone?: "green" | "muted" }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <p className="text-[10px] uppercase tracking-wide text-text-muted">{label}</p>
+      <p className={`text-sm font-bold tabular-nums ${tone === "green" ? "text-green" : "text-text-primary"}`}>{value}</p>
+    </div>
+  );
+}
+
+/** The financial rollup requested for "Minha Rede" — every number here comes from AffiliateNetworkStatsDto, already computed server-side (see ManagerService.getNetworkWithStats). */
+function NetworkStatsGrid({ affiliate }: { affiliate: AffiliateNetworkStatsDto }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 border-t border-border pt-3 mt-1">
+      <StatTile label="Depósitos totais" value={formatCurrency(affiliate.depositTotalCents / 100)} />
+      <StatTile label="Jogadores ativos" value={String(affiliate.activePlayers)} />
+      <StatTile label="FTDs" value={String(affiliate.ftdCount)} />
+      <StatTile label="Comissão gerada" value={formatCurrency(affiliate.commissionGeneratedCents / 100)} />
+      <StatTile label="Pago ao afiliado" value={formatCurrency(affiliate.paidToAffiliateCents / 100)} />
+      <StatTile label="Ficou para você" value={formatCurrency(affiliate.keptByManagerCents / 100)} tone="green" />
+      <StatTile label="Lucro líquido da casa" value={formatCurrency(affiliate.houseProfitCents / 100)} />
+    </div>
+  );
+}
+
 export function ManagerNetworkScreen() {
   const { data, isLoading } = useManagerNetwork();
   const { data: profile } = useManagerProfile();
@@ -161,28 +187,31 @@ export function ManagerNetworkScreen() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {data.map((aff) => (
-            <Card key={aff.id} className="p-4 flex items-center gap-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple/60 to-pink/60 text-white text-sm font-bold">
-                {aff.userName.charAt(0).toUpperCase()}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-sm truncate">{aff.userName}</p>
-                  <Badge variant={STATUS_BADGE[aff.status] ?? "neutral"} size="sm">
-                    {STATUS_LABEL[aff.status] ?? aff.status}
-                  </Badge>
+            <Card key={aff.id} className="p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple/60 to-pink/60 text-white text-sm font-bold">
+                  {aff.userName.charAt(0).toUpperCase()}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-sm truncate">{aff.userName}</p>
+                    <Badge variant={STATUS_BADGE[aff.status] ?? "neutral"} size="sm">
+                      {STATUS_LABEL[aff.status] ?? aff.status}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-text-secondary truncate">{aff.userEmail}</p>
                 </div>
-                <p className="text-xs text-text-secondary truncate">{aff.userEmail}</p>
+                {aff.status === "APPROVED" && (
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <CommissionEditor affiliate={aff} ceiling={ceiling} />
+                    <InvitePermissionToggle affiliate={aff} />
+                  </div>
+                )}
+                <p className="shrink-0 text-[11px] text-text-muted">
+                  Desde {new Date(aff.requestedAt).toLocaleDateString("pt-BR")}
+                </p>
               </div>
-              {aff.status === "APPROVED" && (
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <CommissionEditor affiliate={aff} ceiling={ceiling} />
-                  <InvitePermissionToggle affiliate={aff} />
-                </div>
-              )}
-              <p className="shrink-0 text-[11px] text-text-muted">
-                Desde {new Date(aff.requestedAt).toLocaleDateString("pt-BR")}
-              </p>
+              {aff.status === "APPROVED" && <NetworkStatsGrid affiliate={aff} />}
             </Card>
           ))}
         </div>

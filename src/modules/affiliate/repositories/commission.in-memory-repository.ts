@@ -5,7 +5,7 @@ import type {
   CommissionListFilter,
   CommissionAggregateFilter,
 } from "@/modules/affiliate/interfaces/commission-repository.interface";
-import type { Commission, CommissionAdminRow } from "@/modules/affiliate/entities/affiliate.entity";
+import type { Commission, CommissionAdminRow, CommissionSourceType } from "@/modules/affiliate/entities/affiliate.entity";
 
 export class InMemoryCommissionRepository implements ICommissionRepository {
   private readonly rows = new Map<string, Commission>();
@@ -39,10 +39,16 @@ export class InMemoryCommissionRepository implements ICommissionRepository {
     return this.rows.get(id) ?? null;
   }
 
-  async findByTriggerAffiliateLevel(triggerId: string, affiliateId: string | null, level: number): Promise<Commission | null> {
+  async findByTriggerAffiliateLevel(
+    triggerId: string,
+    affiliateId: string | null,
+    level: number,
+    sourceType: CommissionSourceType
+  ): Promise<Commission | null> {
     return (
       [...this.rows.values()].find(
-        (r) => r.triggerId === triggerId && r.affiliateId === affiliateId && r.level === level
+        (r) =>
+          r.triggerId === triggerId && r.affiliateId === affiliateId && r.level === level && r.sourceType === sourceType
       ) ?? null
     );
   }
@@ -78,10 +84,29 @@ export class InMemoryCommissionRepository implements ICommissionRepository {
     return triggerIds.size;
   }
 
+  async getNetworkAggregates(
+    managerId: string
+  ): Promise<Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>> {
+    const result = new Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>();
+    for (const r of this.rows.values()) {
+      if (r.managerId !== managerId || !r.affiliateId) continue;
+      const entry = result.get(r.affiliateId) ?? { paidToAffiliateCents: 0, keptByManagerCents: 0, ftdCount: 0 };
+      if (r.sourceType === "REVSHARE_DEPOSIT" || r.sourceType === "CPA_FTD") {
+        entry.paidToAffiliateCents += r.amountCents;
+        if (r.sourceType === "CPA_FTD") entry.ftdCount += 1;
+      } else if (r.sourceType === "MANAGER_SPREAD") {
+        entry.keptByManagerCents += r.amountCents;
+      }
+      result.set(r.affiliateId, entry);
+    }
+    return result;
+  }
+
   private applyFilter(filter: {
     affiliateId?: string;
     managerId?: string;
     status?: Commission["status"];
+    sourceType?: CommissionSourceType;
     originUserId?: string;
     from?: Date;
     to?: Date;
@@ -90,6 +115,7 @@ export class InMemoryCommissionRepository implements ICommissionRepository {
     if (filter.affiliateId) items = items.filter((r) => r.affiliateId === filter.affiliateId);
     if (filter.managerId) items = items.filter((r) => r.managerId === filter.managerId);
     if (filter.status) items = items.filter((r) => r.status === filter.status);
+    if (filter.sourceType) items = items.filter((r) => r.sourceType === filter.sourceType);
     if (filter.originUserId) items = items.filter((r) => r.originUserId === filter.originUserId);
     if (filter.from) items = items.filter((r) => r.createdAt >= filter.from!);
     if (filter.to) items = items.filter((r) => r.createdAt <= filter.to!);

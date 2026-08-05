@@ -8,7 +8,7 @@ import type {
   CommissionListFilter,
   CommissionAggregateFilter,
 } from "@/modules/affiliate/interfaces/commission-repository.interface";
-import type { Commission, CommissionAdminRow } from "@/modules/affiliate/entities/affiliate.entity";
+import type { Commission, CommissionAdminRow, CommissionSourceType } from "@/modules/affiliate/entities/affiliate.entity";
 
 function toEntity(row: PrismaCommission): Commission {
   return {
@@ -77,8 +77,13 @@ export class PrismaCommissionRepository implements ICommissionRepository {
     return row ? toEntity(row) : null;
   }
 
-  async findByTriggerAffiliateLevel(triggerId: string, affiliateId: string | null, level: number): Promise<Commission | null> {
-    const row = await prisma.commission.findFirst({ where: { triggerId, affiliateId, level } });
+  async findByTriggerAffiliateLevel(
+    triggerId: string,
+    affiliateId: string | null,
+    level: number,
+    sourceType: CommissionSourceType
+  ): Promise<Commission | null> {
+    const row = await prisma.commission.findFirst({ where: { triggerId, affiliateId, level, sourceType } });
     return row ? toEntity(row) : null;
   }
 
@@ -127,12 +132,41 @@ export class PrismaCommissionRepository implements ICommissionRepository {
     });
     return rows.length;
   }
+
+  async getNetworkAggregates(
+    managerId: string
+  ): Promise<Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>> {
+    // Single groupBy for the whole network — one query regardless of affiliate count (see interface doc comment).
+    const grouped = await prisma.commission.groupBy({
+      by: ["affiliateId", "sourceType"],
+      where: { managerId, affiliateId: { not: null } },
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    });
+
+    const result = new Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>();
+    for (const row of grouped) {
+      const affiliateId = row.affiliateId;
+      if (!affiliateId) continue;
+      const entry = result.get(affiliateId) ?? { paidToAffiliateCents: 0, keptByManagerCents: 0, ftdCount: 0 };
+      const amount = row._sum.amountCents ?? 0;
+      if (row.sourceType === "REVSHARE_DEPOSIT" || row.sourceType === "CPA_FTD") {
+        entry.paidToAffiliateCents += amount;
+        if (row.sourceType === "CPA_FTD") entry.ftdCount += row._count._all;
+      } else if (row.sourceType === "MANAGER_SPREAD") {
+        entry.keptByManagerCents += amount;
+      }
+      result.set(affiliateId, entry);
+    }
+    return result;
+  }
 }
 
 function buildWhere(filter: {
   affiliateId?: string;
   managerId?: string;
   status?: Commission["status"];
+  sourceType?: CommissionSourceType;
   originUserId?: string;
   from?: Date;
   to?: Date;
@@ -141,6 +175,7 @@ function buildWhere(filter: {
     ...(filter.affiliateId ? { affiliateId: filter.affiliateId } : {}),
     ...(filter.managerId ? { managerId: filter.managerId } : {}),
     ...(filter.status ? { status: filter.status } : {}),
+    ...(filter.sourceType ? { sourceType: filter.sourceType } : {}),
     ...(filter.originUserId ? { originUserId: filter.originUserId } : {}),
     ...(filter.from || filter.to
       ? { createdAt: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lte: filter.to } : {}) } }

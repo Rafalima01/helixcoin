@@ -212,6 +212,22 @@ describe("CommissionService — multi-level tree walk", () => {
       const managerBalance = await h.walletService.getBalance("manager-user");
       expect(affiliateBalance.main).toBe(5000); // 50%
       expect(managerBalance.main).toBe(2000); // 70% - 50% = 20% spread
+
+      // The MANAGER_SPREAD row now carries the triggering affiliate's id (previously always null) —
+      // this is what lets "Minha Rede" compute "quanto ficou para o gerente" per affiliate.
+      // Regression guard for the dedup-key collision this introduces: findByTriggerAffiliateLevel
+      // must also key on sourceType, or this MANAGER_SPREAD generate() call would false-positive
+      // match the affiliate's own REVSHARE_DEPOSIT row (same triggerId/affiliateId/level) and
+      // silently skip — which is exactly why managerBalance.main asserted above would be 0, not 2000,
+      // if that guard were missing.
+      const paidToAffiliate = await h.commissions.sumAmountCents({ affiliateId: affiliate.id, sourceType: "REVSHARE_DEPOSIT" });
+      const keptByManager = await h.commissions.sumAmountCents({ affiliateId: affiliate.id, sourceType: "MANAGER_SPREAD" });
+      expect(paidToAffiliate).toBe(5000);
+      expect(keptByManager).toBe(2000);
+
+      const { items } = await h.commissions.listAdmin({ affiliateId: affiliate.id, page: 1, pageSize: 10 });
+      const spreadRow = items.find((r) => r.sourceType === "MANAGER_SPREAD");
+      expect(spreadRow?.affiliateId).toBe(affiliate.id);
     });
 
     it("Manager 70% / Affiliate 70% (at the ceiling) → manager earns nothing extra", async () => {

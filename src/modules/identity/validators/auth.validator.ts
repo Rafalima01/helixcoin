@@ -37,6 +37,8 @@ export const registerSchema = z
     cpf: cpfSchema,
     referralCode: z.string().trim().optional().or(z.literal("")),
     affiliateLinkSlug: z.string().trim().optional().or(z.literal("")),
+    /** ManagerProfile.inviteCode from /affiliate-invite/{code} — see AuthController.handleRegister's assignManagerIfUnset() call. Independent of referralCode: a signup can carry both, neither, or just one. */
+    managerCode: z.string().trim().optional().or(z.literal("")),
     /** ?source= at signup — "demo" flags eligibility for the first-deposit bonus (see promotions.service.ts). */
     source: z.enum(["demo"]).optional(),
   })

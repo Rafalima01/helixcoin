@@ -6,9 +6,14 @@ vi.mock("@/server/notifications", () => ({
   NOTIFICATION_TYPES: { system: "system" },
 }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { managerProfile: { findUnique: vi.fn().mockResolvedValue(null) } },
+  prisma: {
+    managerProfile: { findUnique: vi.fn().mockResolvedValue(null) },
+    user: { findMany: vi.fn().mockResolvedValue([]) },
+    deposit: { findMany: vi.fn().mockResolvedValue([]) },
+  },
 }));
 
+import { prisma } from "@/lib/prisma";
 import { ManagerService } from "@/modules/manager/services/manager.service";
 import { InMemoryManagerRepository } from "@/modules/manager/repositories/manager.in-memory-repository";
 import { AffiliateService } from "@/modules/affiliate/services/affiliate.service";
@@ -138,5 +143,82 @@ describe("ManagerService", () => {
     const manager = await seedManager(managers, "manager-user-J");
     const updated = await service.updateCommission(manager.id, 12.5, ACTOR, META);
     expect(updated.commissionPercent).toBe(12.5);
+  });
+
+  it("getNetworkWithStats() splits deposits/active-players/commissions per affiliate, with one affiliate having zero traffic and another an FTD", async () => {
+    const { service, managers, affiliateService, commissions } = buildService();
+    const manager = await seedManager(managers, "manager-user-K");
+
+    const affiliate1 = await affiliateService.apply("affiliate-user-K1", {});
+    await affiliateService.assignManager(affiliate1.id, manager.id);
+    await affiliateService.decide(affiliate1.id, "APPROVE", undefined, ACTOR as never);
+
+    // Zero traffic on purpose — "alguns sem depósito" must show up as all-zero, not throw or get skipped.
+    const affiliate2 = await affiliateService.apply("affiliate-user-K2", {});
+    await affiliateService.assignManager(affiliate2.id, manager.id);
+    await affiliateService.decide(affiliate2.id, "APPROVE", undefined, ACTOR as never);
+
+    await commissions.create({
+      affiliateId: affiliate1.id,
+      payeeUserId: "affiliate-user-K1",
+      managerId: manager.id,
+      level: 1,
+      originUserId: "player-k-a",
+      sourceType: "REVSHARE_DEPOSIT",
+      triggerId: "dep-k-1",
+      amountCents: 500,
+      status: "AVAILABLE",
+    });
+    await commissions.create({
+      affiliateId: affiliate1.id,
+      payeeUserId: "affiliate-user-K1",
+      managerId: manager.id,
+      level: 1,
+      originUserId: "player-k-a",
+      sourceType: "CPA_FTD",
+      triggerId: "dep-k-1:cpa",
+      amountCents: 200,
+      status: "AVAILABLE",
+    });
+    await commissions.create({
+      affiliateId: affiliate1.id,
+      payeeUserId: "manager-user-K",
+      managerId: manager.id,
+      level: 1,
+      originUserId: "player-k-a",
+      sourceType: "MANAGER_SPREAD",
+      triggerId: "dep-k-1",
+      amountCents: 300,
+      status: "AVAILABLE",
+    });
+
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([
+      { referredById: "affiliate-user-K1", status: "ACTIVE" },
+      { referredById: "affiliate-user-K1", status: "PENDING" },
+    ] as never);
+    vi.mocked(prisma.deposit.findMany).mockResolvedValueOnce([
+      { amountCents: 3000, user: { referredById: "affiliate-user-K1" } },
+      { amountCents: 2000, user: { referredById: "affiliate-user-K1" } },
+    ] as never);
+
+    const { items, total } = await service.getNetworkWithStats(manager.id);
+    expect(total).toBe(2);
+
+    const row1 = items.find((r) => r.id === affiliate1.id)!;
+    expect(row1.depositTotalCents).toBe(5000);
+    expect(row1.activePlayers).toBe(1); // only the ACTIVE referral counts, not the PENDING one
+    expect(row1.ftdCount).toBe(1);
+    expect(row1.paidToAffiliateCents).toBe(700); // 500 REVSHARE_DEPOSIT + 200 CPA_FTD
+    expect(row1.keptByManagerCents).toBe(300);
+    expect(row1.commissionGeneratedCents).toBe(1000);
+    expect(row1.houseProfitCents).toBe(4000); // 5000 deposits - 1000 commission
+
+    const row2 = items.find((r) => r.id === affiliate2.id)!;
+    expect(row2.depositTotalCents).toBe(0);
+    expect(row2.activePlayers).toBe(0);
+    expect(row2.ftdCount).toBe(0);
+    expect(row2.paidToAffiliateCents).toBe(0);
+    expect(row2.keptByManagerCents).toBe(0);
+    expect(row2.houseProfitCents).toBe(0);
   });
 });

@@ -9,7 +9,13 @@ import { identityContainer } from "@/modules/identity/container";
 import type { AffiliateService, AffiliateDecisionAction, DecisionActor } from "@/modules/affiliate/services/affiliate.service";
 import type { ICommissionRepository } from "@/modules/affiliate/interfaces/commission-repository.interface";
 import type { IManagerRepository } from "@/modules/manager/interfaces/manager-repository.interface";
-import type { ManagerProfile, ManagerProfileAdminRow, ManagerDashboardStats, ManagerLinksData } from "@/modules/manager/entities/manager.entity";
+import type {
+  ManagerProfile,
+  ManagerProfileAdminRow,
+  ManagerDashboardStats,
+  ManagerLinksData,
+  AffiliateNetworkStatsRow,
+} from "@/modules/manager/entities/manager.entity";
 import type { ManagerProfileListFilter } from "@/modules/manager/interfaces/manager-repository.interface";
 import { zoneUrl } from "@/config/domains";
 
@@ -121,6 +127,66 @@ export class ManagerService {
 
   async listNetwork(managerId: string) {
     return this.affiliateService.listAdmin({ managerId, page: 1, pageSize: 100 });
+  }
+
+  /**
+   * "Minha Rede" with the full financial rollup per affiliate (see
+   * AffiliateNetworkStatsRow). Bounded query count regardless of network
+   * size — listNetwork() (1 query) + one Commission groupBy (1 query) +
+   * one User findMany + one Deposit findMany, both scoped to this
+   * network's userIds via a single IN clause, never one query per
+   * affiliate. Deposit/User totals are joined in application code because
+   * Prisma's groupBy can't group by a related model's field
+   * (User.referredById) directly.
+   */
+  async getNetworkWithStats(managerId: string): Promise<{ items: AffiliateNetworkStatsRow[]; total: number }> {
+    const { items, total } = await this.listNetwork(managerId);
+    if (items.length === 0) return { items: [], total: 0 };
+
+    const affiliateUserIds = items.map((a) => a.userId);
+
+    const [referredUsers, deposits, commissionAgg] = await Promise.all([
+      prisma.user.findMany({
+        where: { referredById: { in: affiliateUserIds } },
+        select: { referredById: true, status: true },
+      }),
+      prisma.deposit.findMany({
+        where: { status: "PAID", user: { referredById: { in: affiliateUserIds } } },
+        select: { amountCents: true, user: { select: { referredById: true } } },
+      }),
+      this.commissions.getNetworkAggregates(managerId),
+    ]);
+
+    const activeCountByReferrer = new Map<string, number>();
+    for (const u of referredUsers) {
+      if (u.status !== "ACTIVE" || !u.referredById) continue;
+      activeCountByReferrer.set(u.referredById, (activeCountByReferrer.get(u.referredById) ?? 0) + 1);
+    }
+
+    const depositTotalByReferrer = new Map<string, number>();
+    for (const d of deposits) {
+      const referrerId = d.user.referredById;
+      if (!referrerId) continue;
+      depositTotalByReferrer.set(referrerId, (depositTotalByReferrer.get(referrerId) ?? 0) + d.amountCents);
+    }
+
+    const statsRows: AffiliateNetworkStatsRow[] = items.map((affiliate) => {
+      const agg = commissionAgg.get(affiliate.id) ?? { paidToAffiliateCents: 0, keptByManagerCents: 0, ftdCount: 0 };
+      const depositTotalCents = depositTotalByReferrer.get(affiliate.userId) ?? 0;
+      const commissionGeneratedCents = agg.paidToAffiliateCents + agg.keptByManagerCents;
+      return {
+        ...affiliate,
+        depositTotalCents,
+        activePlayers: activeCountByReferrer.get(affiliate.userId) ?? 0,
+        ftdCount: agg.ftdCount,
+        commissionGeneratedCents,
+        paidToAffiliateCents: agg.paidToAffiliateCents,
+        keptByManagerCents: agg.keptByManagerCents,
+        houseProfitCents: depositTotalCents - commissionGeneratedCents,
+      };
+    });
+
+    return { items: statsRows, total };
   }
 
   async getNetworkAffiliate(managerId: string, affiliateId: string) {

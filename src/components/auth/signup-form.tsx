@@ -48,6 +48,7 @@ export function SignupForm() {
       // decluttered signup (nome/sobrenome/telefone/cpf/senha only).
       referralCode: searchParams.get("ref") ?? "",
       affiliateLinkSlug: searchParams.get("l") ?? "",
+      managerCode: searchParams.get("managerCode") ?? "",
       terms: false,
     },
   });
@@ -66,6 +67,7 @@ export function SignupForm() {
           cpf: data.cpf,
           referralCode: data.referralCode,
           affiliateLinkSlug: data.affiliateLinkSlug,
+          managerCode: data.managerCode,
           source: searchParams.get("source") === "demo" ? "demo" : undefined,
         }),
       });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ManagerProfileDto, ManagerDashboardDto, ManagerLinksDto } from "@/modules/manager/dto/manager.dto";
+import type { ManagerProfileDto, ManagerDashboardDto, ManagerLinksDto, AffiliateNetworkStatsDto } from "@/modules/manager/dto/manager.dto";
 import type { AffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
 import type { AffiliateDecisionAction } from "@/modules/affiliate/services/affiliate.service";
 
@@ -62,7 +62,7 @@ export function useDecideApproval() {
 export function useManagerNetwork() {
   return useQuery({
     queryKey: MANAGER_NETWORK_QUERY_KEY,
-    queryFn: () => envelopeFetch<AffiliateProfileAdminDto[]>("/api/manager/network"),
+    queryFn: () => envelopeFetch<AffiliateNetworkStatsDto[]>("/api/manager/network"),
   });
 }
 

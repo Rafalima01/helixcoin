@@ -103,7 +103,7 @@ export class CommissionService {
       }
 
       if (level === 1 && affiliate.managerId) {
-        await this.generateManagerSpreadForAffiliate(affiliate.managerId, percent, payload, settings);
+        await this.generateManagerSpreadForAffiliate(affiliate.managerId, affiliate.id, percent, payload, settings);
       }
 
       if (level === 1 && isFtd) {
@@ -159,9 +159,17 @@ export class CommissionService {
     });
   }
 
-  /** The affiliate at level 1 belongs to a Manager — the Manager earns the remainder up to their ceiling, on top of what the affiliate just earned. */
+  /**
+   * The affiliate at level 1 belongs to a Manager — the Manager earns the
+   * remainder up to their ceiling, on top of what the affiliate just earned.
+   * `affiliateId` tags this MANAGER_SPREAD row with the affiliate that
+   * triggered it (previously always null here) — lets "Minha Rede" compute
+   * "quanto ficou para o gerente" per affiliate without a schema change,
+   * since Commission.affiliateId was always nullable for exactly this case.
+   */
   private async generateManagerSpreadForAffiliate(
     managerId: string,
+    affiliateId: string,
     affiliatePercent: number,
     payload: DepositEventPayload,
     settings: { autoApproveCommissions: boolean }
@@ -176,7 +184,7 @@ export class CommissionService {
 
     await this.generate({
       payeeUserId: manager.userId,
-      affiliateId: null,
+      affiliateId,
       managerId: manager.id,
       level: 1,
       originUserId: payload.userId,
@@ -227,7 +235,8 @@ export class CommissionService {
     const existing = await this.commissions.findByTriggerAffiliateLevel(
       input.isCpa ? `${input.triggerId}:cpa` : input.triggerId,
       input.affiliateId,
-      input.level
+      input.level,
+      input.sourceType
     );
     if (existing) return existing;
 

@@ -5,7 +5,7 @@ import { ForbiddenError } from "@/server/errors";
 import { extractRequestMeta } from "@/server/audit";
 import { identityContainer } from "@/modules/identity/container";
 import { managerContainer } from "@/modules/manager/container";
-import { toManagerProfileDto, toManagerProfileAdminDto } from "@/modules/manager/dto/manager.dto";
+import { toManagerProfileDto, toManagerProfileAdminDto, toAffiliateNetworkStatsDto } from "@/modules/manager/dto/manager.dto";
 import { toAffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
 import { decideAffiliateApplicationSchema } from "@/modules/affiliate/validators/affiliate.validator";
 import {
@@ -56,8 +56,8 @@ export async function handleDecideApproval(req: NextRequest, auth: AuthContext, 
 
 export async function handleListMyNetwork(_req: NextRequest, auth: AuthContext) {
   const profile = await managerService.getByUserId(auth.userId);
-  const { items, total } = await managerService.listNetwork(profile.id);
-  return ok(items.map(toAffiliateProfileAdminDto), { total });
+  const { items, total } = await managerService.getNetworkWithStats(profile.id);
+  return ok(items.map(toAffiliateNetworkStatsDto), { total });
 }
 
 export async function handleGetMyNetworkAffiliate(_req: NextRequest, auth: AuthContext, affiliateId: string) {

@@ -1377,10 +1377,10 @@ export const openApiSpec = {
     "/manager/network": {
       get: {
         tags: ["Manager"],
-        summary: "List every affiliate in the caller's own network",
+        summary: "List every affiliate in the caller's own network, with the per-affiliate financial rollup",
         security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         responses: {
-          "200": { description: "OK", content: { "application/json": { schema: dataEnvelope({ type: "array", items: { $ref: "#/components/schemas/AffiliateProfileAdmin" } }) } } },
+          "200": { description: "OK", content: { "application/json": { schema: dataEnvelope({ type: "array", items: { $ref: "#/components/schemas/AffiliateNetworkStats" } }) } } },
           "401": errorResponse("Not authenticated"),
           "403": errorResponse("Not a manager"),
         },
@@ -2263,6 +2263,25 @@ export const openApiSpec = {
               blockedAt: { type: "string", format: "date-time", nullable: true },
               commissionPercent: { type: "number", nullable: true, description: "0-100, null = using the global/level default. Set by a Manager via PATCH /manager/network/{id}/commission — never above their own ceiling." },
               updatedAt: { type: "string", format: "date-time" },
+            },
+          },
+        ],
+      },
+      AffiliateNetworkStats: {
+        type: "object",
+        description: "AffiliateNetworkStatsDto — AffiliateProfileAdmin plus the per-affiliate financial rollup shown in \"Minha Rede\", derived from Deposit/User/Commission (no new stored data).",
+        allOf: [
+          { $ref: "#/components/schemas/AffiliateProfileAdmin" },
+          {
+            type: "object",
+            properties: {
+              depositTotalCents: { type: "integer", description: "Sum of confirmed (PAID) deposits from this affiliate's direct referrals." },
+              activePlayers: { type: "integer", description: "Count of this affiliate's direct referrals with User.status ACTIVE." },
+              ftdCount: { type: "integer", description: "Count of CPA_FTD commission rows earned by this affiliate." },
+              commissionGeneratedCents: { type: "integer", description: "paidToAffiliateCents + keptByManagerCents." },
+              paidToAffiliateCents: { type: "integer", description: "REVSHARE_DEPOSIT + CPA_FTD credited to the affiliate themselves." },
+              keptByManagerCents: { type: "integer", description: "MANAGER_SPREAD credited to the manager, tagged with this affiliateId." },
+              houseProfitCents: { type: "integer", description: "depositTotalCents - commissionGeneratedCents." },
             },
           },
         ],

@@ -1,3 +1,5 @@
+import type { AffiliateProfileAdminRow } from "@/modules/affiliate/entities/affiliate.entity";
+
 export type ManagerProfileStatus = "ACTIVE" | "PENDING";
 
 /** Domain entity — a thin extension of User (role MANAGER). Zero financial/platform data lives here or anywhere in this module — see AGENTS.md Phase 8 decision. */
@@ -42,6 +44,29 @@ export interface ManagerLinksData {
   platformLink: ManagerLinkStats;
   /** "Convidar Afiliados" — /affiliate-invite/{inviteCode}, recruits affiliates only. */
   inviteLink: ManagerLinkStats & { code: string };
+}
+
+/**
+ * "Minha Rede" row — AffiliateProfileAdminRow plus the financial rollup the
+ * manager needs per affiliate. Every field here is derived from the
+ * EXISTING Deposit/User/Commission tables (see ManagerService.getNetworkWithStats)
+ * — nothing new is stored.
+ */
+export interface AffiliateNetworkStatsRow extends AffiliateProfileAdminRow {
+  /** Sum of confirmed (PAID) deposits from this affiliate's direct referrals. */
+  depositTotalCents: number;
+  /** Count of this affiliate's direct referrals with User.status ACTIVE. */
+  activePlayers: number;
+  /** Count of CPA_FTD commission rows earned by this affiliate. */
+  ftdCount: number;
+  /** paidToAffiliateCents + keptByManagerCents. */
+  commissionGeneratedCents: number;
+  /** REVSHARE_DEPOSIT + CPA_FTD credited to the affiliate themselves. */
+  paidToAffiliateCents: number;
+  /** MANAGER_SPREAD credited to the manager, tagged with this affiliateId. */
+  keptByManagerCents: number;
+  /** depositTotalCents - commissionGeneratedCents. */
+  houseProfitCents: number;
 }
 
 /** The Manager dashboard's KPI rollup — computed entirely from src/modules/affiliate's Commission/AffiliateProfile tables (read-only, via affiliateContainer), never from Wallet/Ledger. */

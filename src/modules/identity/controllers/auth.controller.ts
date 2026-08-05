@@ -48,6 +48,15 @@ export async function handleRegister(req: NextRequest) {
   // the "Indique" tab if this call is ever skipped or races a cold start.
   await affiliateContainer.affiliateService.autoEnroll(user.id).catch(() => {});
 
+  // Atomic manager attribution for the "Convidar Afiliados" flow (see
+  // /affiliate-invite/[code]/route.ts) — mirrors the best-effort,
+  // never-block-signup pattern of autoEnroll() above. assignManagerIfUnset()
+  // itself is a no-op if the code doesn't resolve or the profile already has
+  // a manager (first-touch wins), so this is safe to call unconditionally.
+  if (body.managerCode) {
+    await affiliateContainer.affiliateService.assignManagerIfUnset(user.id, body.managerCode).catch(() => {});
+  }
+
   return created({ user: toUserResponseDto(user) });
 }
 

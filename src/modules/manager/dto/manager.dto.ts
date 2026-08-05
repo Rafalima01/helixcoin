@@ -1,4 +1,11 @@
-import type { ManagerProfile, ManagerProfileAdminRow, ManagerDashboardStats, ManagerLinksData } from "@/modules/manager/entities/manager.entity";
+import type {
+  ManagerProfile,
+  ManagerProfileAdminRow,
+  ManagerDashboardStats,
+  ManagerLinksData,
+  AffiliateNetworkStatsRow,
+} from "@/modules/manager/entities/manager.entity";
+import { toAffiliateProfileAdminDto, type AffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
 
 export interface ManagerProfileDto {
   id: string;
@@ -48,3 +55,27 @@ export function toManagerProfileAdminDto(row: ManagerProfileAdminRow): ManagerPr
 
 export type ManagerDashboardDto = ManagerDashboardStats;
 export type ManagerLinksDto = ManagerLinksData;
+
+/** "Minha Rede" row — the affiliate's admin card plus the financial rollup (see AffiliateNetworkStatsRow). */
+export interface AffiliateNetworkStatsDto extends AffiliateProfileAdminDto {
+  depositTotalCents: number;
+  activePlayers: number;
+  ftdCount: number;
+  commissionGeneratedCents: number;
+  paidToAffiliateCents: number;
+  keptByManagerCents: number;
+  houseProfitCents: number;
+}
+
+export function toAffiliateNetworkStatsDto(row: AffiliateNetworkStatsRow): AffiliateNetworkStatsDto {
+  return {
+    ...toAffiliateProfileAdminDto(row),
+    depositTotalCents: row.depositTotalCents,
+    activePlayers: row.activePlayers,
+    ftdCount: row.ftdCount,
+    commissionGeneratedCents: row.commissionGeneratedCents,
+    paidToAffiliateCents: row.paidToAffiliateCents,
+    keptByManagerCents: row.keptByManagerCents,
+    houseProfitCents: row.houseProfitCents,
+  };
+}

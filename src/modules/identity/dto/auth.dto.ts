@@ -7,6 +7,8 @@ export interface RegisterInput {
   referralCode?: string;
   /** Phase 8 — optional AffiliateLink slug from `/r/{code}?l={slug}`, analytics-only. */
   affiliateLinkSlug?: string;
+  /** ManagerProfile.inviteCode from `/affiliate-invite/{code}` — atomically links the new user to that manager as an affiliate at signup, see AuthController.handleRegister. */
+  managerCode?: string;
   /** Fase Demo — "demo" when signup came from the ?source=demo flow (see promotions.service.ts). */
   source?: "demo";
 }
