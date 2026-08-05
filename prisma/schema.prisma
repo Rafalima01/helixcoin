@@ -1373,6 +1373,10 @@ model Commission {
   @@index([originUserId])
   @@index([triggerId])
   @@index([payeeUserId])
+  /// Backs ManagerService.getDashboard's sumAmountCents({managerId}) and
+  /// getNetworkWithStats's getNetworkAggregates({managerId}) groupBy — both
+  /// filter by managerId alone, which had no covering index before this.
+  @@index([managerId])
 }
 
 /// Single global row (id "global"), same pattern as GameConfig/

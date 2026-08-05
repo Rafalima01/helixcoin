@@ -19,8 +19,10 @@ import {
 import { ValidationError } from "@/server/errors";
 import { identityContainer } from "@/modules/identity/container";
 import { affiliateContainer } from "@/modules/affiliate/container";
+import { createChildLogger } from "@/server/logger";
 
 const { authService, userManagementService } = identityContainer;
+const logger = createChildLogger({ module: "auth.controller" });
 
 export async function handleRegister(req: NextRequest) {
   const body = registerSchema.parse(await req.json());
@@ -50,11 +52,16 @@ export async function handleRegister(req: NextRequest) {
 
   // Atomic manager attribution for the "Convidar Afiliados" flow (see
   // /affiliate-invite/[code]/route.ts) — mirrors the best-effort,
-  // never-block-signup pattern of autoEnroll() above. assignManagerIfUnset()
-  // itself is a no-op if the code doesn't resolve or the profile already has
-  // a manager (first-touch wins), so this is safe to call unconditionally.
+  // never-block-signup pattern of autoEnroll() above. Unlike autoEnroll,
+  // there is NO self-heal path for this one (handleGetMyAffiliateProfile
+  // only re-runs autoEnroll, never assignManagerIfUnset) — managerCode isn't
+  // persisted anywhere past this request, so a swallowed failure here loses
+  // the attribution permanently. Logged (not just swallowed) so it's at
+  // least traceable/reconcilable by an admin instead of vanishing silently.
   if (body.managerCode) {
-    await affiliateContainer.affiliateService.assignManagerIfUnset(user.id, body.managerCode).catch(() => {});
+    await affiliateContainer.affiliateService.assignManagerIfUnset(user.id, body.managerCode).catch((err) => {
+      logger.error({ err, userId: user.id, managerCode: body.managerCode }, "assignManagerIfUnset failed at signup — manager attribution lost");
+    });
   }
 
   return created({ user: toUserResponseDto(user) });
