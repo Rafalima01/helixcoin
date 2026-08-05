@@ -130,12 +130,25 @@ export class ManagerService {
   }
 
   /**
-   * "Minha Rede" with the full financial rollup per affiliate (see
+   * "Minha Rede" with the full rollup per affiliate (see
    * AffiliateNetworkStatsRow). Bounded query count regardless of network
-   * size — listNetwork() (1 query) + one Commission groupBy (1 query) +
-   * one User findMany + one Deposit findMany, both scoped to this
+   * size — listNetwork() (1 query) + one User groupBy (1 query) + one
+   * Deposit findMany + one Commission groupBy, all scoped to this
    * network's userIds via a single IN clause, never one query per
-   * affiliate. Deposit/User totals are joined in application code because
+   * affiliate.
+   *
+   * `playersReferredCount` counts EVERY direct referral
+   * (User.referredById == the affiliate's userId), not just ones with a
+   * deposit or a particular User.status — a brand-new signup through the
+   * affiliate's own /r/{code} link must show up here immediately, the same
+   * instant `referredById` is set at registration. An earlier version
+   * filtered by `status: "ACTIVE"`, but no normal player signup flow ever
+   * sets that status (it defaults to PENDING and nothing transitions it),
+   * so that filter always evaluated to zero — every referred player looked
+   * invisible in "Minha Rede" even though the attribution itself was
+   * working correctly.
+   *
+   * Deposit totals are joined in application code (not a groupBy) because
    * Prisma's groupBy can't group by a related model's field
    * (User.referredById) directly.
    */
@@ -145,10 +158,11 @@ export class ManagerService {
 
     const affiliateUserIds = items.map((a) => a.userId);
 
-    const [referredUsers, deposits, commissionAgg] = await Promise.all([
-      prisma.user.findMany({
+    const [referredCounts, deposits, commissionAgg] = await Promise.all([
+      prisma.user.groupBy({
+        by: ["referredById"],
         where: { referredById: { in: affiliateUserIds } },
-        select: { referredById: true, status: true },
+        _count: { _all: true },
       }),
       prisma.deposit.findMany({
         where: { status: "PAID", user: { referredById: { in: affiliateUserIds } } },
@@ -157,10 +171,10 @@ export class ManagerService {
       this.commissions.getNetworkAggregates(managerId),
     ]);
 
-    const activeCountByReferrer = new Map<string, number>();
-    for (const u of referredUsers) {
-      if (u.status !== "ACTIVE" || !u.referredById) continue;
-      activeCountByReferrer.set(u.referredById, (activeCountByReferrer.get(u.referredById) ?? 0) + 1);
+    const referredCountByReferrer = new Map<string, number>();
+    for (const row of referredCounts) {
+      if (!row.referredById) continue;
+      referredCountByReferrer.set(row.referredById, row._count._all);
     }
 
     const depositTotalByReferrer = new Map<string, number>();
@@ -172,17 +186,13 @@ export class ManagerService {
 
     const statsRows: AffiliateNetworkStatsRow[] = items.map((affiliate) => {
       const agg = commissionAgg.get(affiliate.id) ?? { paidToAffiliateCents: 0, keptByManagerCents: 0, ftdCount: 0 };
-      const depositTotalCents = depositTotalByReferrer.get(affiliate.userId) ?? 0;
-      const commissionGeneratedCents = agg.paidToAffiliateCents + agg.keptByManagerCents;
       return {
         ...affiliate,
-        depositTotalCents,
-        activePlayers: activeCountByReferrer.get(affiliate.userId) ?? 0,
+        playersReferredCount: referredCountByReferrer.get(affiliate.userId) ?? 0,
         ftdCount: agg.ftdCount,
-        commissionGeneratedCents,
+        depositTotalCents: depositTotalByReferrer.get(affiliate.userId) ?? 0,
         paidToAffiliateCents: agg.paidToAffiliateCents,
         keptByManagerCents: agg.keptByManagerCents,
-        houseProfitCents: depositTotalCents - commissionGeneratedCents,
       };
     });
 
@@ -195,30 +205,47 @@ export class ManagerService {
     return affiliate;
   }
 
-  /** Every number here comes from src/modules/affiliate's Commission table — never Wallet/Ledger, per the "Manager has zero financial visibility" decision. */
+  /**
+   * Every number here comes from src/modules/affiliate's Commission table —
+   * never Wallet/Ledger, per the "Manager has zero financial visibility"
+   * decision. Each period is split into paid-to-affiliates vs
+   * kept-by-manager (never a single blended "commission total") — see
+   * ManagerDashboardStats' doc comment for why a blended total is unsafe to
+   * show. `paid = periodTotal - spread` reuses the existing per-period
+   * total query instead of adding a second REVSHARE_DEPOSIT+CPA_FTD query.
+   */
   async getDashboard(managerId: string): Promise<ManagerDashboardStats> {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const [active, pending, total, today, last7d, last30d] = await Promise.all([
-      this.affiliateService.listAdmin({ managerId, status: "APPROVED", page: 1, pageSize: 1 }),
-      this.affiliateService.listAdmin({ managerId, status: "PENDING", page: 1, pageSize: 1 }),
-      this.commissions.sumAmountCents({ managerId }),
-      this.commissions.sumAmountCents({ managerId, from: startOfToday }),
-      this.commissions.sumAmountCents({ managerId, from: sevenDaysAgo }),
-      this.commissions.sumAmountCents({ managerId, from: thirtyDaysAgo }),
-    ]);
+    const [active, pending, totalAll, totalToday, total7d, total30d, spreadAll, spreadToday, spread7d, spread30d] =
+      await Promise.all([
+        this.affiliateService.listAdmin({ managerId, status: "APPROVED", page: 1, pageSize: 1 }),
+        this.affiliateService.listAdmin({ managerId, status: "PENDING", page: 1, pageSize: 1 }),
+        this.commissions.sumAmountCents({ managerId }),
+        this.commissions.sumAmountCents({ managerId, from: startOfToday }),
+        this.commissions.sumAmountCents({ managerId, from: sevenDaysAgo }),
+        this.commissions.sumAmountCents({ managerId, from: thirtyDaysAgo }),
+        this.commissions.sumAmountCents({ managerId, sourceType: "MANAGER_SPREAD" }),
+        this.commissions.sumAmountCents({ managerId, sourceType: "MANAGER_SPREAD", from: startOfToday }),
+        this.commissions.sumAmountCents({ managerId, sourceType: "MANAGER_SPREAD", from: sevenDaysAgo }),
+        this.commissions.sumAmountCents({ managerId, sourceType: "MANAGER_SPREAD", from: thirtyDaysAgo }),
+      ]);
 
     return {
       affiliatesActive: active.total,
       affiliatesPending: pending.total,
       playersReferred: 0, // requires a network-wide referredById count — deferred, see admin/manager network screen for per-affiliate detail instead
-      commissionTotalCents: total,
-      commissionTodayCents: today,
-      commission7dCents: last7d,
-      commission30dCents: last30d,
+      keptByManagerTodayCents: spreadToday,
+      paidToAffiliatesTodayCents: totalToday - spreadToday,
+      keptByManager7dCents: spread7d,
+      paidToAffiliates7dCents: total7d - spread7d,
+      keptByManager30dCents: spread30d,
+      paidToAffiliates30dCents: total30d - spread30d,
+      keptByManagerTotalCents: spreadAll,
+      paidToAffiliatesTotalCents: totalAll - spreadAll,
     };
   }
 

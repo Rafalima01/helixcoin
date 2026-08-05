@@ -11,11 +11,18 @@ import { formatCurrency } from "@/lib/utils";
 export function ManagerCommissionsScreen() {
   const { data, isLoading } = useManagerDashboard();
 
-  const periods = [
-    { label: "Hoje", cents: data?.commissionTodayCents ?? 0 },
-    { label: "Últimos 7 dias", cents: data?.commission7dCents ?? 0 },
-    { label: "Últimos 30 dias", cents: data?.commission30dCents ?? 0 },
-    { label: "Total acumulado", cents: data?.commissionTotalCents ?? 0 },
+  const paidToAffiliates = [
+    { label: "Hoje", cents: data?.paidToAffiliatesTodayCents ?? 0 },
+    { label: "Últimos 7 dias", cents: data?.paidToAffiliates7dCents ?? 0 },
+    { label: "Últimos 30 dias", cents: data?.paidToAffiliates30dCents ?? 0 },
+    { label: "Total acumulado", cents: data?.paidToAffiliatesTotalCents ?? 0 },
+  ];
+
+  const keptByManager = [
+    { label: "Hoje", cents: data?.keptByManagerTodayCents ?? 0 },
+    { label: "Últimos 7 dias", cents: data?.keptByManager7dCents ?? 0 },
+    { label: "Últimos 30 dias", cents: data?.keptByManager30dCents ?? 0 },
+    { label: "Total acumulado", cents: data?.keptByManagerTotalCents ?? 0 },
   ];
 
   return (
@@ -35,22 +42,46 @@ export function ManagerCommissionsScreen() {
         </p>
       </Card>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {periods.map((p) => (
-          <Card key={p.label} className="p-5 flex flex-col gap-3">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-green/15 text-green">
-              <Coins className="size-4" />
-            </span>
-            {isLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <p className="text-2xl font-extrabold tabular-nums">
-                <AnimatedNumber value={centsToReais(p.cents)} format={formatCurrency} />
-              </p>
-            )}
-            <p className="text-sm text-text-secondary">{p.label}</p>
-          </Card>
-        ))}
+      <div>
+        <h2 className="font-bold text-lg mb-3">Pago aos afiliados</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {paidToAffiliates.map((p) => (
+            <Card key={p.label} className="p-5 flex flex-col gap-3">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-green/15 text-green">
+                <Coins className="size-4" />
+              </span>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <p className="text-2xl font-extrabold tabular-nums">
+                  <AnimatedNumber value={centsToReais(p.cents)} format={formatCurrency} />
+                </p>
+              )}
+              <p className="text-sm text-text-secondary">{p.label}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="font-bold text-lg mb-3">Recebido por você</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {keptByManager.map((p) => (
+            <Card key={p.label} className="p-5 flex flex-col gap-3">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-purple/15 text-purple">
+                <Coins className="size-4" />
+              </span>
+              {isLoading ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <p className="text-2xl font-extrabold tabular-nums">
+                  <AnimatedNumber value={centsToReais(p.cents)} format={formatCurrency} />
+                </p>
+              )}
+              <p className="text-sm text-text-secondary">{p.label}</p>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

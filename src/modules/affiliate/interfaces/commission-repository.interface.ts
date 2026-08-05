@@ -26,6 +26,8 @@ export interface UpdateCommissionInput {
 export interface CommissionListFilter {
   affiliateId?: string;
   managerId?: string;
+  /** Who the wallet credit actually went to — see Commission.payeeUserId's doc comment. Use this (not affiliateId alone) for an affiliate's own self-view, since a MANAGER_SPREAD row can carry the SAME affiliateId as the affiliate's own REVSHARE_DEPOSIT row while paying a different person (the manager). */
+  payeeUserId?: string;
   status?: CommissionStatus;
   originUserId?: string;
   from?: Date;
@@ -37,6 +39,8 @@ export interface CommissionListFilter {
 export interface CommissionAggregateFilter {
   affiliateId?: string;
   managerId?: string;
+  /** Who the wallet credit actually went to — see CommissionListFilter.payeeUserId's doc comment for why this matters. */
+  payeeUserId?: string;
   status?: CommissionStatus;
   sourceType?: CommissionSourceType;
   from?: Date;
@@ -71,14 +75,21 @@ export interface ICommissionRepository {
   countConfirmedDeposits(affiliateId: string): Promise<number>;
   /**
    * Network-wide commission rollup for "Minha Rede", keyed by affiliateId —
-   * ONE query for the whole network regardless of how many affiliates it
-   * has (no per-affiliate round trip). `paidToAffiliateCents` sums
+   * a fixed, small number of queries regardless of how many affiliates the
+   * network has (no per-affiliate round trip). `paidToAffiliateCents` sums
    * REVSHARE_DEPOSIT+CPA_FTD (what the affiliate themselves earned);
    * `keptByManagerCents` sums MANAGER_SPREAD rows tagged with that
    * affiliateId (what the manager kept from that affiliate's traffic, see
-   * generateManagerSpreadForAffiliate); `ftdCount` counts CPA_FTD rows.
-   * Excludes MANAGER_SPREAD rows with a null affiliateId (the manager's own
-   * platform-link spread — not attributable to any affiliate).
+   * generateManagerSpreadForAffiliate); `ftdCount` counts distinct deposits
+   * (triggerId) that generated a level-1 REVSHARE_DEPOSIT row for that
+   * affiliate — same "confirmed deposits" definition as
+   * countConfirmedDeposits(), so this number matches what the affiliate
+   * themselves sees on their own dashboard. NOT a count of CPA_FTD rows —
+   * those only exist when a CPA bonus amount is configured (0 by default),
+   * so counting them would show 0 FTDs even when players have actually
+   * made their first deposit. Excludes MANAGER_SPREAD rows with a null
+   * affiliateId (the manager's own platform-link spread — not attributable
+   * to any affiliate).
    */
   getNetworkAggregates(managerId: string): Promise<Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>>;
 }

@@ -56,26 +56,22 @@ export function toManagerProfileAdminDto(row: ManagerProfileAdminRow): ManagerPr
 export type ManagerDashboardDto = ManagerDashboardStats;
 export type ManagerLinksDto = ManagerLinksData;
 
-/** "Minha Rede" row — the affiliate's admin card plus the financial rollup (see AffiliateNetworkStatsRow). */
+/** "Minha Rede" row — the affiliate's admin card plus the network rollup (see AffiliateNetworkStatsRow). No house-margin field by design — a Manager never sees platform-level profit. */
 export interface AffiliateNetworkStatsDto extends AffiliateProfileAdminDto {
-  depositTotalCents: number;
-  activePlayers: number;
+  playersReferredCount: number;
   ftdCount: number;
-  commissionGeneratedCents: number;
+  depositTotalCents: number;
   paidToAffiliateCents: number;
   keptByManagerCents: number;
-  houseProfitCents: number;
 }
 
 export function toAffiliateNetworkStatsDto(row: AffiliateNetworkStatsRow): AffiliateNetworkStatsDto {
   return {
     ...toAffiliateProfileAdminDto(row),
-    depositTotalCents: row.depositTotalCents,
-    activePlayers: row.activePlayers,
+    playersReferredCount: row.playersReferredCount,
     ftdCount: row.ftdCount,
-    commissionGeneratedCents: row.commissionGeneratedCents,
+    depositTotalCents: row.depositTotalCents,
     paidToAffiliateCents: row.paidToAffiliateCents,
     keptByManagerCents: row.keptByManagerCents,
-    houseProfitCents: row.houseProfitCents,
   };
 }

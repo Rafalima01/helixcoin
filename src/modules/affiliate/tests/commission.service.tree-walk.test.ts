@@ -228,6 +228,16 @@ describe("CommissionService — multi-level tree walk", () => {
       const { items } = await h.commissions.listAdmin({ affiliateId: affiliate.id, page: 1, pageSize: 10 });
       const spreadRow = items.find((r) => r.sourceType === "MANAGER_SPREAD");
       expect(spreadRow?.affiliateId).toBe(affiliate.id);
+
+      // Regression guard: the affiliate's OWN dashboard/history (handleGetAffiliateDashboard,
+      // handleListMyCommissions) filters by { affiliateId, payeeUserId: auth.userId } — never
+      // affiliateId alone. Filtering by affiliateId alone here (as those handlers did before this
+      // fix) would incorrectly include the manager's MANAGER_SPREAD row, since it now shares this
+      // same affiliateId — showing the affiliate money that was actually paid to their manager.
+      const ownedByAffiliate = await h.commissions.sumAmountCents({ affiliateId: affiliate.id, payeeUserId: "affiliate-user" });
+      const ownedByManager = await h.commissions.sumAmountCents({ affiliateId: affiliate.id, payeeUserId: "manager-user" });
+      expect(ownedByAffiliate).toBe(5000); // only the affiliate's own REVSHARE_DEPOSIT
+      expect(ownedByManager).toBe(2000); // only the manager's MANAGER_SPREAD
     });
 
     it("Manager 70% / Affiliate 70% (at the ceiling) → manager earns nothing extra", async () => {

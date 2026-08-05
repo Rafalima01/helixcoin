@@ -136,13 +136,19 @@ export class PrismaCommissionRepository implements ICommissionRepository {
   async getNetworkAggregates(
     managerId: string
   ): Promise<Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>> {
-    // Single groupBy for the whole network — one query regardless of affiliate count (see interface doc comment).
-    const grouped = await prisma.commission.groupBy({
-      by: ["affiliateId", "sourceType"],
-      where: { managerId, affiliateId: { not: null } },
-      _sum: { amountCents: true },
-      _count: { _all: true },
-    });
+    // Two groupBys for the whole network — fixed query count regardless of affiliate count (see interface doc comment).
+    const [grouped, depositGroups] = await Promise.all([
+      prisma.commission.groupBy({
+        by: ["affiliateId", "sourceType"],
+        where: { managerId, affiliateId: { not: null } },
+        _sum: { amountCents: true },
+      }),
+      // One row per (affiliateId, triggerId) pair — counting rows per affiliateId below gives the distinct-deposit count.
+      prisma.commission.groupBy({
+        by: ["affiliateId", "triggerId"],
+        where: { managerId, affiliateId: { not: null }, level: 1, sourceType: "REVSHARE_DEPOSIT" },
+      }),
+    ]);
 
     const result = new Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>();
     for (const row of grouped) {
@@ -152,10 +158,16 @@ export class PrismaCommissionRepository implements ICommissionRepository {
       const amount = row._sum.amountCents ?? 0;
       if (row.sourceType === "REVSHARE_DEPOSIT" || row.sourceType === "CPA_FTD") {
         entry.paidToAffiliateCents += amount;
-        if (row.sourceType === "CPA_FTD") entry.ftdCount += row._count._all;
       } else if (row.sourceType === "MANAGER_SPREAD") {
         entry.keptByManagerCents += amount;
       }
+      result.set(affiliateId, entry);
+    }
+    for (const row of depositGroups) {
+      const affiliateId = row.affiliateId;
+      if (!affiliateId) continue;
+      const entry = result.get(affiliateId) ?? { paidToAffiliateCents: 0, keptByManagerCents: 0, ftdCount: 0 };
+      entry.ftdCount += 1;
       result.set(affiliateId, entry);
     }
     return result;
@@ -165,6 +177,7 @@ export class PrismaCommissionRepository implements ICommissionRepository {
 function buildWhere(filter: {
   affiliateId?: string;
   managerId?: string;
+  payeeUserId?: string;
   status?: Commission["status"];
   sourceType?: CommissionSourceType;
   originUserId?: string;
@@ -174,6 +187,7 @@ function buildWhere(filter: {
   return {
     ...(filter.affiliateId ? { affiliateId: filter.affiliateId } : {}),
     ...(filter.managerId ? { managerId: filter.managerId } : {}),
+    ...(filter.payeeUserId ? { payeeUserId: filter.payeeUserId } : {}),
     ...(filter.status ? { status: filter.status } : {}),
     ...(filter.sourceType ? { sourceType: filter.sourceType } : {}),
     ...(filter.originUserId ? { originUserId: filter.originUserId } : {}),

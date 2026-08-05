@@ -115,13 +115,11 @@ const fakeAffiliateRow = {
 
 const fakeNetworkStatsRow = {
   ...fakeAffiliateRow,
-  depositTotalCents: 5000,
-  activePlayers: 1,
+  playersReferredCount: 2,
   ftdCount: 1,
-  commissionGeneratedCents: 1000,
+  depositTotalCents: 5000,
   paidToAffiliateCents: 700,
   keptByManagerCents: 300,
-  houseProfitCents: 4000,
 };
 
 describe("/api/manager routes (integration)", () => {
@@ -163,21 +161,27 @@ describe("/api/manager routes (integration)", () => {
   });
 
   describe("GET /api/manager/dashboard", () => {
-    it("200s with aggregated, financial-data-free stats", async () => {
+    it("200s with aggregated, financial-data-free stats, split into paid-to-affiliates vs kept-by-manager", async () => {
       getDashboardMock.mockResolvedValue({
         affiliatesActive: 2,
         affiliatesPending: 1,
         playersReferred: 0,
-        commissionTotalCents: 5000,
-        commissionTodayCents: 0,
-        commission7dCents: 0,
-        commission30dCents: 5000,
+        paidToAffiliatesTodayCents: 0,
+        keptByManagerTodayCents: 0,
+        paidToAffiliates7dCents: 0,
+        keptByManager7dCents: 0,
+        paidToAffiliates30dCents: 5000,
+        keptByManager30dCents: 2000,
+        paidToAffiliatesTotalCents: 5000,
+        keptByManagerTotalCents: 2000,
       });
       const token = await managerToken();
       const res = await getDashboardRoute(getRequest("/api/manager/dashboard", token), {});
       expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json.data.commissionTotalCents).toBe(5000);
+      expect(json.data.paidToAffiliatesTotalCents).toBe(5000);
+      expect(json.data.keptByManagerTotalCents).toBe(2000);
+      expect(json.data).not.toHaveProperty("commissionTotalCents");
       expect(json.data).not.toHaveProperty("walletBalance");
     });
   });

@@ -140,17 +140,22 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
   );
 }
 
-/** The financial rollup requested for "Minha Rede" — every number here comes from AffiliateNetworkStatsDto, already computed server-side (see ManagerService.getNetworkWithStats). */
+/**
+ * The rollup requested for "Minha Rede" — every number here comes from
+ * AffiliateNetworkStatsDto, already computed server-side (see
+ * ManagerService.getNetworkWithStats). Deliberately limited to this
+ * affiliate's own network numbers — no commission-generated/house-profit
+ * tile here, ever: a Manager must never be able to infer the platform's
+ * own margin from this screen.
+ */
 function NetworkStatsGrid({ affiliate }: { affiliate: AffiliateNetworkStatsDto }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 border-t border-border pt-3 mt-1">
-      <StatTile label="Depósitos totais" value={formatCurrency(affiliate.depositTotalCents / 100)} />
-      <StatTile label="Jogadores ativos" value={String(affiliate.activePlayers)} />
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-3 border-t border-border pt-3 mt-1">
+      <StatTile label="Jogadores cadastrados" value={String(affiliate.playersReferredCount)} />
       <StatTile label="FTDs" value={String(affiliate.ftdCount)} />
-      <StatTile label="Comissão gerada" value={formatCurrency(affiliate.commissionGeneratedCents / 100)} />
+      <StatTile label="Total de depósitos gerados" value={formatCurrency(affiliate.depositTotalCents / 100)} />
       <StatTile label="Pago ao afiliado" value={formatCurrency(affiliate.paidToAffiliateCents / 100)} />
-      <StatTile label="Ficou para você" value={formatCurrency(affiliate.keptByManagerCents / 100)} tone="green" />
-      <StatTile label="Lucro líquido da casa" value={formatCurrency(affiliate.houseProfitCents / 100)} />
+      <StatTile label="Recebido por você" value={formatCurrency(affiliate.keptByManagerCents / 100)} tone="green" />
     </div>
   );
 }

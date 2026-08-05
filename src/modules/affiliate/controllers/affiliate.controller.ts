@@ -73,14 +73,19 @@ export async function handleGetAffiliateDashboard(_req: NextRequest, auth: AuthC
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+  // payeeUserId (not affiliateId alone) — a MANAGER_SPREAD row now carries
+  // this SAME affiliateId when it was triggered by this affiliate's traffic
+  // (see generateManagerSpreadForAffiliate), but pays the MANAGER, not this
+  // affiliate. Without this filter, the affiliate's own dashboard would
+  // show money credited to someone else as if they'd earned it themselves.
   const [total, today, last7d, last30d, available, locked, referredCount, confirmedDeposits, referredDeposits] =
     await Promise.all([
-      commissionRepository.sumAmountCents({ affiliateId: profile.id }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, from: startOfToday }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, from: sevenDaysAgo }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, from: thirtyDaysAgo }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, status: "AVAILABLE" }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, status: "LOCKED" }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, from: startOfToday }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, from: sevenDaysAgo }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, from: thirtyDaysAgo }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, status: "AVAILABLE" }),
+      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, status: "LOCKED" }),
       prisma.user.count({ where: { referredById: auth.userId } }),
       commissionRepository.countConfirmedDeposits(profile.id),
       // Direct read, same precedent as the manager-code resolution above —
@@ -145,8 +150,12 @@ export async function handleDeleteMyLink(_req: NextRequest, auth: AuthContext, l
 export async function handleListMyCommissions(req: NextRequest, auth: AuthContext) {
   const profile = await affiliateService.getProfile(auth.userId);
   const pagination = parsePagination(req.nextUrl.searchParams);
+  // payeeUserId — same reasoning as handleGetAffiliateDashboard above: this
+  // affiliate's own commission history must never include a MANAGER_SPREAD
+  // row that shares their affiliateId but was actually paid to their manager.
   const { items, total } = await commissionRepository.listAdmin({
     affiliateId: profile.id,
+    payeeUserId: auth.userId,
     page: pagination.page,
     pageSize: pagination.pageSize,
   });

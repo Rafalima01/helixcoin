@@ -19,11 +19,18 @@ export function ManagerDashboardScreen() {
     { label: "Jogadores na rede", icon: Users, value: data?.playersReferred ?? 0 },
   ];
 
-  const commissions = [
-    { label: "Comissão hoje", cents: data?.commissionTodayCents ?? 0 },
-    { label: "Últimos 7 dias", cents: data?.commission7dCents ?? 0 },
-    { label: "Últimos 30 dias", cents: data?.commission30dCents ?? 0 },
-    { label: "Total acumulado", cents: data?.commissionTotalCents ?? 0 },
+  const paidToAffiliates = [
+    { label: "Hoje", cents: data?.paidToAffiliatesTodayCents ?? 0 },
+    { label: "Últimos 7 dias", cents: data?.paidToAffiliates7dCents ?? 0 },
+    { label: "Últimos 30 dias", cents: data?.paidToAffiliates30dCents ?? 0 },
+    { label: "Total acumulado", cents: data?.paidToAffiliatesTotalCents ?? 0 },
+  ];
+
+  const keptByManager = [
+    { label: "Hoje", cents: data?.keptByManagerTodayCents ?? 0 },
+    { label: "Últimos 7 dias", cents: data?.keptByManager7dCents ?? 0 },
+    { label: "Últimos 30 dias", cents: data?.keptByManager30dCents ?? 0 },
+    { label: "Total acumulado", cents: data?.keptByManagerTotalCents ?? 0 },
   ];
 
   return (
@@ -56,11 +63,32 @@ export function ManagerDashboardScreen() {
       </div>
 
       <div>
-        <h2 className="font-bold text-lg mb-3">Comissões da rede (informativo)</h2>
+        <h2 className="font-bold text-lg mb-3">Pago aos afiliados (informativo)</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {commissions.map((c) => (
+          {paidToAffiliates.map((c) => (
             <Card key={c.label} className="p-4 flex flex-col gap-2">
               <span className="flex size-8 items-center justify-center rounded-lg bg-green/15 text-green">
+                <Coins className="size-4" />
+              </span>
+              {isLoading ? (
+                <Skeleton className="h-7 w-20" />
+              ) : (
+                <p className="text-xl md:text-2xl font-extrabold tabular-nums">
+                  <AnimatedNumber value={centsToReais(c.cents)} format={formatCurrency} />
+                </p>
+              )}
+              <p className="text-xs text-text-secondary leading-tight">{c.label}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="font-bold text-lg mb-3">Recebido por você</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {keptByManager.map((c) => (
+            <Card key={c.label} className="p-4 flex flex-col gap-2">
+              <span className="flex size-8 items-center justify-center rounded-lg bg-purple/15 text-purple">
                 <Coins className="size-4" />
               </span>
               {isLoading ? (

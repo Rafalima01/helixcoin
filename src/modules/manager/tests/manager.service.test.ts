@@ -8,7 +8,7 @@ vi.mock("@/server/notifications", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     managerProfile: { findUnique: vi.fn().mockResolvedValue(null) },
-    user: { findMany: vi.fn().mockResolvedValue([]) },
+    user: { groupBy: vi.fn().mockResolvedValue([]) },
     deposit: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
@@ -86,7 +86,7 @@ describe("ManagerService", () => {
     ).rejects.toThrow();
   });
 
-  it("getDashboard() aggregates commission totals scoped to the manager's own network only", async () => {
+  it("getDashboard() aggregates commission totals scoped to the manager's own network only, split into paid-to-affiliates vs kept-by-manager", async () => {
     const { service, managers, affiliateService, commissions } = buildService();
     const managerA = await seedManager(managers, "manager-user-F");
     const managerB = await seedManager(managers, "manager-user-G");
@@ -108,6 +108,20 @@ describe("ManagerService", () => {
       amountCents: 1000,
       status: "AVAILABLE",
     });
+    // Manager A's own spread from that same affiliate's traffic — must show up as
+    // "kept by manager", never blended back into a single "commission total" that
+    // (combined with deposit totals elsewhere) would let the manager infer house margin.
+    await commissions.create({
+      affiliateId: affA.id,
+      payeeUserId: "manager-user-F",
+      managerId: managerA.id,
+      level: 1,
+      originUserId: "player-1",
+      sourceType: "MANAGER_SPREAD",
+      triggerId: "dep-1",
+      amountCents: 400,
+      status: "AVAILABLE",
+    });
     await commissions.create({
       affiliateId: affB.id,
       payeeUserId: "affiliate-user-5",
@@ -121,8 +135,10 @@ describe("ManagerService", () => {
     });
 
     const dashboard = await service.getDashboard(managerA.id);
-    expect(dashboard.commissionTotalCents).toBe(1000);
+    expect(dashboard.paidToAffiliatesTotalCents).toBe(1000);
+    expect(dashboard.keptByManagerTotalCents).toBe(400);
     expect(dashboard.affiliatesActive).toBe(1);
+    expect(dashboard).not.toHaveProperty("commissionTotalCents");
   });
 
   it("activateProfile() flips a PENDING manager to ACTIVE", async () => {
@@ -145,7 +161,7 @@ describe("ManagerService", () => {
     expect(updated.commissionPercent).toBe(12.5);
   });
 
-  it("getNetworkWithStats() splits deposits/active-players/commissions per affiliate, with one affiliate having zero traffic and another an FTD", async () => {
+  it("getNetworkWithStats() splits deposits/players-referred/commissions per affiliate, with one affiliate having a referred player but zero deposits and another an FTD", async () => {
     const { service, managers, affiliateService, commissions } = buildService();
     const manager = await seedManager(managers, "manager-user-K");
 
@@ -153,7 +169,10 @@ describe("ManagerService", () => {
     await affiliateService.assignManager(affiliate1.id, manager.id);
     await affiliateService.decide(affiliate1.id, "APPROVE", undefined, ACTOR as never);
 
-    // Zero traffic on purpose — "alguns sem depósito" must show up as all-zero, not throw or get skipped.
+    // Referred a player but that player hasn't deposited yet — this is exactly the
+    // reported bug scenario: a fresh signup through the affiliate's /r/{code} link
+    // must show up in playersReferredCount immediately, with everything else at
+    // zero, not disappear as if the referral never happened.
     const affiliate2 = await affiliateService.apply("affiliate-user-K2", {});
     await affiliateService.assignManager(affiliate2.id, manager.id);
     await affiliateService.decide(affiliate2.id, "APPROVE", undefined, ACTOR as never);
@@ -192,9 +211,12 @@ describe("ManagerService", () => {
       status: "AVAILABLE",
     });
 
-    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([
-      { referredById: "affiliate-user-K1", status: "ACTIVE" },
-      { referredById: "affiliate-user-K1", status: "PENDING" },
+    // affiliate1: two direct referrals — one PENDING (the status every real signup
+    // gets and never leaves), one ACTIVE — both must count toward playersReferredCount.
+    // affiliate2: one direct referral, PENDING, who never deposited.
+    vi.mocked(prisma.user.groupBy).mockResolvedValueOnce([
+      { referredById: "affiliate-user-K1", _count: { _all: 2 } },
+      { referredById: "affiliate-user-K2", _count: { _all: 1 } },
     ] as never);
     vi.mocked(prisma.deposit.findMany).mockResolvedValueOnce([
       { amountCents: 3000, user: { referredById: "affiliate-user-K1" } },
@@ -205,20 +227,19 @@ describe("ManagerService", () => {
     expect(total).toBe(2);
 
     const row1 = items.find((r) => r.id === affiliate1.id)!;
+    expect(row1.playersReferredCount).toBe(2);
     expect(row1.depositTotalCents).toBe(5000);
-    expect(row1.activePlayers).toBe(1); // only the ACTIVE referral counts, not the PENDING one
     expect(row1.ftdCount).toBe(1);
     expect(row1.paidToAffiliateCents).toBe(700); // 500 REVSHARE_DEPOSIT + 200 CPA_FTD
     expect(row1.keptByManagerCents).toBe(300);
-    expect(row1.commissionGeneratedCents).toBe(1000);
-    expect(row1.houseProfitCents).toBe(4000); // 5000 deposits - 1000 commission
+    expect(row1).not.toHaveProperty("commissionGeneratedCents");
+    expect(row1).not.toHaveProperty("houseProfitCents");
 
     const row2 = items.find((r) => r.id === affiliate2.id)!;
+    expect(row2.playersReferredCount).toBe(1); // referred, PENDING, zero deposits — still visible
     expect(row2.depositTotalCents).toBe(0);
-    expect(row2.activePlayers).toBe(0);
     expect(row2.ftdCount).toBe(0);
     expect(row2.paidToAffiliateCents).toBe(0);
     expect(row2.keptByManagerCents).toBe(0);
-    expect(row2.houseProfitCents).toBe(0);
   });
 });

@@ -88,16 +88,27 @@ export class InMemoryCommissionRepository implements ICommissionRepository {
     managerId: string
   ): Promise<Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>> {
     const result = new Map<string, { paidToAffiliateCents: number; keptByManagerCents: number; ftdCount: number }>();
+    const depositTriggersByAffiliate = new Map<string, Set<string>>();
     for (const r of this.rows.values()) {
       if (r.managerId !== managerId || !r.affiliateId) continue;
       const entry = result.get(r.affiliateId) ?? { paidToAffiliateCents: 0, keptByManagerCents: 0, ftdCount: 0 };
       if (r.sourceType === "REVSHARE_DEPOSIT" || r.sourceType === "CPA_FTD") {
         entry.paidToAffiliateCents += r.amountCents;
-        if (r.sourceType === "CPA_FTD") entry.ftdCount += 1;
       } else if (r.sourceType === "MANAGER_SPREAD") {
         entry.keptByManagerCents += r.amountCents;
       }
       result.set(r.affiliateId, entry);
+
+      if (r.level === 1 && r.sourceType === "REVSHARE_DEPOSIT") {
+        const triggers = depositTriggersByAffiliate.get(r.affiliateId) ?? new Set<string>();
+        triggers.add(r.triggerId);
+        depositTriggersByAffiliate.set(r.affiliateId, triggers);
+      }
+    }
+    for (const [affiliateId, triggers] of depositTriggersByAffiliate) {
+      const entry = result.get(affiliateId) ?? { paidToAffiliateCents: 0, keptByManagerCents: 0, ftdCount: 0 };
+      entry.ftdCount = triggers.size;
+      result.set(affiliateId, entry);
     }
     return result;
   }
@@ -105,6 +116,7 @@ export class InMemoryCommissionRepository implements ICommissionRepository {
   private applyFilter(filter: {
     affiliateId?: string;
     managerId?: string;
+    payeeUserId?: string;
     status?: Commission["status"];
     sourceType?: CommissionSourceType;
     originUserId?: string;
@@ -114,6 +126,7 @@ export class InMemoryCommissionRepository implements ICommissionRepository {
     let items = [...this.rows.values()];
     if (filter.affiliateId) items = items.filter((r) => r.affiliateId === filter.affiliateId);
     if (filter.managerId) items = items.filter((r) => r.managerId === filter.managerId);
+    if (filter.payeeUserId) items = items.filter((r) => r.payeeUserId === filter.payeeUserId);
     if (filter.status) items = items.filter((r) => r.status === filter.status);
     if (filter.sourceType) items = items.filter((r) => r.sourceType === filter.sourceType);
     if (filter.originUserId) items = items.filter((r) => r.originUserId === filter.originUserId);

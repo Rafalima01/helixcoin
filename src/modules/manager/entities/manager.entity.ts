@@ -47,35 +47,46 @@ export interface ManagerLinksData {
 }
 
 /**
- * "Minha Rede" row — AffiliateProfileAdminRow plus the financial rollup the
+ * "Minha Rede" row — AffiliateProfileAdminRow plus the network rollup the
  * manager needs per affiliate. Every field here is derived from the
  * EXISTING Deposit/User/Commission tables (see ManagerService.getNetworkWithStats)
- * — nothing new is stored.
+ * — nothing new is stored. Deliberately excludes anything that would let a
+ * Manager infer the house's own margin (no "comissão gerada"/"lucro da
+ * casa" style field) — a Manager sees only their own network's numbers.
  */
 export interface AffiliateNetworkStatsRow extends AffiliateProfileAdminRow {
-  /** Sum of confirmed (PAID) deposits from this affiliate's direct referrals. */
-  depositTotalCents: number;
-  /** Count of this affiliate's direct referrals with User.status ACTIVE. */
-  activePlayers: number;
+  /** Total users with User.referredById == this affiliate's userId — every direct signup through their link, regardless of deposit/status. */
+  playersReferredCount: number;
   /** Count of CPA_FTD commission rows earned by this affiliate. */
   ftdCount: number;
-  /** paidToAffiliateCents + keptByManagerCents. */
-  commissionGeneratedCents: number;
+  /** Sum of confirmed (PAID) deposits from this affiliate's direct referrals. */
+  depositTotalCents: number;
   /** REVSHARE_DEPOSIT + CPA_FTD credited to the affiliate themselves. */
   paidToAffiliateCents: number;
   /** MANAGER_SPREAD credited to the manager, tagged with this affiliateId. */
   keptByManagerCents: number;
-  /** depositTotalCents - commissionGeneratedCents. */
-  houseProfitCents: number;
 }
 
-/** The Manager dashboard's KPI rollup — computed entirely from src/modules/affiliate's Commission/AffiliateProfile tables (read-only, via affiliateContainer), never from Wallet/Ledger. */
+/**
+ * The Manager dashboard's KPI rollup — computed entirely from
+ * src/modules/affiliate's Commission/AffiliateProfile tables (read-only,
+ * via affiliateContainer), never from Wallet/Ledger. Deliberately split
+ * into "paid to affiliates" vs "kept by manager" per period, rather than
+ * one blended "commission total" — a blended total equals
+ * deposits × the manager's own ceiling, which combined with the deposit
+ * totals already visible in "Minha Rede" would let a Manager back out the
+ * house's own margin. Same reasoning as AffiliateNetworkStatsRow.
+ */
 export interface ManagerDashboardStats {
   affiliatesActive: number;
   affiliatesPending: number;
   playersReferred: number;
-  commissionTotalCents: number;
-  commissionTodayCents: number;
-  commission7dCents: number;
-  commission30dCents: number;
+  paidToAffiliatesTodayCents: number;
+  keptByManagerTodayCents: number;
+  paidToAffiliates7dCents: number;
+  keptByManager7dCents: number;
+  paidToAffiliates30dCents: number;
+  keptByManager30dCents: number;
+  paidToAffiliatesTotalCents: number;
+  keptByManagerTotalCents: number;
 }
