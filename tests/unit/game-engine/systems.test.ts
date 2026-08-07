@@ -280,3 +280,55 @@ describe("systems — handleTouch: red is the only loss zone", () => {
     expect(AudioManager.impact).not.toHaveBeenCalled();
   });
 });
+
+describe("systems — bounce is constant-height, not impact-proportional", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useGameStore.getState().reset();
+    useGameStore.getState().startMatch("m3", "t3", BET_CENTS, 5, BET_CENTS * 5);
+  });
+
+  afterEach(() => {
+    useGameStore.getState().reset();
+  });
+
+  function bounceAfterImpact(impactVy: number): number {
+    const { runtime, ball } = buildRuntime(yForCrossed(0));
+    runtime.rings[10] = {
+      index: 10,
+      y: -15,
+      baseRotation: 0,
+      segments: [],
+      variant: "normal",
+      motion: { kind: "static" },
+      colorIndex: 0,
+    };
+    // The impact speed the ball arrived with — the value the old
+    // impact-proportional formula multiplied by bounceRestitution.
+    runtime.lastVy = impactVy;
+    handleTouch(runtime, buildCallbacks(), 10, "solid");
+    return ball.linvel().y;
+  }
+
+  it("gives the SAME launch speed for a gentle and a violent impact", () => {
+    // Regression guard for the "rubber ball" bug: bounce used to be
+    // |lastVy| * restitution, so a faster fall produced a higher bounce,
+    // which produced a longer fall, which produced a higher bounce...
+    const gentle = bounceAfterImpact(-4);
+    const violent = bounceAfterImpact(-16);
+
+    expect(gentle).toBeGreaterThan(0);
+    expect(violent).toBeCloseTo(gentle, 10);
+  });
+
+  it("launches at exactly the speed needed to reach the configured bounce height", () => {
+    const expected = Math.sqrt(2 * Math.abs(CFG.gravity) * CFG.bounceHeightRatio * CFG.ringSpacing);
+    expect(bounceAfterImpact(-9)).toBeCloseTo(expected, 6);
+  });
+
+  it("never exceeds the safety rails", () => {
+    const v = bounceAfterImpact(-40);
+    expect(v).toBeLessThanOrEqual(CFG.maxBounceVelocity);
+    expect(v).toBeGreaterThanOrEqual(CFG.minBounceVelocity);
+  });
+});

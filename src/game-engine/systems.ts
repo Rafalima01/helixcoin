@@ -135,11 +135,18 @@ export function handleTouch(
   const body = liveBall(runtime);
   if (!ring || !body) return;
 
-  // Physical bounce: keep a fraction of the impact speed (weight + small
-  // elasticity), clamped so gameplay stays consistent and readable.
+  // Constant-height bounce: solve the launch speed that reaches exactly
+  // `bounceHeightRatio * ringSpacing`, from v² = 2*g*h. Deliberately does NOT
+  // read runtime.lastVy — bouncing proportionally to impact speed is what
+  // made the ball behave like rubber (each bounce fell further than the last,
+  // so each bounce was higher than the last; see config.ts's
+  // bounceHeightRatio comment). Energy loss is whatever the drop supplied
+  // minus what this height needs, which is what makes it read as a real ball
+  // settling into a rhythm instead of winding up.
+  const targetHeight = CFG.bounceHeightRatio * CFG.ringSpacing;
   let bounce = Math.min(
     CFG.maxBounceVelocity,
-    Math.max(CFG.minBounceVelocity, Math.abs(runtime.lastVy) * CFG.bounceRestitution)
+    Math.max(CFG.minBounceVelocity, Math.sqrt(2 * Math.abs(CFG.gravity) * targetHeight))
   );
 
   if (ring.variant === "ice") {

@@ -23,11 +23,30 @@ export const ENGINE_CONFIG = {
   // ---- Physics ----
   gravity: -16,
   maxFallSpeed: 15, // hard cap so the player can always react
-  // Bounce is derived from impact speed (weight feel): the ball keeps a
-  // fraction of its fall velocity, clamped so play stays readable.
-  bounceRestitution: 0.6,
-  minBounceVelocity: 4.4,
-  maxBounceVelocity: 6.4,
+  /**
+   * Bounce is a TARGET HEIGHT, expressed as a fraction of ringSpacing — not a
+   * fraction of impact speed.
+   *
+   * Impact-proportional restitution (what this used to be) runs away on a
+   * descending course: the ball bounces up h, then falls h + ringSpacing to
+   * the next platform, so each impact is faster than the last, so each bounce
+   * is higher than the last — the "rubber ball" feel, growing until it
+   * slammed into the maxBounceVelocity clamp. Measured on the old NORMAL
+   * profile the bounce height swung 0.55 -> 1.17 world units (2.1x) purely as
+   * a function of how far the ball had fallen.
+   *
+   * Targeting a height instead makes every bounce identical and readable, at
+   * the midpoint of that old range, and makes the admin slider mean literally
+   * what its label says ("Altura do quique"). Launch speed is solved per
+   * bounce from v = sqrt(2*g*h), so changing gravity no longer silently
+   * changes how high the ball goes.
+   */
+  bounceHeightRatio: 0.56,
+  // Absolute safety rails around the solved launch speed — with a fixed
+  // target height these should never engage in normal play; they exist so a
+  // pathological gravity/height combination can't produce a 0 or a rocket.
+  minBounceVelocity: 3.2,
+  maxBounceVelocity: 9,
   iceBounceFactor: 0.72, // damped bounce on frozen platforms
   boostGravityFactor: 1.9, // accelerator platforms increase gravity briefly
   boostDuration: 1.1, // seconds of boosted gravity
@@ -182,7 +201,7 @@ function applyEngineOverrides(
   return {
     ...base,
     gravity: num(o.gravity, base.gravity),
-    bounceRestitution: num(o.bounceForce, base.bounceRestitution),
+    bounceHeightRatio: num(o.bounceForce, base.bounceHeightRatio),
     maxFallSpeed: num(o.ballSpeed, base.maxFallSpeed),
     dangerChance: num(o.dangerChance, base.dangerChance),
     maxDangerSegments: num(o.maxDangerSegments, base.maxDangerSegments),
