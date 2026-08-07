@@ -61,7 +61,6 @@ export const affiliateSettingsUpdateSchema = z.object({
   revShareLevel1Percent: z.number().min(0).max(1).optional(),
   revShareLevel2Percent: z.number().min(0).max(1).optional(),
   revShareLevel3Percent: z.number().min(0).max(1).optional(),
-  cpaAmountCents: z.number().int().min(0).optional(),
   autoApproveCommissions: z.boolean().optional(),
   requireManagerApprovalForAffiliates: z.boolean().optional(),
 });

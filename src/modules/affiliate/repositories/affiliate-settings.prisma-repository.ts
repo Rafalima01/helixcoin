@@ -13,7 +13,6 @@ function toEntity(row: PrismaAffiliateSettings): AffiliateSettings {
     revShareLevel1Percent: row.revShareLevel1Percent,
     revShareLevel2Percent: row.revShareLevel2Percent,
     revShareLevel3Percent: row.revShareLevel3Percent,
-    cpaAmountCents: row.cpaAmountCents,
     autoApproveCommissions: row.autoApproveCommissions,
     requireManagerApprovalForAffiliates: row.requireManagerApprovalForAffiliates,
     updatedAt: row.updatedAt,

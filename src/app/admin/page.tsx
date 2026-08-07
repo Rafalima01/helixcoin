@@ -127,7 +127,7 @@ function PeriodFilter({
         className="h-10 rounded-xl border border-border bg-white/[0.03] px-3 text-sm outline-none focus:border-purple/60"
       >
         {PRESET_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value} className="bg-[#0B0815]">
+          <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}

@@ -20,7 +20,7 @@ export default function AdminAffiliateSettingsPage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Configurações de Afiliados"
-        description="CPA, comissão padrão e regras de aprovação — aplicados pelo Backend em cada depósito confirmado. A comissão de um afiliado vinculado a um Gerente é definida individualmente por ele (ou pelo Admin); a comissão padrão abaixo só vale para afiliados sem gerente (fluxo orgânico da plataforma)."
+        description="Comissão padrão e regras de aprovação — aplicadas pelo Backend em cada depósito confirmado. A plataforma remunera exclusivamente por percentual sobre o depósito; não existe CPA, valor fixo ou modelo híbrido. A comissão de um afiliado vinculado a um Gerente é definida individualmente por ele (ou pelo Admin); a comissão padrão abaixo só vale para afiliados sem gerente (fluxo orgânico da plataforma)."
       />
 
       {isLoading || !settings ? (
@@ -36,7 +36,6 @@ export default function AdminAffiliateSettingsPage() {
 
 function SettingsForm({ settings }: { settings: AffiliateSettingsDto }) {
   const queryClient = useQueryClient();
-  const [cpa, setCpa] = useState(String(settings.cpaAmountCents / 100));
   const [defaultCommission, setDefaultCommission] = useState(String(Math.round(settings.revShareLevel1Percent * 1000) / 10));
   const [autoApprove, setAutoApprove] = useState(settings.autoApproveCommissions);
   const [requireManagerApproval, setRequireManagerApproval] = useState(settings.requireManagerApprovalForAffiliates);
@@ -44,7 +43,6 @@ function SettingsForm({ settings }: { settings: AffiliateSettingsDto }) {
   const save = useMutation({
     mutationFn: () =>
       AffiliateSettingsAdminApi.update({
-        cpaAmountCents: Math.round(Number(cpa) * 100),
         revShareLevel1Percent: Number(defaultCommission) / 100,
         autoApproveCommissions: autoApprove,
         requireManagerApprovalForAffiliates: requireManagerApproval,
@@ -59,13 +57,6 @@ function SettingsForm({ settings }: { settings: AffiliateSettingsDto }) {
   return (
     <>
       <SettingsGroup title="Comissões e aprovação">
-        <SettingsRow
-          label="CPA"
-          description="Bônus fixo pago apenas no primeiro depósito do jogador indicado (nível 1). Zero desativa."
-        >
-          <Input aria-label="Valor CPA (R$)" type="number" step="0.01" min="0" value={cpa} onChange={(e) => setCpa(e.target.value)} className="w-36" />
-        </SettingsRow>
-
         <SettingsRow
           label="Comissão padrão da plataforma"
           description="Aplicada a afiliados aprovados sem gerente (fluxo orgânico) que não tenham uma comissão individual definida pelo Admin."

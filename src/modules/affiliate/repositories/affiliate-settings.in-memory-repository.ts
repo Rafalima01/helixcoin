@@ -11,7 +11,6 @@ function defaults(): AffiliateSettings {
     revShareLevel1Percent: 0.05,
     revShareLevel2Percent: 0.02,
     revShareLevel3Percent: 0.01,
-    cpaAmountCents: 0,
     autoApproveCommissions: true,
     requireManagerApprovalForAffiliates: false,
     updatedAt: new Date(),

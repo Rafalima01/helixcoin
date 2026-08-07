@@ -76,10 +76,10 @@ describe("CommissionService — multi-level tree walk", () => {
     expect(balance.locked).toBe(500);
   });
 
-  it("applies the flat CPA bonus only at level 1, only on the player's first-ever confirmed deposit", async () => {
+  it("pays percentage only — a first deposit earns no flat bonus on top (CPA removed)", async () => {
     const h = buildAffiliateTestHarness();
     await seedThreeLevelChain(h);
-    await h.settingsRepo.update({ cpaAmountCents: 2000, revShareLevel1Percent: 0.1 });
+    await h.settingsRepo.update({ revShareLevel1Percent: 0.1 });
 
     // Real PaymentService.settle() order: credit the player's DEPOSIT wallet
     // transaction FIRST, THEN publish depositConfirmed (which this test
@@ -102,10 +102,10 @@ describe("CommissionService — multi-level tree walk", () => {
     });
 
     const afterFirst = await h.walletService.getBalance("l1-user");
-    // 10% revshare (1000) + 2000 CPA = 3000
-    expect(afterFirst.main).toBe(3000);
+    // Exactly 10% of 10000 — the first deposit gets no extra flat bonus.
+    expect(afterFirst.main).toBe(1000);
 
-    // A second deposit from the same player must NOT trigger CPA again.
+    // A second deposit is treated identically: percentage only, no FTD special case.
     await h.walletService.credit({
       userId: "player",
       amountCents: 10000,
@@ -124,8 +124,8 @@ describe("CommissionService — multi-level tree walk", () => {
     });
 
     const afterSecond = await h.walletService.getBalance("l1-user");
-    // + another 1000 revshare, no additional CPA
-    expect(afterSecond.main).toBe(4000);
+    // + another 1000 revshare — linear in deposit value, nothing else.
+    expect(afterSecond.main).toBe(2000);
   });
 
   it("replaying the same depositConfirmed event never double-credits (idempotent)", async () => {

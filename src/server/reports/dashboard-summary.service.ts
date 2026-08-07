@@ -41,8 +41,8 @@ export interface DashboardFinancial {
   ggrCents: number;
   ngrCents: number;
   bonusCostCents: number;
-  cpaCostCents: number;
   revshareCostCents: number;
+  /** revshare + any legacy CPA rows still on record — see legacyCpaAgg below. */
   affiliateCostCents: number;
   managerSpreadCostCents: number;
   netProfitCents: number;
@@ -73,7 +73,6 @@ export interface DashboardCommercial {
   affiliateFtds: number;
   affiliateDrivenDepositsCents: number;
   commissionGeneratedCents: number;
-  cpaCostCents: number;
   revshareCostCents: number;
   /** commissionGeneratedCents / ggrCents — null when ggrCents is 0. */
   pctGgrDistributed: number | null;
@@ -179,7 +178,7 @@ export class DashboardSummaryService {
       betPrevAgg,
       payoutPrevAgg,
       bonusPrevAgg,
-      cpaAgg,
+      legacyCpaAgg,
       revshareAgg,
       managerSpreadAgg,
       totalUsers,
@@ -199,7 +198,7 @@ export class DashboardSummaryService {
       activeAffiliates,
       activeManagers,
       affiliateReferredPlayers,
-      affiliateFtds,
+      affiliateFtdRows,
       affiliateDepositsAgg,
       commissionAgg,
       depositsByDayRows,
@@ -261,7 +260,23 @@ export class DashboardSummaryService {
       prisma.affiliateProfile.count({ where: { status: "APPROVED" } }),
       prisma.managerProfile.count({ where: { status: "ACTIVE" } }),
       hasAffiliates ? prisma.user.count({ where: { createdAt: { gte: start, lt: end }, referredById: { in: affiliateUserIds } } }) : Promise.resolve(0),
-      prisma.commission.count({ where: { sourceType: "CPA_FTD", createdAt: { gte: start, lt: end } } }),
+      // Real first-ever PAID deposits by affiliate-referred players, in period.
+      // Previously this counted CPA_FTD commission rows — which only ever
+      // existed while a CPA bonus was configured, and now that CPA is gone
+      // would report 0 FTDs forever. Derived from Deposit directly, so it is
+      // independent of any commission model.
+      hasAffiliates
+        ? prisma.$queryRaw<{ count: bigint }[]>`
+            SELECT COUNT(*)::bigint AS count FROM (
+              SELECT DISTINCT ON (d."userId") d."userId", d."confirmedAt"
+              FROM "Deposit" d
+              JOIN "User" u ON u.id = d."userId"
+              WHERE d.status = 'PAID' AND u."referredById" = ANY(${affiliateUserIds})
+              ORDER BY d."userId", d."confirmedAt" ASC
+            ) first_deposits
+            WHERE "confirmedAt" >= ${start} AND "confirmedAt" < ${end}
+          `
+        : Promise.resolve([{ count: BigInt(0) }]),
       hasAffiliates
         ? prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: start, lt: end }, user: { referredById: { in: affiliateUserIds } } }, _sum: { amountCents: true } })
         : Promise.resolve({ _sum: { amountCents: 0 } }),
@@ -316,9 +331,12 @@ export class DashboardSummaryService {
     const bonusCostCents = bonusAgg._sum.amount ?? 0;
     const ngrCents = ggrCents - bonusCostCents;
     const ngrPrevCents = ggrPrevCents - (bonusPrevAgg._sum.amount ?? 0);
-    const cpaCostCents = cpaAgg._sum.amountCents ?? 0;
     const revshareCostCents = revshareAgg._sum.amountCents ?? 0;
-    const affiliateCostCents = cpaCostCents + revshareCostCents;
+    // Legacy CPA rows are still real money already paid out, so they must stay
+    // in the cost side or historical net profit would be overstated. No new
+    // CPA row can be created (percentage-only platform) — for any period after
+    // the CPA removal this term is simply 0.
+    const affiliateCostCents = (legacyCpaAgg._sum.amountCents ?? 0) + revshareCostCents;
     const managerSpreadCostCents = managerSpreadAgg._sum.amountCents ?? 0;
     const netProfitCents = ngrCents - affiliateCostCents - managerSpreadCostCents;
 
@@ -328,7 +346,6 @@ export class DashboardSummaryService {
       ggrCents,
       ngrCents,
       bonusCostCents,
-      cpaCostCents,
       revshareCostCents,
       affiliateCostCents,
       managerSpreadCostCents,
@@ -382,10 +399,9 @@ export class DashboardSummaryService {
       activeAffiliates,
       activeManagers,
       affiliateReferredPlayers,
-      affiliateFtds,
+      affiliateFtds: Number(affiliateFtdRows[0]?.count ?? BigInt(0)),
       affiliateDrivenDepositsCents: affiliateDepositsAgg._sum.amountCents ?? 0,
       commissionGeneratedCents,
-      cpaCostCents,
       revshareCostCents,
       pctGgrDistributed: ratio(commissionGeneratedCents, ggrCents),
     };

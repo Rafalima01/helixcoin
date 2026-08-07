@@ -68,7 +68,6 @@ export class CommissionService {
     const ancestorIds = await this.walkReferredByChain(payload.userId, MAX_COMMISSION_LEVEL);
 
     const levelPercents = [settings.revShareLevel1Percent, settings.revShareLevel2Percent, settings.revShareLevel3Percent];
-    const isFtd = await this.isFirstConfirmedDeposit(payload.userId, payload.depositId);
 
     for (let i = 0; i < ancestorIds.length; i++) {
       const level = i + 1;
@@ -104,30 +103,6 @@ export class CommissionService {
 
       if (level === 1 && affiliate.managerId) {
         await this.generateManagerSpreadForAffiliate(affiliate.managerId, affiliate.id, percent, payload, settings);
-      }
-
-      if (level === 1 && isFtd) {
-        const cpaCents = affiliate.cpaOverrideCents ?? settings.cpaAmountCents;
-        if (cpaCents > 0) {
-          await this.generate({
-            payeeUserId: ancestorUserId,
-            affiliateId: affiliate.id,
-            managerId: affiliate.managerId,
-            level,
-            originUserId: payload.userId,
-            sourceType: "CPA_FTD",
-            triggerId: payload.depositId,
-            amountCents: cpaCents,
-            percentApplied: null,
-            settings,
-            isCpa: true,
-          });
-          eventBus.publish(AFFILIATE_EVENTS.firstDeposit, {
-            userId: payload.userId,
-            depositId: payload.depositId,
-            amountCents: payload.amountCents,
-          });
-        }
       }
     }
   }
@@ -209,14 +184,6 @@ export class CommissionService {
     return chain;
   }
 
-  private async isFirstConfirmedDeposit(userId: string, currentDepositId: string): Promise<boolean> {
-    const { items, total } = await this.walletService.listTransactions({ userId, type: "DEPOSIT", page: 1, pageSize: 2 });
-    if (total === 0) return true;
-    if (total > 1) return false;
-    // Exactly one DEPOSIT transaction on record — it's an FTD only if that one IS this deposit (originId match).
-    return items[0]?.originId === currentDepositId;
-  }
-
   private async generate(input: {
     payeeUserId: string;
     /** Null for a MANAGER_SPREAD row with no affiliate in the path. */
@@ -224,16 +191,21 @@ export class CommissionService {
     managerId: string | null;
     level: number;
     originUserId: string;
-    sourceType: "REVSHARE_DEPOSIT" | "CPA_FTD" | "MANAGER_SPREAD";
+    /**
+     * CPA_FTD is intentionally absent: the platform is percentage-only, so no
+     * new CPA row is ever generated. The enum value still exists in the schema
+     * because historical Commission rows carry it — see the CommissionSourceType
+     * comment in prisma/schema.prisma.
+     */
+    sourceType: "REVSHARE_DEPOSIT" | "MANAGER_SPREAD";
     triggerId: string;
     amountCents: number;
     percentApplied: number | null;
     settings: { autoApproveCommissions: boolean };
-    isCpa?: boolean;
   }): Promise<Commission | null> {
     // Defensive dedup on top of WalletService's own idempotency-key guarantee — a replayed depositConfirmed event never double-generates a Commission row either.
     const existing = await this.commissions.findByTriggerAffiliateLevel(
-      input.isCpa ? `${input.triggerId}:cpa` : input.triggerId,
+      input.triggerId,
       input.affiliateId,
       input.level,
       input.sourceType
@@ -244,9 +216,8 @@ export class CommissionService {
     // row needs its own key even when it shares (triggerId, level) with the
     // affiliate's own REVSHARE_DEPOSIT row at the same hop — different payee,
     // same deposit.
-    const idempotencyKey = input.isCpa
-      ? AFFILIATE_IDEMPOTENCY_KEYS.cpaCredit(input.triggerId)
-      : input.sourceType === "MANAGER_SPREAD"
+    const idempotencyKey =
+      input.sourceType === "MANAGER_SPREAD"
         ? AFFILIATE_IDEMPOTENCY_KEYS.managerSpreadCredit(input.triggerId, input.level)
         : AFFILIATE_IDEMPOTENCY_KEYS.commissionCredit(input.triggerId, input.level);
 
@@ -269,7 +240,7 @@ export class CommissionService {
       level: input.level,
       originUserId: input.originUserId,
       sourceType: input.sourceType,
-      triggerId: input.isCpa ? `${input.triggerId}:cpa` : input.triggerId,
+      triggerId: input.triggerId,
       amountCents: input.amountCents,
       percentApplied: input.percentApplied,
       status: "LOCKED",
@@ -305,8 +276,12 @@ export class CommissionService {
       type: "COMMISSION",
       origin: "affiliate",
       originId: commission.triggerId,
+      // The ":cpa" branch is legacy-only: no new CPA commission is generated
+      // (percentage-only platform), but rows created before that change can
+      // still be sitting in LOCKED and must unlock with the key they were
+      // credited under, or the unlock silently no-ops against a stale key.
       idempotencyKey: commission.triggerId.endsWith(":cpa")
-        ? AFFILIATE_IDEMPOTENCY_KEYS.cpaUnlock(commission.triggerId.replace(":cpa", ""))
+        ? AFFILIATE_IDEMPOTENCY_KEYS.legacyCpaUnlock(commission.triggerId.replace(":cpa", ""))
         : isManagerSpread
           ? AFFILIATE_IDEMPOTENCY_KEYS.managerSpreadUnlock(commission.triggerId, commission.level)
           : AFFILIATE_IDEMPOTENCY_KEYS.commissionUnlock(commission.triggerId, commission.level),

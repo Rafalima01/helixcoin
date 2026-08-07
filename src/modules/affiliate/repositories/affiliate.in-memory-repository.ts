@@ -18,7 +18,6 @@ export class InMemoryAffiliateRepository implements IAffiliateRepository {
       status: input.status ?? "PENDING",
       documentsJson: input.documentsJson ?? null,
       pixKeyEncrypted: input.pixKeyEncrypted ?? null,
-      cpaOverrideCents: null,
       revShareOverridePercent: null,
       requestedAt: now,
       approvedAt: null,

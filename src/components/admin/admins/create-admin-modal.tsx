@@ -196,7 +196,7 @@ export function CreateAdminModal({ open, onClose }: { open: boolean; onClose: ()
               className="w-full h-12 rounded-2xl bg-white/[0.03] border border-border px-4 text-[15px] text-text outline-none transition-all duration-200 focus:border-purple/60 focus:bg-white/[0.05] focus:shadow-[0_0_0_4px_rgba(139,92,246,0.12)]"
             >
               {STAFF_ROLES.map((r) => (
-                <option key={r} value={r} className="bg-[#0B0815]">
+                <option key={r} value={r}>
                   {ROLE_LABEL[r]}
                 </option>
               ))}

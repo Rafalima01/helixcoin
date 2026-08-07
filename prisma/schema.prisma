@@ -1115,6 +1115,11 @@ enum AffiliateLinkStatus {
 
 enum CommissionSourceType {
   REVSHARE_DEPOSIT
+  /// LEGACY — never generated any more. The platform pays commission
+  /// exclusively as a percentage of the deposit; flat CPA/FTD bonuses were
+  /// removed. The value is retained ONLY because Commission rows created
+  /// before that change still carry it: dropping it would break historical
+  /// reporting (and Postgres refuses to drop an enum value still in use).
   CPA_FTD
   /// The Gerente's cut of the spread (ceiling - affiliate's override%) on a
   /// level-1 payment, or the full ceiling when the level-1 ancestor is a
@@ -1276,9 +1281,8 @@ model AffiliateProfile {
   /// Withdraw.pixKeyEncrypted.
   pixKeyEncrypted String?
 
-  /// Per-affiliate override of AffiliateSettings' global defaults — null
-  /// means "use the global percentage/amount".
-  cpaOverrideCents        Int?
+  /// Per-affiliate override of AffiliateSettings' global default percentage —
+  /// null means "use the global percentage".
   revShareOverridePercent Float?
 
   requestedAt     DateTime  @default(now())
@@ -1399,9 +1403,6 @@ model AffiliateSettings {
   revShareLevel1Percent Float @default(0.05)
   revShareLevel2Percent Float @default(0.02)
   revShareLevel3Percent Float @default(0.01)
-  /// Flat bonus paid to the level-1 affiliate only, on a referred player's
-  /// first-ever confirmed deposit. 0 = disabled.
-  cpaAmountCents        Int   @default(0)
 
   /// When true (default), a generated commission is unlocked (LOCKED ->
   /// AVAILABLE) immediately. When false, it stays LOCKED until an admin

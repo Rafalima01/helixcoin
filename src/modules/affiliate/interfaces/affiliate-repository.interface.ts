@@ -13,7 +13,6 @@ export interface UpdateAffiliateProfileInput {
   status?: AffiliateStatus;
   documentsJson?: Record<string, unknown> | null;
   pixKeyEncrypted?: string | null;
-  cpaOverrideCents?: number | null;
   revShareOverridePercent?: number | null;
   approvedAt?: Date | null;
   approvedById?: string | null;

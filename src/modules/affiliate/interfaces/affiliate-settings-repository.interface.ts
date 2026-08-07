@@ -4,7 +4,6 @@ export interface UpdateAffiliateSettingsInput {
   revShareLevel1Percent?: number;
   revShareLevel2Percent?: number;
   revShareLevel3Percent?: number;
-  cpaAmountCents?: number;
   autoApproveCommissions?: boolean;
   requireManagerApprovalForAffiliates?: boolean;
 }

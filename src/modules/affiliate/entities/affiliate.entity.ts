@@ -10,7 +10,6 @@ export interface AffiliateProfile {
   status: AffiliateStatus;
   documentsJson: Record<string, unknown> | null;
   pixKeyEncrypted: string | null;
-  cpaOverrideCents: number | null;
   revShareOverridePercent: number | null;
   requestedAt: Date;
   approvedAt: Date | null;
@@ -65,7 +64,6 @@ export interface AffiliateSettings {
   revShareLevel1Percent: number;
   revShareLevel2Percent: number;
   revShareLevel3Percent: number;
-  cpaAmountCents: number;
   autoApproveCommissions: boolean;
   requireManagerApprovalForAffiliates: boolean;
   updatedAt: Date;

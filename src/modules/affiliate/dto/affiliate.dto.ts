@@ -188,7 +188,6 @@ export interface AffiliateSettingsDto {
   revShareLevel1Percent: number;
   revShareLevel2Percent: number;
   revShareLevel3Percent: number;
-  cpaAmountCents: number;
   autoApproveCommissions: boolean;
   requireManagerApprovalForAffiliates: boolean;
   updatedAt: string;
@@ -200,7 +199,6 @@ export function toAffiliateSettingsDto(entity: AffiliateSettings): AffiliateSett
     revShareLevel1Percent: entity.revShareLevel1Percent,
     revShareLevel2Percent: entity.revShareLevel2Percent,
     revShareLevel3Percent: entity.revShareLevel3Percent,
-    cpaAmountCents: entity.cpaAmountCents,
     autoApproveCommissions: entity.autoApproveCommissions,
     requireManagerApprovalForAffiliates: entity.requireManagerApprovalForAffiliates,
     updatedAt: entity.updatedAt.toISOString(),

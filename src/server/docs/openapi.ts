@@ -1311,7 +1311,7 @@ export const openApiSpec = {
         summary: "Update RevShare/CPA percentages and approval rules",
         description: "Requires `affiliate.settings.manage`. Every field is optional/partial.",
         security: [{ bearerAuth: [] }, { cookieAuth: [] }],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { revShareLevel1Percent: { type: "number", minimum: 0, maximum: 1 }, revShareLevel2Percent: { type: "number", minimum: 0, maximum: 1 }, revShareLevel3Percent: { type: "number", minimum: 0, maximum: 1 }, cpaAmountCents: { type: "integer", minimum: 0 }, autoApproveCommissions: { type: "boolean" }, requireManagerApprovalForAffiliates: { type: "boolean" } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", properties: { revShareLevel1Percent: { type: "number", minimum: 0, maximum: 1 }, revShareLevel2Percent: { type: "number", minimum: 0, maximum: 1 }, revShareLevel3Percent: { type: "number", minimum: 0, maximum: 1 }, autoApproveCommissions: { type: "boolean" }, requireManagerApprovalForAffiliates: { type: "boolean" } } } } } },
         responses: {
           "200": { description: "OK", content: { "application/json": { schema: dataEnvelope({ $ref: "#/components/schemas/AffiliateSettings" }) } } },
           "403": errorResponse("Missing affiliate.settings.manage permission"),
@@ -2339,7 +2339,7 @@ export const openApiSpec = {
           revShareLevel1Percent: { type: "number", minimum: 0, maximum: 1 },
           revShareLevel2Percent: { type: "number", minimum: 0, maximum: 1 },
           revShareLevel3Percent: { type: "number", minimum: 0, maximum: 1 },
-          cpaAmountCents: { type: "integer" },
+
           autoApproveCommissions: { type: "boolean" },
           requireManagerApprovalForAffiliates: { type: "boolean" },
           updatedAt: { type: "string", format: "date-time" },

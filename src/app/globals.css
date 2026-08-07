@@ -310,6 +310,27 @@
 }
 
 /*
+ * ---------- Native form controls ----------
+ * A native <select> renders its dropdown popup with the OS/browser theme, not
+ * the page's — on Windows/Chrome that means white-on-white <option>s that only
+ * become readable on hover (the "Atribuir gerente" list looked blank). Declaring
+ * color-scheme makes the browser paint the whole native widget dark; the
+ * explicit option colors are the belt-and-braces fallback for engines that
+ * ignore it. Scoped here so every <select> in the Backoffice is fixed at once
+ * instead of each call site hardcoding a background hex.
+ */
+[data-scope="backoffice"] select {
+  color-scheme: dark;
+}
+[data-scope="backoffice"] select option {
+  background-color: var(--bo-surface-overlay);
+  color: var(--bo-text);
+}
+[data-scope="backoffice"] select option:disabled {
+  color: var(--bo-text-muted);
+}
+
+/*
  * ---------- Backoffice button system ----------
  * Restyles every Button variant inside the Backoffice via the data-variant
  * hook, with zero call-site changes and zero effect on the player app.

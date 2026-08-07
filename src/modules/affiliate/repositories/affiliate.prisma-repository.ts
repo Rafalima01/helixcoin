@@ -17,7 +17,6 @@ function toEntity(row: PrismaAffiliateProfile): AffiliateProfile {
     status: row.status,
     documentsJson: row.documentsJson as Record<string, unknown> | null,
     pixKeyEncrypted: row.pixKeyEncrypted,
-    cpaOverrideCents: row.cpaOverrideCents,
     revShareOverridePercent: row.revShareOverridePercent,
     requestedAt: row.requestedAt,
     approvedAt: row.approvedAt,
@@ -92,7 +91,6 @@ export class PrismaAffiliateRepository implements IAffiliateRepository {
           ? { documentsJson: input.documentsJson !== null ? toJson(input.documentsJson) : Prisma.JsonNull }
           : {}),
         ...(input.pixKeyEncrypted !== undefined ? { pixKeyEncrypted: input.pixKeyEncrypted } : {}),
-        ...(input.cpaOverrideCents !== undefined ? { cpaOverrideCents: input.cpaOverrideCents } : {}),
         ...(input.revShareOverridePercent !== undefined ? { revShareOverridePercent: input.revShareOverridePercent } : {}),
         ...(input.approvedAt !== undefined ? { approvedAt: input.approvedAt } : {}),
         ...(input.approvedById !== undefined ? { approvedById: input.approvedById } : {}),
