@@ -6,9 +6,6 @@ export type CreateMatchInput = z.infer<typeof createMatchSchema>;
 /** Shared telemetry fields the client optionally reports — absence never itself counts as a violation, see AntiCheatService. */
 const telemetryShape = {
   maxVerticalSpeed: z.number().optional(),
-  maxHorizontalSpeed: z.number().optional(),
-  maxAcceleration: z.number().optional(),
-  collisionsPerSecond: z.number().optional(),
 };
 
 export const beginMatchSchema = z.object({

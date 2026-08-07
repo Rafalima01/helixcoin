@@ -82,8 +82,10 @@ model GameEconomyConfig {
   modes Json
 
   /// { maxPlatformsPerSecond, minSecondsToGoal, minSecondsBeforeCashout,
-  ///   maxVerticalSpeed, maxHorizontalSpeed, maxAcceleration,
-  ///   maxCollisionsPerSecond }
+  ///   maxVerticalSpeed, maxCollisionsPerSecond }
+  /// Older rows may still carry maxHorizontalSpeed/maxAcceleration keys; both
+  /// were removed from the panel (unenforceable without trusting client-
+  /// reported telemetry) and are simply ignored on read.
   antiCheat Json
 
   createdById String

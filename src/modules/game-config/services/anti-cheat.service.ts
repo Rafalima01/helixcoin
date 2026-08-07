@@ -7,9 +7,15 @@ export interface CheckResolveInput {
   elapsedSeconds: number;
   /** Optional client-reported telemetry — absent values simply skip that check. */
   reportedMaxVerticalSpeed?: number;
-  reportedMaxHorizontalSpeed?: number;
-  reportedMaxAcceleration?: number;
-  reportedCollisionsPerSecond?: number;
+  /**
+   * Raw contact COUNT for the match. The collisions-per-second rate is
+   * derived here, server-side, from this and `elapsedSeconds` — the client
+   * never sends a rate. A rate is exactly the kind of value a bot would
+   * forge (report 2/s while actually auto-clicking at 40/s); a raw count
+   * cross-checked against the server's own clock is much harder to fake
+   * without also faking the wall-clock the server measured itself.
+   */
+  reportedCollisionCount?: number;
   /**
    * Progress claimed since the server's own previous checkpoint for this
    * match (not since match start) — see MatchEngineService.computeCanonicalProgress,
@@ -59,6 +65,23 @@ function floorRatio(elapsedSeconds: number, minSeconds: number): number {
 }
 
 /**
+ * Server-derived collisions/second, or null when it can't be computed
+ * honestly. Returning null (instead of a large number) for a non-positive or
+ * non-finite elapsed time is deliberate: a 0s match would divide by zero and
+ * flag every player whose clock happened to round down, which would punish
+ * the honest case to catch a case `maxPlatformsPerSecond` already covers.
+ */
+export function deriveCollisionsPerSecond(
+  collisionCount: number | undefined,
+  elapsedSeconds: number
+): number | null {
+  if (collisionCount === undefined) return null;
+  if (!Number.isFinite(collisionCount) || collisionCount < 0) return null;
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) return null;
+  return collisionCount / elapsedSeconds;
+}
+
+/**
  * Continuous risk signal (0-100), independent of the pass/fail gate below —
  * computed from the same inputs/limits, but never short-circuits, so it
  * reflects the single worst dimension even when nothing crossed its
@@ -85,14 +108,10 @@ function computeRiskScore(input: CheckResolveInput): number {
   if (input.reportedMaxVerticalSpeed !== undefined) {
     ratios.push(ratio(input.reportedMaxVerticalSpeed, limits.maxVerticalSpeed));
   }
-  if (input.reportedMaxHorizontalSpeed !== undefined) {
-    ratios.push(ratio(input.reportedMaxHorizontalSpeed, limits.maxHorizontalSpeed));
-  }
-  if (input.reportedMaxAcceleration !== undefined) {
-    ratios.push(ratio(input.reportedMaxAcceleration, limits.maxAcceleration));
-  }
-  if (input.reportedCollisionsPerSecond !== undefined) {
-    ratios.push(ratio(input.reportedCollisionsPerSecond, limits.maxCollisionsPerSecond));
+
+  const collisionsPerSecond = deriveCollisionsPerSecond(input.reportedCollisionCount, elapsedSeconds);
+  if (collisionsPerSecond !== null) {
+    ratios.push(ratio(collisionsPerSecond, limits.maxCollisionsPerSecond));
   }
 
   const maxRatio = ratios.length > 0 ? Math.max(...ratios) : 0;
@@ -169,35 +188,21 @@ export class AntiCheatService {
       };
     }
 
-    if (
-      input.reportedMaxHorizontalSpeed !== undefined &&
-      input.reportedMaxHorizontalSpeed > limits.maxHorizontalSpeed
-    ) {
-      return {
-        flagged: true,
-        reason: "horizontal_speed_exceeded",
-        observed: { value: input.reportedMaxHorizontalSpeed, limit: limits.maxHorizontalSpeed },
-        riskScore,
-      };
-    }
-
-    if (input.reportedMaxAcceleration !== undefined && input.reportedMaxAcceleration > limits.maxAcceleration) {
-      return {
-        flagged: true,
-        reason: "acceleration_exceeded",
-        observed: { value: input.reportedMaxAcceleration, limit: limits.maxAcceleration },
-        riskScore,
-      };
-    }
-
-    if (
-      input.reportedCollisionsPerSecond !== undefined &&
-      input.reportedCollisionsPerSecond > limits.maxCollisionsPerSecond
-    ) {
+    // Rate derived here from the raw count and the server's own elapsed
+    // clock — never taken from the client. Strictly greater-than, so a match
+    // sitting exactly on the configured limit passes (consistent with every
+    // other ceiling check above).
+    const collisionsPerSecond = deriveCollisionsPerSecond(input.reportedCollisionCount, elapsedSeconds);
+    if (collisionsPerSecond !== null && collisionsPerSecond > limits.maxCollisionsPerSecond) {
       return {
         flagged: true,
         reason: "collision_rate_exceeded",
-        observed: { value: input.reportedCollisionsPerSecond, limit: limits.maxCollisionsPerSecond },
+        observed: {
+          collisionsPerSecond,
+          collisionCount: input.reportedCollisionCount ?? 0,
+          elapsedSeconds,
+          limit: limits.maxCollisionsPerSecond,
+        },
         riskScore,
       };
     }

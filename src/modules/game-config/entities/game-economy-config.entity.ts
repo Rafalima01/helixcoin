@@ -24,8 +24,6 @@ export interface AntiCheatConfig {
   minSecondsToGoal: number;
   minSecondsBeforeCashout: number;
   maxVerticalSpeed: number;
-  maxHorizontalSpeed: number;
-  maxAcceleration: number;
   maxCollisionsPerSecond: number;
 }
 

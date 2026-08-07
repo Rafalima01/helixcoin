@@ -475,9 +475,12 @@ export class MatchEngineService {
     progress: { intervalSeconds: number; intervalClaimed: number },
     telemetry: {
       maxVerticalSpeed?: number;
-      maxHorizontalSpeed?: number;
-      maxAcceleration?: number;
-      collisionsPerSecond?: number;
+      /**
+       * Raw contact count. The collisions/second RATE is derived inside
+       * AntiCheatService from this and the server-measured elapsed time —
+       * the client is never asked for, and never trusted with, a rate.
+       */
+      collisionCount?: number;
     }
   ) {
     if (!match.antiCheatSnapshot) return null;
@@ -489,9 +492,7 @@ export class MatchEngineService {
       intervalPlatformsClaimed: progress.intervalClaimed,
       intervalSeconds: progress.intervalSeconds,
       reportedMaxVerticalSpeed: telemetry.maxVerticalSpeed,
-      reportedMaxHorizontalSpeed: telemetry.maxHorizontalSpeed,
-      reportedMaxAcceleration: telemetry.maxAcceleration,
-      reportedCollisionsPerSecond: telemetry.collisionsPerSecond,
+      reportedCollisionCount: telemetry.collisionCount,
       limits: match.antiCheatSnapshot as unknown as AntiCheatConfig,
     });
   }

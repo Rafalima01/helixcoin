@@ -35,8 +35,6 @@ function lenientConfig(overrides?: Partial<ResolvedMatchConfig["general"]>): Res
       minSecondsToGoal: 0,
       minSecondsBeforeCashout: 0,
       maxVerticalSpeed: Infinity,
-      maxHorizontalSpeed: Infinity,
-      maxAcceleration: Infinity,
       maxCollisionsPerSecond: Infinity,
     },
     engineParams: buildDefaultModes().NORMAL,

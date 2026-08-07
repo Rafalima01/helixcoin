@@ -334,13 +334,19 @@ export const GENERAL_FIELDS: GeneralFieldDef[] = [
   },
 ];
 
+/**
+ * `maxHorizontalSpeed` and `maxAcceleration` were removed rather than wired
+ * up. Both would have to be measured client-side and self-reported, and a
+ * self-reported bound is precisely what a cheating client falsifies first —
+ * shipping them as sliders would have been security theatre: a control that
+ * only reassures whoever trusts it. Everything left here is enforced from
+ * values the server measures or derives itself.
+ */
 export type AntiCheatFieldKey =
   | "maxPlatformsPerSecond"
   | "minSecondsToGoal"
   | "minSecondsBeforeCashout"
   | "maxVerticalSpeed"
-  | "maxHorizontalSpeed"
-  | "maxAcceleration"
   | "maxCollisionsPerSecond";
 
 export interface AntiCheatFieldDef {
@@ -396,29 +402,10 @@ export const ANTI_CHEAT_FIELDS: AntiCheatFieldDef[] = [
     default: 30,
   },
   {
-    key: "maxHorizontalSpeed",
-    label: "Máxima velocidade horizontal",
-    tooltip: "Velocidade angular/horizontal reportada acima da qual a sessão é considerada suspeita.",
-    unit: "rad/s",
-    min: 2,
-    max: 50,
-    step: 1,
-    default: 15,
-  },
-  {
-    key: "maxAcceleration",
-    label: "Máxima aceleração",
-    tooltip: "Variação de velocidade por segundo acima da qual a sessão é considerada suspeita.",
-    unit: "u/s²",
-    min: 5,
-    max: 200,
-    step: 1,
-    default: 60,
-  },
-  {
     key: "maxCollisionsPerSecond",
     label: "Máximo número de colisões por segundo",
-    tooltip: "Taxa de colisões reportada acima da qual a sessão é considerada suspeita (ex.: auto-click/bot).",
+    tooltip:
+      "Teto de colisões por segundo. A taxa é CALCULADA no servidor (total de colisões ÷ tempo decorrido medido pelo servidor), nunca enviada pelo cliente — acima do teto, o resolve é recusado e a partida é sinalizada. Pega auto-click/bot; baixar o valor aperta a detecção e aumenta o risco de falso positivo.",
     unit: "colisões/s",
     min: 1,
     max: 30,
