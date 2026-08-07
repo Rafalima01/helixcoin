@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { ClipboardCheck, Check, X } from "lucide-react";
 import toast from "react-hot-toast";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/admin/ui";
+import { ListRow, ListRowAvatar } from "@/components/backoffice/list-row";
 import { useManagerApprovals, useDecideApproval } from "@/hooks/use-manager";
 
 function RejectModal({
@@ -91,36 +92,31 @@ export function ManagerApprovalsScreen() {
           <Skeleton className="h-20 w-full rounded-2xl" />
         </div>
       ) : !data || data.length === 0 ? (
-        <Card className="p-10 flex flex-col items-center gap-3 text-center">
-          <ClipboardCheck className="size-8 text-text-muted" />
-          <p className="font-semibold">Nenhuma aprovação pendente</p>
-          <p className="text-sm text-text-secondary max-w-sm">
-            Novos cadastros de afiliados da sua rede aparecerão aqui.
-          </p>
-        </Card>
+        <EmptyState
+          icon={ClipboardCheck}
+          title="Nenhuma aprovação pendente"
+          description="Novos cadastros de afiliados da sua rede aparecerão aqui."
+        />
       ) : (
         <div className="flex flex-col gap-3">
           {data.map((app) => (
-            <Card key={app.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-purple/15 text-purple font-bold">
-                {app.userName.charAt(0).toUpperCase()}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate">{app.userName}</p>
-                <p className="text-xs text-text-secondary truncate">{app.userEmail}</p>
-                <p className="text-[11px] text-text-muted mt-0.5">
-                  Solicitado em {new Date(app.requestedAt).toLocaleDateString("pt-BR")}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button variant="success" size="sm" onClick={() => approve(app.id)} loading={decide.isPending}>
-                  <Check className="size-4" /> Aprovar
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => setRejectingId(app.id)}>
-                  <X className="size-4" /> Recusar
-                </Button>
-              </div>
-            </Card>
+            <ListRow
+              key={app.id}
+              leading={<ListRowAvatar>{app.userName.charAt(0).toUpperCase()}</ListRowAvatar>}
+              title={app.userName}
+              subtitle={app.userEmail}
+              meta={`Solicitado em ${new Date(app.requestedAt).toLocaleDateString("pt-BR")}`}
+              trailing={
+                <>
+                  <Button variant="success" size="sm" onClick={() => approve(app.id)} loading={decide.isPending}>
+                    <Check className="size-4" /> Aprovar
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setRejectingId(app.id)}>
+                    <X className="size-4" /> Recusar
+                  </Button>
+                </>
+              }
+            />
           ))}
         </div>
       )}

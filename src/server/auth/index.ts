@@ -13,6 +13,7 @@ export {
   revokeSession,
   revokeFamily,
   blacklistAccessToken,
+  blacklistFamilyAccessTokens,
   isAccessTokenBlacklisted,
   parseDurationSeconds,
   type IssuedTokens,

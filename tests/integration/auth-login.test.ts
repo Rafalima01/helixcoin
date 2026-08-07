@@ -71,6 +71,7 @@ function fakeUser(overrides: Partial<UserEntity> = {}): UserEntity {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    deletedIdentitySnapshot: null,
     ...overrides,
   };
 }

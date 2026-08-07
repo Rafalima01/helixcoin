@@ -10,6 +10,16 @@ export interface CheckResolveInput {
   reportedMaxHorizontalSpeed?: number;
   reportedMaxAcceleration?: number;
   reportedCollisionsPerSecond?: number;
+  /**
+   * Progress claimed since the server's own previous checkpoint for this
+   * match (not since match start) — see MatchEngineService.computeCanonicalProgress,
+   * the caller that populates these. `platformsPassed`/`elapsedSeconds` above
+   * only catch a whole-match AVERAGE, which a script can defeat by waiting
+   * out the clock before reporting a burst; this pair catches the burst
+   * itself, regardless of how much total time has passed.
+   */
+  intervalPlatformsClaimed?: number;
+  intervalSeconds?: number;
   limits: AntiCheatConfig;
 }
 
@@ -25,6 +35,16 @@ export interface CheckResolveResult {
    */
   riskScore: number;
 }
+
+/**
+ * Slack applied only to the interval-rate INVALIDATION gate below (never to
+ * the canonical payout clamp in MatchEngineService, which stays exact) — a
+ * measurement-tolerance constant for checkpoint-timing/network jitter
+ * between two consecutive reports, not a business/difficulty knob. Keeping
+ * it here (not admin-configurable) mirrors how `MULTIPLIER_EPSILON` is a
+ * fixed float-noise absorber rather than a tunable field.
+ */
+const INTERVAL_RATE_TOLERANCE = 1.5;
 
 function ratio(observed: number, limit: number): number {
   if (limit <= 0) return observed > 0 ? 1 : 0;
@@ -51,6 +71,12 @@ function computeRiskScore(input: CheckResolveInput): number {
 
   const platformsPerSecond = elapsedSeconds > 0 ? platformsPassed / elapsedSeconds : platformsPassed;
   ratios.push(ratio(platformsPerSecond, limits.maxPlatformsPerSecond));
+
+  if (input.intervalSeconds !== undefined && input.intervalPlatformsClaimed !== undefined) {
+    const intervalRate =
+      input.intervalSeconds > 0 ? input.intervalPlatformsClaimed / input.intervalSeconds : input.intervalPlatformsClaimed;
+    ratios.push(ratio(intervalRate, limits.maxPlatformsPerSecond));
+  }
 
   if (action === "cashout") {
     ratios.push(floorRatio(elapsedSeconds, limits.minSecondsToGoal));
@@ -100,6 +126,19 @@ export class AntiCheatService {
         observed: { platformsPerSecond, limit: limits.maxPlatformsPerSecond },
         riskScore,
       };
+    }
+
+    if (input.intervalSeconds !== undefined && input.intervalPlatformsClaimed !== undefined) {
+      const intervalRate =
+        input.intervalSeconds > 0 ? input.intervalPlatformsClaimed / input.intervalSeconds : input.intervalPlatformsClaimed;
+      if (intervalRate > limits.maxPlatformsPerSecond * INTERVAL_RATE_TOLERANCE) {
+        return {
+          flagged: true,
+          reason: "platforms_per_interval_exceeded",
+          observed: { intervalRate, limit: limits.maxPlatformsPerSecond },
+          riskScore,
+        };
+      }
     }
 
     if (action === "cashout") {

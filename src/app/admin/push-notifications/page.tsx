@@ -42,7 +42,7 @@ export default function AdminPushNotificationsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "notifications", "history", status],
     queryFn: () => NotificationsAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
   });
@@ -118,7 +118,7 @@ export default function AdminPushNotificationsPage() {
           { value: "FAILED", label: "Falharam" },
         ]}
       />
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={15} onRowClick={(l) => setSelectedId(l.id)} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={15} onRowClick={(l) => setSelectedId(l.id)} />
 
       {selectedId && <HistoryDrawer log={rows.find((l) => l.id === selectedId) ?? null} onClose={() => setSelectedId(null)} />}
     </div>

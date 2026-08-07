@@ -1,10 +1,10 @@
 "use client";
 
 import { Bell, BellOff, CheckCheck } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/admin/ui";
+import { ListRow, ListRowAvatar } from "@/components/backoffice/list-row";
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
 
 export function ManagerNotificationsScreen() {
@@ -35,41 +35,28 @@ export function ManagerNotificationsScreen() {
           <Skeleton className="h-16 w-full rounded-2xl" />
         </div>
       ) : !data || data.length === 0 ? (
-        <Card className="p-10 flex flex-col items-center gap-3 text-center">
-          <BellOff className="size-8 text-text-muted" />
-          <p className="font-semibold">Nenhuma notificação por aqui</p>
-          <p className="text-sm text-text-secondary max-w-sm">
-            Você será avisado sobre novos cadastros e novidades da sua rede.
-          </p>
-        </Card>
+        <EmptyState
+          icon={BellOff}
+          title="Nenhuma notificação por aqui"
+          description="Você será avisado sobre novos cadastros e novidades da sua rede."
+        />
       ) : (
         <div className="flex flex-col gap-2.5">
           {data.map((n) => (
-            <Card
+            <ListRow
               key={n.id}
-              className={cn(
-                "p-4 flex items-start gap-3 cursor-pointer transition-colors",
-                !n.read && "border-purple/30 bg-purple/[0.04]"
-              )}
+              highlighted={!n.read}
               onClick={() => !n.read && markRead.mutate(n.id)}
-            >
-              <span
-                className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                  n.read ? "bg-white/[0.04] text-text-muted" : "bg-purple/15 text-purple"
-                )}
-              >
-                <Bell className="size-4" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">{n.title}</p>
-                <p className="text-sm text-text-secondary">{n.message}</p>
-                <p className="text-[11px] text-text-muted mt-1">
-                  {new Date(n.createdAt).toLocaleString("pt-BR")}
-                </p>
-              </div>
-              {!n.read && <span className="size-2 shrink-0 rounded-full bg-pink mt-1.5" />}
-            </Card>
+              leading={
+                <ListRowAvatar size="sm" tone={n.read ? "muted" : "purple"}>
+                  <Bell className="size-4" />
+                </ListRowAvatar>
+              }
+              title={n.title}
+              subtitle={n.message}
+              meta={new Date(n.createdAt).toLocaleString("pt-BR")}
+              trailing={!n.read ? <span className="size-2 shrink-0 rounded-full bg-pink" /> : undefined}
+            />
           ))}
         </div>
       )}

@@ -1,6 +1,6 @@
 import type { IUserSessionRepository } from "@/modules/identity/interfaces/session-repository.interface";
 import type { SessionEntity } from "@/modules/identity/entities/session.entity";
-import { revokeFamily } from "@/server/auth/tokens";
+import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
 import { AuditService } from "@/server/audit";
 import { eventBus } from "@/server/events";
 import { ForbiddenError, NotFoundError } from "@/server/errors";
@@ -20,6 +20,7 @@ export class SessionService {
     if (!session) throw new NotFoundError("Session");
     if (session.userId !== userId) throw new ForbiddenError("Esta sessão não pertence a este usuário");
 
+    await blacklistFamilyAccessTokens(session.familyId);
     await revokeFamily(session.familyId);
     await this.sessions.revoke(sessionId, new Date());
 
@@ -42,6 +43,7 @@ export class SessionService {
     let count = 0;
     for (const s of active) {
       if (s.status !== "ACTIVE" || s.id === exceptSessionId) continue;
+      await blacklistFamilyAccessTokens(s.familyId);
       await revokeFamily(s.familyId);
       await this.sessions.revoke(s.id, new Date());
       count++;

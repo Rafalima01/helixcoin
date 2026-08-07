@@ -26,6 +26,7 @@ export default function AdminObservabilityPage() {
       <PageHeader
         title="Observabilidade"
         description="Saúde dos serviços, latência e taxa de erro. Fonte futura: métricas via OpenTelemetry."
+        mock
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">

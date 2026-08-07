@@ -75,6 +75,7 @@ export default function AdminGamesPage() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Catálogo de Jogos"
+        mock
         description="Títulos disponíveis na plataforma, destaque e disponibilidade."
         actions={
           <Button variant="primary" size="sm" onClick={notImplemented}>

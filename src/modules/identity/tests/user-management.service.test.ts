@@ -9,7 +9,7 @@ import type { AdminActor } from "@/modules/identity/services/user-management.ser
 vi.mock("@/server/audit", () => ({ AuditService: { record: vi.fn() } }));
 vi.mock("@/server/auth/tokens", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/auth/tokens")>();
-  return { ...actual, revokeFamily: vi.fn() };
+  return { ...actual, revokeFamily: vi.fn(), blacklistFamilyAccessTokens: vi.fn() };
 });
 
 const meta: RequestMeta = { ip: "127.0.0.1", userAgent: "vitest" };
@@ -151,6 +151,43 @@ describe("UserManagementService.softDelete / restore", () => {
     const { service } = buildService();
     const user = await service.create(baseInput, actor, meta);
     await expect(service.restore(user.id, actor, meta)).rejects.toThrow(BusinessRuleError);
+  });
+
+  it("frees up email/username for reuse immediately on delete — the reported bug: a deleted account's identity stayed permanently taken", async () => {
+    const { service } = buildService();
+    const user = await service.create(baseInput, actor, meta);
+    await service.softDelete(user.id, actor, meta);
+
+    const recreated = await service.create(baseInput, actor, meta);
+    expect(recreated.id).not.toBe(user.id);
+    expect(recreated.email).toBe(baseInput.email);
+    expect(recreated.username).toBe(baseInput.username);
+  });
+
+  it("restore() brings the original email/username back when nothing has claimed them since", async () => {
+    const { service, users } = buildService();
+    const user = await service.create(baseInput, actor, meta);
+    await service.softDelete(user.id, actor, meta);
+
+    const tombstoned = (await users.findById(user.id))!;
+    expect(tombstoned.email).not.toBe(baseInput.email);
+    expect(tombstoned.username).not.toBe(baseInput.username);
+
+    await service.restore(user.id, actor, meta);
+    const restored = (await users.findById(user.id))!;
+    expect(restored.email).toBe(baseInput.email);
+    expect(restored.username).toBe(baseInput.username);
+    expect(restored.deletedIdentitySnapshot).toBeNull();
+  });
+
+  it("rejects restore with ConflictError when someone else has since signed up with the original email", async () => {
+    const { service } = buildService();
+    const user = await service.create(baseInput, actor, meta);
+    await service.softDelete(user.id, actor, meta);
+
+    await service.create(baseInput, actor, meta); // a different, new account reuses the freed identity
+
+    await expect(service.restore(user.id, actor, meta)).rejects.toThrow(ConflictError);
   });
 });
 

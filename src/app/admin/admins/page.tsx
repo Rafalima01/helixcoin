@@ -41,7 +41,7 @@ const STATUS_LABEL: Record<UserResponseDto["status"], { label: string; tone: "su
 
 export default function AdminAdminsPage() {
   const [inviting, setInviting] = useState(false);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "staff"],
     queryFn: () => IdentityAdminApi.searchUsers({ page: 1, pageSize: 100 }),
   });
@@ -123,7 +123,7 @@ export default function AdminAdminsPage() {
         })}
       </div>
 
-      <DataTable columns={columns} rows={staff} loading={isLoading} />
+      <DataTable columns={columns} rows={staff} loading={isLoading} error={isError} onRetry={refetch} />
     </div>
   );
 }

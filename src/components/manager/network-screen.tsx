@@ -5,9 +5,10 @@ import { Network, Check, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { DataTable, Drawer, DetailRow, StatusBadge, type TableColumn } from "@/components/admin/ui";
+import { ListRowAvatar } from "@/components/backoffice/list-row";
 import { formatCurrency } from "@/lib/utils";
 import {
   useManagerNetwork,
@@ -17,6 +18,14 @@ import {
 } from "@/hooks/use-manager";
 import type { AffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
 import type { AffiliateNetworkStatsDto } from "@/modules/manager/dto/manager.dto";
+
+const STATUS_BADGE_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
+  APPROVED: "success",
+  PENDING: "warning",
+  DOCUMENTS_REQUESTED: "warning",
+  REJECTED: "danger",
+  BLOCKED: "danger",
+};
 
 const STATUS_BADGE: Record<string, "green" | "warning" | "error" | "neutral"> = {
   APPROVED: "green",
@@ -33,6 +42,10 @@ const STATUS_LABEL: Record<string, string> = {
   REJECTED: "Recusado",
   BLOCKED: "Bloqueado",
 };
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
 
 function CommissionEditor({ affiliate, ceiling }: { affiliate: AffiliateProfileAdminDto; ceiling: number }) {
   const [editing, setEditing] = useState(false);
@@ -60,7 +73,7 @@ function CommissionEditor({ affiliate, ceiling }: { affiliate: AffiliateProfileA
 
   if (!editing) {
     return (
-      <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-sm font-semibold tabular-nums">
+      <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-sm font-semibold tabular-nums ml-auto">
         {affiliate.commissionPercent !== null ? `${affiliate.commissionPercent}%` : "Padrão"}
         <Pencil className="size-3 text-text-muted" />
       </button>
@@ -118,52 +131,132 @@ function InvitePermissionToggle({ affiliate }: { affiliate: AffiliateProfileAdmi
   };
 
   return (
-    <label className="flex items-center gap-1.5 text-[11px] text-text-muted whitespace-nowrap cursor-pointer">
+    <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
       <input
         type="checkbox"
         checked={affiliate.canInviteAffiliates}
         onChange={toggle}
         disabled={update.isPending}
-        className="size-3.5 accent-purple"
+        className="size-4 accent-purple"
       />
-      Convidar afiliados
+      Pode convidar novos afiliados
     </label>
   );
 }
 
-function StatTile({ label, value, tone }: { label: string; value: string; tone?: "green" | "muted" }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <p className="text-[10px] uppercase tracking-wide text-text-muted">{label}</p>
-      <p className={`text-sm font-bold tabular-nums ${tone === "green" ? "text-green" : "text-text-primary"}`}>{value}</p>
-    </div>
-  );
-}
-
 /**
- * The rollup requested for "Minha Rede" — every number here comes from
- * AffiliateNetworkStatsDto, already computed server-side (see
- * ManagerService.getNetworkWithStats). Deliberately limited to this
- * affiliate's own network numbers — no commission-generated/house-profit
- * tile here, ever: a Manager must never be able to infer the platform's
- * own margin from this screen.
+ * Full detail for a network row — the audit's "5 estatísticas... com
+ * detalhe completo num drawer" (§1.2, §6 passo 10). Every number comes
+ * from AffiliateNetworkStatsDto, already computed server-side. Deliberately
+ * no commission-generated/house-profit figure here, ever: a Manager must
+ * never infer the platform's own margin from this screen.
  */
-function NetworkStatsGrid({ affiliate }: { affiliate: AffiliateNetworkStatsDto }) {
+function NetworkDrawer({
+  affiliate,
+  ceiling,
+  onClose,
+}: {
+  affiliate: AffiliateNetworkStatsDto;
+  ceiling: number;
+  onClose: () => void;
+}) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-3 border-t border-border pt-3 mt-1">
-      <StatTile label="Jogadores cadastrados" value={String(affiliate.playersReferredCount)} />
-      <StatTile label="FTDs" value={String(affiliate.ftdCount)} />
-      <StatTile label="Total de depósitos gerados" value={formatCurrency(affiliate.depositTotalCents / 100)} />
-      <StatTile label="Pago ao afiliado" value={formatCurrency(affiliate.paidToAffiliateCents / 100)} />
-      <StatTile label="Recebido por você" value={formatCurrency(affiliate.keptByManagerCents / 100)} tone="green" />
-    </div>
+    <Drawer open onClose={onClose} title={affiliate.userName}>
+      <div className="flex flex-col gap-5">
+        <div>
+          <DetailRow label="Email" value={affiliate.userEmail} />
+          <DetailRow
+            label="Status"
+            value={<StatusBadge tone={STATUS_BADGE_TONE[affiliate.status] ?? "neutral"}>{STATUS_LABEL[affiliate.status] ?? affiliate.status}</StatusBadge>}
+          />
+          <DetailRow label="Desde" value={formatDate(affiliate.requestedAt)} />
+        </div>
+
+        {affiliate.status === "APPROVED" && (
+          <>
+            <div>
+              <DetailRow label="Comissão" value={<CommissionEditor affiliate={affiliate} ceiling={ceiling} />} />
+              <DetailRow label="Jogadores cadastrados" value={String(affiliate.playersReferredCount)} />
+              <DetailRow label="FTDs" value={String(affiliate.ftdCount)} />
+              <DetailRow label="Total de depósitos gerados" value={formatCurrency(affiliate.depositTotalCents / 100)} />
+              <DetailRow label="Pago ao afiliado" value={formatCurrency(affiliate.paidToAffiliateCents / 100)} />
+              <DetailRow
+                label="Recebido por você"
+                value={<span className="text-green font-bold">{formatCurrency(affiliate.keptByManagerCents / 100)}</span>}
+              />
+            </div>
+            <InvitePermissionToggle affiliate={affiliate} />
+          </>
+        )}
+      </div>
+    </Drawer>
   );
 }
 
 export function ManagerNetworkScreen() {
-  const { data, isLoading } = useManagerNetwork();
+  const { data, isLoading, isError, refetch } = useManagerNetwork();
   const { data: profile } = useManagerProfile();
   const ceiling = profile?.commissionPercent ?? 100;
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = data?.find((a) => a.id === selectedId);
+
+  const columns: TableColumn<AffiliateNetworkStatsDto>[] = [
+    {
+      key: "affiliate",
+      header: "Afiliado",
+      render: (a) => (
+        <div className="flex items-center gap-3 min-w-0">
+          <ListRowAvatar tone="purple-gradient" size="sm">
+            {a.userName.charAt(0).toUpperCase()}
+          </ListRowAvatar>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate">{a.userName}</p>
+            <p className="text-xs text-text-muted truncate">{a.userEmail}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (a) => <Badge variant={STATUS_BADGE[a.status] ?? "neutral"} size="sm">{STATUS_LABEL[a.status] ?? a.status}</Badge>,
+    },
+    {
+      key: "commission",
+      header: "Comissão",
+      align: "right",
+      render: (a) =>
+        a.status === "APPROVED" ? (
+          <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+            <CommissionEditor affiliate={a} ceiling={ceiling} />
+          </div>
+        ) : (
+          <span className="text-sm text-text-muted">—</span>
+        ),
+    },
+    {
+      key: "players",
+      header: "Jogadores",
+      align: "right",
+      render: (a) => <span className="tabular-nums text-sm">{a.status === "APPROVED" ? a.playersReferredCount : "—"}</span>,
+    },
+    {
+      key: "kept",
+      header: "Recebido por você",
+      align: "right",
+      render: (a) => (
+        <span className="tabular-nums text-sm font-semibold text-green">
+          {a.status === "APPROVED" ? formatCurrency(a.keptByManagerCents / 100) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "since",
+      header: "Desde",
+      align: "right",
+      render: (a) => <span className="text-xs text-text-muted tabular-nums">{formatDate(a.requestedAt)}</span>,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -176,12 +269,7 @@ export function ManagerNetworkScreen() {
         </p>
       </div>
 
-      {isLoading ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-16 w-full rounded-2xl" />
-          <Skeleton className="h-16 w-full rounded-2xl" />
-        </div>
-      ) : !data || data.length === 0 ? (
+      {!isLoading && (!data || data.length === 0) ? (
         <Card className="p-10 flex flex-col items-center gap-3 text-center">
           <Network className="size-8 text-text-muted" />
           <p className="font-semibold">Nenhum afiliado ainda</p>
@@ -190,37 +278,10 @@ export function ManagerNetworkScreen() {
           </p>
         </Card>
       ) : (
-        <div className="flex flex-col gap-2.5">
-          {data.map((aff) => (
-            <Card key={aff.id} className="p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-4">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple/60 to-pink/60 text-white text-sm font-bold">
-                  {aff.userName.charAt(0).toUpperCase()}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-sm truncate">{aff.userName}</p>
-                    <Badge variant={STATUS_BADGE[aff.status] ?? "neutral"} size="sm">
-                      {STATUS_LABEL[aff.status] ?? aff.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-text-secondary truncate">{aff.userEmail}</p>
-                </div>
-                {aff.status === "APPROVED" && (
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <CommissionEditor affiliate={aff} ceiling={ceiling} />
-                    <InvitePermissionToggle affiliate={aff} />
-                  </div>
-                )}
-                <p className="shrink-0 text-[11px] text-text-muted">
-                  Desde {new Date(aff.requestedAt).toLocaleDateString("pt-BR")}
-                </p>
-              </div>
-              {aff.status === "APPROVED" && <NetworkStatsGrid affiliate={aff} />}
-            </Card>
-          ))}
-        </div>
+        <DataTable columns={columns} rows={data ?? []} loading={isLoading} error={isError} onRetry={refetch} pageSize={10} onRowClick={(a) => setSelectedId(a.id)} />
       )}
+
+      {selected && <NetworkDrawer affiliate={selected} ceiling={ceiling} onClose={() => setSelectedId(null)} />}
     </div>
   );
 }

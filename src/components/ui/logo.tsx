@@ -1,7 +1,21 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-export function Logo({ className, iconOnly }: { className?: string; iconOnly?: boolean }) {
+export function Logo({
+  className,
+  iconOnly,
+  compact,
+}: {
+  className?: string;
+  iconOnly?: boolean;
+  /**
+   * Wordmark without the helix-tower badge. The full lockup packs an icon,
+   * two type weights and a coin stack into a 2.8:1 box — legible on a
+   * landing hero, mush at sidebar scale. This variant drops the badge so the
+   * brand still reads at ~36px tall.
+   */
+  compact?: boolean;
+}) {
   if (iconOnly) {
     return (
       <Image
@@ -11,6 +25,19 @@ export function Logo({ className, iconOnly }: { className?: string; iconOnly?: b
         height={32}
         priority
         className={cn("shrink-0 select-none", className)}
+      />
+    );
+  }
+
+  if (compact) {
+    return (
+      <Image
+        src="/logo-icon-mobil.png"
+        alt="HeliJump"
+        width={2103}
+        height={748}
+        priority
+        className={cn("h-9 w-auto select-none", className)}
       />
     );
   }

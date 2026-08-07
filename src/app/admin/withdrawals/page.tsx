@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
+import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, DrawerSkeleton, type TableColumn } from "@/components/admin/ui";
 import { WithdrawalsAdminApi, ApiError } from "@/lib/admin/payments-api";
 import type { WithdrawAdminDto } from "@/modules/payments/dto/payments.dto";
 import { formatCurrency } from "@/lib/utils";
@@ -31,7 +31,7 @@ export default function AdminWithdrawalsPage() {
   const [status, setStatus] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "payments", "withdrawals", status],
     queryFn: () => WithdrawalsAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
   });
@@ -100,7 +100,7 @@ export default function AdminWithdrawalsPage() {
           ]}
         />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} onRowClick={(w) => setSelectedId(w.id)} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={10} onRowClick={(w) => setSelectedId(w.id)} />
 
       {selectedId && <WithdrawDrawer id={selectedId} onClose={() => setSelectedId(null)} />}
     </div>
@@ -141,7 +141,7 @@ function WithdrawDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <Drawer open onClose={onClose} title={withdraw ? "Saque" : "Carregando..."}>
       {isLoading || !withdraw ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div className="flex flex-col gap-4">
           <div>

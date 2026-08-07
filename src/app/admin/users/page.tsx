@@ -14,6 +14,7 @@ import {
   StatusBadge,
   Drawer,
   DetailRow,
+  DrawerSkeleton,
   AdminTabs,
   type TableColumn,
 } from "@/components/admin/ui";
@@ -55,12 +56,25 @@ export default function AdminUsersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "users", search, status],
-    queryFn: () => IdentityAdminApi.searchUsers({ search, status, page: 1, pageSize: 100 }),
+    queryFn: () =>
+      IdentityAdminApi.searchUsers({
+        search,
+        status: status === "DELETED" ? undefined : status,
+        includeDeleted: status === "DELETED" ? true : undefined,
+        page: 1,
+        pageSize: 100,
+      }),
   });
 
-  const rows = data?.data ?? [];
+  // "DELETED" isn't a real UserStatus (deletion is tracked via deletedAt,
+  // orthogonal to status) — the server just returns everyone when
+  // includeDeleted is set, so filter down to deleted-only here.
+  const rows = useMemo(() => {
+    const items = data?.data ?? [];
+    return status === "DELETED" ? items.filter((u) => u.deletedAt) : items;
+  }, [data, status]);
 
   const columns: TableColumn<UserResponseDto>[] = useMemo(
     () => [
@@ -82,9 +96,12 @@ export default function AdminUsersPage() {
       {
         key: "status",
         header: "Status",
-        render: (u) => (
-          <StatusBadge tone={STATUS_LABEL[u.status].tone}>{STATUS_LABEL[u.status].label}</StatusBadge>
-        ),
+        render: (u) =>
+          u.deletedAt ? (
+            <StatusBadge tone="neutral">Excluído</StatusBadge>
+          ) : (
+            <StatusBadge tone={STATUS_LABEL[u.status].tone}>{STATUS_LABEL[u.status].label}</StatusBadge>
+          ),
       },
       {
         key: "verified",
@@ -125,6 +142,7 @@ export default function AdminUsersPage() {
             { value: "PENDING", label: "Pendentes" },
             { value: "BLOCKED", label: "Bloqueados" },
             { value: "SUSPENDED", label: "Suspensos" },
+            { value: "DELETED", label: "Excluídos" },
           ]}
         />
       </FilterBar>
@@ -133,6 +151,8 @@ export default function AdminUsersPage() {
         columns={columns}
         rows={rows}
         loading={isLoading}
+        error={isError}
+        onRetry={refetch}
         onRowClick={(u) => setSelectedId(u.id)}
         emptyMessage="Nenhum usuário corresponde aos filtros"
       />
@@ -168,6 +188,7 @@ function UserDrawer({
   onMutated: () => void;
 }) {
   const [tab, setTab] = useState("perfil");
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "user", userId],
@@ -175,9 +196,12 @@ function UserDrawer({
   });
   const user = data?.data;
 
+  // Refetches THIS drawer's own query too, not just the list behind it —
+  // otherwise the drawer keeps showing pre-mutation values (e.g. "Bloqueado"
+  // right after clicking Desbloquear) until it's closed and reopened.
   const invalidate = () => {
     onMutated();
-    return IdentityAdminApi.getUser(userId);
+    return queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
   };
 
   const block = useMutation({
@@ -216,7 +240,7 @@ function UserDrawer({
   return (
     <Drawer open onClose={onClose} title={user?.fullName ?? "Carregando..."}>
       {isLoading || !user ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div className="flex flex-col gap-5">
           <AdminTabs
@@ -252,21 +276,32 @@ function UserDrawer({
                 <DetailRow label="Último login" value={formatDate(user.lastLoginAt)} />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {user.status === "BLOCKED" ? (
-                  <Button variant="secondary" size="sm" loading={unblock.isPending} onClick={() => unblock.mutate()}>
-                    <ShieldCheck className="size-4" /> Desbloquear
+                {user.deletedAt ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="col-span-2"
+                    loading={restore.isPending}
+                    onClick={() => restore.mutate()}
+                  >
+                    <RotateCcw className="size-4" /> Restaurar
                   </Button>
                 ) : (
-                  <Button variant="danger" size="sm" loading={block.isPending} onClick={() => block.mutate()}>
-                    <ShieldOff className="size-4" /> Bloquear conta
-                  </Button>
+                  <>
+                    {user.status === "BLOCKED" ? (
+                      <Button variant="secondary" size="sm" loading={unblock.isPending} onClick={() => unblock.mutate()}>
+                        <ShieldCheck className="size-4" /> Desbloquear
+                      </Button>
+                    ) : (
+                      <Button variant="danger" size="sm" loading={block.isPending} onClick={() => block.mutate()}>
+                        <ShieldOff className="size-4" /> Bloquear conta
+                      </Button>
+                    )}
+                    <Button variant="danger" size="sm" loading={softDelete.isPending} onClick={() => softDelete.mutate()}>
+                      <Trash2 className="size-4" /> Remover
+                    </Button>
+                  </>
                 )}
-                <Button variant="danger" size="sm" loading={softDelete.isPending} onClick={() => softDelete.mutate()}>
-                  <Trash2 className="size-4" /> Remover
-                </Button>
-                <Button variant="secondary" size="sm" loading={restore.isPending} onClick={() => restore.mutate()}>
-                  <RotateCcw className="size-4" /> Restaurar
-                </Button>
               </div>
               <p className="text-[11px] text-text-muted">
                 Toda ação aqui grava uma linha imutável em AuditLog (autor, antes/depois, IP).
@@ -298,7 +333,7 @@ function UserSessionsTab({ userId }: { userId: string }) {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao encerrar sessão"),
   });
 
-  if (isLoading) return <p className="text-sm text-text-muted">Carregando...</p>;
+  if (isLoading) return <DrawerSkeleton rows={3} />;
   const sessions = data?.data ?? [];
   if (sessions.length === 0) return <p className="text-sm text-text-muted">Nenhuma sessão registrada.</p>;
 
@@ -341,7 +376,7 @@ function UserHistoryTab({ userId }: { userId: string }) {
     queryFn: () => IdentityAdminApi.listUserLoginHistory(userId),
   });
 
-  if (isLoading) return <p className="text-sm text-text-muted">Carregando...</p>;
+  if (isLoading) return <DrawerSkeleton rows={3} />;
   const rows = data?.data ?? [];
   if (rows.length === 0) return <p className="text-sm text-text-muted">Nenhum evento de login registrado.</p>;
 

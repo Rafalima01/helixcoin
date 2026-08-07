@@ -24,6 +24,21 @@ export const MOCK_WEBHOOK_SIGNATURE_HEADER = "x-mock-signature";
 
 export const DEFAULT_PAYMENT_SETTINGS_ID = "global";
 
+/** CacheService.withLock key for PaymentService.requestWithdraw — see that method's doc comment (A6: double-click/retry can never create two real withdrawals). */
+export const withdrawCreateLockKey = (userId: string) => `withdraw:create:${userId}`;
+
+/**
+ * Generous upper bound on requestWithdraw's own critical section (wallet
+ * lock through gateway call through Withdraw row creation) — the lock is
+ * always released right after that finishes (see CacheService.withLock's
+ * `finally`), so this TTL only needs to comfortably outlast the slowest
+ * realistic run, not match it exactly. Worst case with default gateway
+ * config (15s timeout x 3 attempts = 45s for one credential) plus normal
+ * multi-candidate failover headroom — 90s leaves ample margin without
+ * risking a stuck lock surviving much past an actual crash.
+ */
+export const WITHDRAW_CREATE_LOCK_TTL_MS = 90_000;
+
 /**
  * How long MockProvider artificially delays an outbound call when a
  * credential's `simulatedErrorMode` is TIMEOUT — long enough to reliably

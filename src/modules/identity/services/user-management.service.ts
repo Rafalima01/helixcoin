@@ -7,7 +7,7 @@ import type {
   UserSearchQuery,
 } from "@/modules/identity/dto/user.dto";
 import { hashPassword } from "@/server/auth/password";
-import { revokeFamily } from "@/server/auth/tokens";
+import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
 import { generateReferralCode } from "@/modules/identity/utils/referral-code.util";
 import { AuditService } from "@/server/audit";
 import { eventBus } from "@/server/events";
@@ -120,6 +120,9 @@ export class UserManagementService {
     const active = await this.sessions.listByUser(id);
     for (const s of active) {
       if (s.status === "ACTIVE") {
+        // Must blacklist BEFORE revokeFamily — see blacklistFamilyAccessTokens's
+        // doc comment (revokeFamily deletes the set this reads).
+        await blacklistFamilyAccessTokens(s.familyId);
         await revokeFamily(s.familyId);
         await this.sessions.revoke(s.id, new Date());
       }
@@ -159,6 +162,13 @@ export class UserManagementService {
     });
   }
 
+  /**
+   * email/username/phone/cpf are tombstoned by users.softDelete() (see its
+   * doc comment) so the same person — or, in a test environment, the same
+   * tester reusing a CPF — can sign up again immediately. The original
+   * values are preserved in deletedIdentitySnapshot for restore() below, and
+   * in this audit row for anyone auditing the action later.
+   */
   async softDelete(id: string, actor: AdminActor, meta: RequestMeta): Promise<void> {
     const user = await this.getById(id);
     if (user.deletedAt) throw new BusinessRuleError("Usuário já removido");
@@ -168,6 +178,7 @@ export class UserManagementService {
     const active = await this.sessions.listByUser(id);
     for (const s of active) {
       if (s.status === "ACTIVE") {
+        await blacklistFamilyAccessTokens(s.familyId);
         await revokeFamily(s.familyId);
         await this.sessions.revoke(s.id, new Date());
       }
@@ -180,14 +191,40 @@ export class UserManagementService {
       action: "admin.user.soft_delete",
       entityType: "User",
       entityId: id,
+      before: { email: user.email, username: user.username, phone: user.phone, cpf: user.cpf },
       ip: meta.ip,
       userAgent: meta.userAgent,
     });
   }
 
+  /**
+   * Same dedup-before-write pattern as AuthService.register(): check the
+   * snapshotted email/username/phone/cpf are still free before asking the
+   * repository to write them back, so a real conflict (someone else signed
+   * up with that CPF while this user was deleted) surfaces as a clear
+   * ConflictError instead of a raw DB unique-constraint crash. Rows deleted
+   * before this mechanism existed have no snapshot — restore() for those
+   * just un-deletes, same as it always did.
+   */
   async restore(id: string, actor: AdminActor, meta: RequestMeta): Promise<void> {
     const user = await this.getById(id);
     if (!user.deletedAt) throw new BusinessRuleError("Usuário não está removido");
+
+    const snapshot = user.deletedIdentitySnapshot;
+    if (snapshot) {
+      if (await this.users.findByEmail(snapshot.email)) {
+        throw new ConflictError(`Não é possível restaurar: o email ${snapshot.email} já está em uso por outra conta`);
+      }
+      if (await this.users.findByUsername(snapshot.username)) {
+        throw new ConflictError("Não é possível restaurar: o username já está em uso por outra conta");
+      }
+      if (snapshot.phone && (await this.users.findByPhone(snapshot.phone))) {
+        throw new ConflictError(`Não é possível restaurar: o telefone ${snapshot.phone} já está em uso por outra conta`);
+      }
+      if (snapshot.cpf && (await this.users.findByCpf(snapshot.cpf))) {
+        throw new ConflictError(`Não é possível restaurar: o CPF já está em uso por outra conta`);
+      }
+    }
 
     await this.users.restore(id);
 
@@ -198,6 +235,7 @@ export class UserManagementService {
       action: "admin.user.restore",
       entityType: "User",
       entityId: id,
+      after: snapshot ? { email: snapshot.email, username: snapshot.username, phone: snapshot.phone, cpf: snapshot.cpf } : undefined,
       ip: meta.ip,
       userAgent: meta.userAgent,
     });

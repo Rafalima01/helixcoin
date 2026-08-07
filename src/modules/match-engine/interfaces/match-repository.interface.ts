@@ -64,6 +64,16 @@ export interface IMatchRepository {
   findById(id: string): Promise<Match | null>;
   create(input: CreateMatchInput): Promise<Match>;
   update(id: string, patch: UpdateMatchInput): Promise<Match>;
+  /**
+   * Atomic compare-and-swap: writes `patch` only if the row's status is
+   * still one of `fromStatuses` at write time. Returns `null` (never
+   * throws) if a concurrent call already moved the row out of that set
+   * first — e.g. two racing resolve() submissions for the same match.
+   * Callers should treat `null` as "already resolved by someone else" and
+   * re-read via `findById`, mirroring MatchEngineService.resolve()'s
+   * existing top-level idempotent-return behavior.
+   */
+  updateIfStatusIn(id: string, fromStatuses: MatchStatus[], patch: UpdateMatchInput): Promise<Match | null>;
   /** Player-facing history — resolved matches only, most recent first. */
   listForUser(userId: string, limit: number): Promise<MatchSummary[]>;
   listAdmin(filter: AdminMatchListFilter): Promise<{ items: MatchSummary[]; total: number }>;

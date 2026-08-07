@@ -58,6 +58,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <motion.button
         ref={ref}
+        // Styling hooks, not behavior: the Backoffice restyles every variant
+        // from CSS under [data-scope="backoffice"] without forking this
+        // component or touching a single call site. The player app ignores them.
+        data-variant={variant ?? "primary"}
+        data-size={size ?? "md"}
+        data-loading={loading ? "" : undefined}
         whileHover={{ scale: disabled || loading ? 1 : 1.02 }}
         whileTap={{ scale: disabled || loading ? 1 : 0.97 }}
         transition={{ type: "spring", stiffness: 400, damping: 22 }}

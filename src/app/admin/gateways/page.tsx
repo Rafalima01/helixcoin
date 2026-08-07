@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader, StatusBadge, Drawer, DetailRow } from "@/components/admin/ui";
+import { PageHeader, StatusBadge, Drawer, DetailRow, DrawerSkeleton } from "@/components/admin/ui";
 import { GatewaysAdminApi, PaymentSettingsAdminApi, ApiError, type CreateGatewayInput } from "@/lib/admin/payments-api";
 import type { GatewayCredentialAdminDto } from "@/modules/payments/dto/payments.dto";
 
@@ -411,7 +411,7 @@ function GatewayDetailDrawer({ id, onClose }: { id: string; onClose: () => void 
   return (
     <Drawer open onClose={onClose} title={gateway ? gateway.name : "Carregando..."}>
       {isLoading || !gateway ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         // Remounts (via key) after any save invalidates the query, instead of
         // syncing local editable state from the fetch in an effect.

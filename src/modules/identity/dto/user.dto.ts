@@ -28,6 +28,7 @@ export interface UserResponseDto {
   level: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 }
 
 export function toUserResponseDto(user: UserEntity, now = new Date()): UserResponseDto {
@@ -57,6 +58,7 @@ export function toUserResponseDto(user: UserEntity, now = new Date()): UserRespo
     level: user.level,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
+    deletedAt: user.deletedAt?.toISOString() ?? null,
   };
 }
 

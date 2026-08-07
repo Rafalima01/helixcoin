@@ -33,7 +33,7 @@ export default function AdminAffiliateCommissionsPage() {
   const [status, setStatus] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "affiliate", "commissions", status],
     queryFn: () => AffiliateCommissionsAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
   });
@@ -103,7 +103,7 @@ export default function AdminAffiliateCommissionsPage() {
           ]}
         />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} onRowClick={(c) => setSelectedId(c.id)} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={10} onRowClick={(c) => setSelectedId(c.id)} />
 
       {selectedId && <CommissionDrawer id={selectedId} row={rows.find((r) => r.id === selectedId)!} onClose={() => setSelectedId(null)} />}
     </div>

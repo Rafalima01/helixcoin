@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getAuthContext } from "@/server/auth";
+import { getAuthContext, rotateRefreshToken, verifyAccessToken, REFRESH_COOKIE_NAME, type AuthContext } from "@/server/auth";
 import { hasRole, ROLE_HIERARCHY } from "@/server/auth/rbac";
+import { setAccessCookie, setRefreshCookie, ACCESS_COOKIE_NAME } from "@/server/auth/cookies";
 import { PLAYER_URL, ADMIN_URL, MANAGER_URL } from "@/config/domains";
 import type { Role } from "@prisma/client";
 
@@ -35,6 +36,61 @@ import type { Role } from "@prisma/client";
  */
 
 const PLAYER_AUTH_PREFIXES = ["/home", "/play", "/wallet", "/profile", "/referrals", "/deposit", "/withdraw"];
+
+/**
+ * Access tokens are short-lived (`JWT_ACCESS_TTL`, 15m default) by design —
+ * fine for a headless API client that re-authenticates per-call, but nothing
+ * client-side ever calls `/api/auth/refresh` on its own. Left alone, that
+ * means the very first request more than 15 minutes after login (or the
+ * last refresh) sees `getAuthContext` return null and gets bounced to
+ * /login — even though the refresh-token cookie (30d default) is still
+ * perfectly valid. That's the "estou navegando normalmente e do nada volta
+ * pro login" bug: not random, just the access token's natural expiry with no
+ * silent renewal anywhere in the request path. This is that renewal.
+ *
+ * Also writes the fresh access/refresh cookies onto `req.cookies` itself
+ * (not just the eventual response) — `getServerAuthContext()`
+ * (src/app/admin/layout.tsx, src/app/manager/layout.tsx, src/app/(app)/layout.tsx)
+ * independently re-checks auth via `next/headers` on the SAME request, which
+ * only sees `Set-Cookie` on the browser's *next* request. Without mutating
+ * the request here too, this refresh would fix the *following* navigation
+ * but still bounce the *current* one to /login via that layout-level check.
+ */
+async function resolveAuth(req: NextRequest): Promise<{ auth: AuthContext | null; refreshedTokens?: { accessToken: string; refreshToken: string } }> {
+  const auth = await getAuthContext(req);
+  if (auth) return { auth };
+
+  const refreshToken = req.cookies.get(REFRESH_COOKIE_NAME)?.value;
+  if (!refreshToken) return { auth: null };
+
+  try {
+    const tokens = await rotateRefreshToken(refreshToken);
+    const claims = await verifyAccessToken(tokens.accessToken);
+    req.cookies.set(ACCESS_COOKIE_NAME, tokens.accessToken);
+    req.cookies.set(REFRESH_COOKIE_NAME, tokens.refreshToken);
+    return {
+      auth: { userId: claims.sub, role: claims.role, sessionId: claims.sessionId, familyId: claims.familyId },
+      refreshedTokens: { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
+    };
+  } catch {
+    // Refresh token missing/expired/reused (theft-detection revoked the
+    // family) — genuinely requires a real login, exactly as intended.
+    return { auth: null };
+  }
+}
+
+/** Applies a silent refresh's new tokens to whatever response proxy.ts ends up returning, so the browser's next request carries them too. Carries the mutated `req` forward on rewrite/next so the SAME request's Server Component layouts see the refreshed identity (see resolveAuth's doc comment) — redirects don't render anything server-side this cycle, so they only need the Set-Cookie. */
+function finish(
+  res: NextResponse,
+  req: NextRequest,
+  refreshedTokens?: { accessToken: string; refreshToken: string }
+): NextResponse {
+  if (refreshedTokens) {
+    setAccessCookie(res, refreshedTokens.accessToken);
+    setRefreshCookie(res, refreshedTokens.refreshToken);
+  }
+  return res;
+}
 
 /**
  * Everyone who isn't staff, Manager, or (the currently-unused) Affiliate
@@ -90,8 +146,9 @@ export default async function proxy(req: NextRequest) {
   }
 
   if (PLAYER_AUTH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    const auth = await getAuthContext(req);
+    const { auth, refreshedTokens } = await resolveAuth(req);
     if (!auth) return redirectToLogin(PLAYER_URL, pathname + req.nextUrl.search);
+    return finish(NextResponse.next({ request: { headers: req.headers } }), req, refreshedTokens);
   }
   return NextResponse.next();
 }
@@ -130,17 +187,19 @@ async function handleZone(req: NextRequest, prefix: "/admin" | "/manager") {
   }
 
   const isPublic = target === loginTarget || target.startsWith("/manager-invite/");
+  let refreshedTokens: { accessToken: string; refreshToken: string } | undefined;
   if (!isPublic) {
-    const auth = await getAuthContext(req);
-    if (!auth) return redirectToLogin(zoneOrigin, pathname + req.nextUrl.search);
+    const resolved = await resolveAuth(req);
+    if (!resolved.auth) return redirectToLogin(zoneOrigin, pathname + req.nextUrl.search);
+    refreshedTokens = resolved.refreshedTokens;
 
-    const roleAllowed = prefix === "/admin" ? hasRole(auth.role, ROLE_HIERARCHY) : auth.role === "MANAGER";
-    if (!roleAllowed) return NextResponse.redirect(loginUrlForRole(auth.role));
+    const roleAllowed = prefix === "/admin" ? hasRole(resolved.auth.role, ROLE_HIERARCHY) : resolved.auth.role === "MANAGER";
+    if (!roleAllowed) return finish(NextResponse.redirect(loginUrlForRole(resolved.auth.role)), req, refreshedTokens);
   }
 
   const url = new URL(target, req.url);
   url.search = req.nextUrl.search;
-  return NextResponse.rewrite(url);
+  return finish(NextResponse.rewrite(url, { request: { headers: req.headers } }), req, refreshedTokens);
 }
 
 /**

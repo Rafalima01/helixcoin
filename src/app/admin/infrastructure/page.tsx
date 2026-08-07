@@ -58,6 +58,7 @@ export default function AdminInfrastructurePage() {
       <PageHeader
         title="Infraestrutura"
         description="Instâncias, banco e workers. Provisionamento e auto-scaling serão orquestrados fora do Frontend."
+        mock
       />
       <DataTable columns={columns} rows={data ?? []} loading={loading} />
     </div>

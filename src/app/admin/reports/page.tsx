@@ -104,6 +104,7 @@ export default function AdminReportsPage() {
       <PageHeader
         title="Relatórios"
         description="Exportações sob demanda e agendadas. A geração ocorrerá em filas assíncronas no Backend."
+        mock
         actions={
           <Button variant="secondary" size="sm" onClick={notImplemented}>
             <CalendarRange className="size-4" /> Agendar relatório

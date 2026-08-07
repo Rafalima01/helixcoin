@@ -236,6 +236,21 @@ describe("AmploPayProvider", () => {
     expect(result.providerTransactionId).toBe("tx-1");
   });
 
+  it("validateWebhook never leaks the webhook token into the returned parsedPayload (it becomes the persisted, admin-visible PaymentWebhook.payload)", async () => {
+    const provider = buildProvider();
+    const payload = JSON.stringify({
+      event: "TRANSACTION_PAID",
+      token: WEBHOOK_SECRET,
+      transaction: { id: "tx-1", status: "COMPLETED" },
+    });
+    const result = await provider.validateWebhook({ rawBody: payload, signatureHeader: null, webhookSecret: WEBHOOK_SECRET });
+    expect(result.valid).toBe(true);
+    expect(result.parsedPayload).not.toHaveProperty("token");
+    expect(JSON.stringify(result.parsedPayload)).not.toContain(WEBHOOK_SECRET);
+    // Everything else the dispatcher/admin UI actually need stays intact.
+    expect(result.parsedPayload).toMatchObject({ event: "TRANSACTION_PAID", transaction: { id: "tx-1", status: "COMPLETED" } });
+  });
+
   it("validateWebhook maps TRANSFER_COMPLETED/TRANSFER_FAILED to withdraw.approved/withdraw.rejected", async () => {
     const provider = buildProvider();
     const approved = JSON.stringify({ event: "TRANSFER_COMPLETED", token: WEBHOOK_SECRET, withdraw: { id: "w1" } });

@@ -1,36 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { Users, UserCheck, Clock, Coins, TrendingUp, ClipboardCheck, ArrowRight } from "lucide-react";
+import { TrendingUp, ClipboardCheck, ArrowRight, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedNumber } from "@/components/ui/animated-number";
+import { KpiGrid, KpiGridSkeleton, HeroKpiGrid } from "@/components/admin/ui";
 import { useManagerDashboard } from "@/hooks/use-manager";
 import { centsToReais } from "@/lib/multiplier";
 import { formatCurrency } from "@/lib/utils";
+import type { KpiDTO } from "@/lib/admin/types";
 
 export function ManagerDashboardScreen() {
   const { data, isLoading } = useManagerDashboard();
 
-  const counts = [
-    { label: "Afiliados ativos", icon: UserCheck, value: data?.affiliatesActive ?? 0 },
-    { label: "Aprovações pendentes", icon: Clock, value: data?.affiliatesPending ?? 0 },
-    { label: "Jogadores na rede", icon: Users, value: data?.playersReferred ?? 0 },
+  const counts: KpiDTO[] = [
+    { id: "affiliates-active", label: "Afiliados ativos", value: String(data?.affiliatesActive ?? 0) },
+    { id: "affiliates-pending", label: "Aprovações pendentes", value: String(data?.affiliatesPending ?? 0) },
+    { id: "players-referred", label: "Jogadores na rede", value: String(data?.playersReferred ?? 0) },
   ];
 
-  const paidToAffiliates = [
-    { label: "Hoje", cents: data?.paidToAffiliatesTodayCents ?? 0 },
-    { label: "Últimos 7 dias", cents: data?.paidToAffiliates7dCents ?? 0 },
-    { label: "Últimos 30 dias", cents: data?.paidToAffiliates30dCents ?? 0 },
-    { label: "Total acumulado", cents: data?.paidToAffiliatesTotalCents ?? 0 },
+  const paidToAffiliates: KpiDTO[] = [
+    { id: "paid-today", label: "Hoje", value: formatCurrency(centsToReais(data?.paidToAffiliatesTodayCents ?? 0)) },
+    { id: "paid-7d", label: "Últimos 7 dias", value: formatCurrency(centsToReais(data?.paidToAffiliates7dCents ?? 0)) },
+    { id: "paid-30d", label: "Últimos 30 dias", value: formatCurrency(centsToReais(data?.paidToAffiliates30dCents ?? 0)) },
+    { id: "paid-total", label: "Total acumulado", value: formatCurrency(centsToReais(data?.paidToAffiliatesTotalCents ?? 0)) },
   ];
 
-  const keptByManager = [
-    { label: "Hoje", cents: data?.keptByManagerTodayCents ?? 0 },
-    { label: "Últimos 7 dias", cents: data?.keptByManager7dCents ?? 0 },
-    { label: "Últimos 30 dias", cents: data?.keptByManager30dCents ?? 0 },
-    { label: "Total acumulado", cents: data?.keptByManagerTotalCents ?? 0 },
+  const keptByManager: KpiDTO[] = [
+    { id: "kept-today", label: "Hoje", value: formatCurrency(centsToReais(data?.keptByManagerTodayCents ?? 0)) },
+    { id: "kept-7d", label: "Últimos 7 dias", value: formatCurrency(centsToReais(data?.keptByManager7dCents ?? 0)) },
+    { id: "kept-30d", label: "Últimos 30 dias", value: formatCurrency(centsToReais(data?.keptByManager30dCents ?? 0)) },
+    { id: "kept-total", label: "Total acumulado", value: formatCurrency(centsToReais(data?.keptByManagerTotalCents ?? 0)) },
   ];
 
   return (
@@ -44,64 +44,25 @@ export function ManagerDashboardScreen() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {counts.map((c) => (
-          <Card key={c.label} className="p-4 flex flex-col gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-purple/15 text-purple">
-              <c.icon className="size-4" />
-            </span>
-            {isLoading ? (
-              <Skeleton className="h-7 w-16" />
-            ) : (
-              <p className="text-xl md:text-2xl font-extrabold tabular-nums">
-                <AnimatedNumber value={c.value} format={(v) => String(Math.round(v))} />
-              </p>
-            )}
-            <p className="text-xs text-text-secondary leading-tight">{c.label}</p>
-          </Card>
-        ))}
-      </div>
+      <Card className="p-4 flex items-start gap-3 border-purple/20 bg-purple/[0.04]">
+        <Info className="size-4 text-purple shrink-0 mt-0.5" />
+        <p className="text-xs text-text-secondary leading-relaxed">
+          Estes valores são apenas informativos e refletem o total gerado pela sua rede. Você não tem acesso à
+          carteira, ao ledger ou a qualquer dado financeiro da plataforma.
+        </p>
+      </Card>
+
+      {/* Hero treatment — same weight as the Admin dashboard's top row, so this never reads as a "secondary" panel. */}
+      {isLoading ? <KpiGridSkeleton count={3} variant="hero" /> : <HeroKpiGrid kpis={counts} />}
 
       <div>
         <h2 className="font-bold text-lg mb-3">Pago aos afiliados (informativo)</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {paidToAffiliates.map((c) => (
-            <Card key={c.label} className="p-4 flex flex-col gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-green/15 text-green">
-                <Coins className="size-4" />
-              </span>
-              {isLoading ? (
-                <Skeleton className="h-7 w-20" />
-              ) : (
-                <p className="text-xl md:text-2xl font-extrabold tabular-nums">
-                  <AnimatedNumber value={centsToReais(c.cents)} format={formatCurrency} />
-                </p>
-              )}
-              <p className="text-xs text-text-secondary leading-tight">{c.label}</p>
-            </Card>
-          ))}
-        </div>
+        {isLoading ? <KpiGridSkeleton count={4} /> : <KpiGrid kpis={paidToAffiliates} />}
       </div>
 
       <div>
         <h2 className="font-bold text-lg mb-3">Recebido por você</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {keptByManager.map((c) => (
-            <Card key={c.label} className="p-4 flex flex-col gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-purple/15 text-purple">
-                <Coins className="size-4" />
-              </span>
-              {isLoading ? (
-                <Skeleton className="h-7 w-20" />
-              ) : (
-                <p className="text-xl md:text-2xl font-extrabold tabular-nums">
-                  <AnimatedNumber value={centsToReais(c.cents)} format={formatCurrency} />
-                </p>
-              )}
-              <p className="text-xs text-text-secondary leading-tight">{c.label}</p>
-            </Card>
-          ))}
-        </div>
+        {isLoading ? <KpiGridSkeleton count={4} /> : <KpiGrid kpis={keptByManager} />}
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">

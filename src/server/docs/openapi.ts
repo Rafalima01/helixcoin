@@ -1791,6 +1791,7 @@ export const openApiSpec = {
           level: { type: "integer" },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
+          deletedAt: { type: "string", format: "date-time", nullable: true },
         },
       },
       Session: {

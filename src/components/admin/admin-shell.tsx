@@ -4,35 +4,58 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Menu, Search, ShieldCheck, X } from "lucide-react";
+import { Bell, ChevronRight, Menu, X } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { ADMIN_NAV, findNavItem } from "@/lib/admin/nav";
 import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { Skeleton } from "@/components/ui/skeleton";
 
+/** Short display labels for the topbar identity chip — mirrors ROLE_META in src/app/admin/admins/page.tsx, kept minimal here since only the label is needed. */
+const ROLE_SHORT_LABEL: Record<string, string> = {
+  SUPER_ADMIN: "Super Admin",
+  ADMIN: "Admin",
+  FINANCE: "Financeiro",
+  OPERATOR: "Operador",
+  MODERATOR: "Moderador",
+  SUPPORT: "Suporte",
+  COMPLIANCE: "Compliance",
+  AUDIT: "Auditoria",
+};
+
+/**
+ * Sidebar identity: the active item is marked by a solid accent rail plus a
+ * raised surface — not a colored gradient wash. Icons sit on a fixed 16px
+ * optical grid so labels align down the whole column regardless of glyph.
+ */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col">
-      <Link href="/" className="flex items-center gap-2.5 px-4 pt-5 pb-4" onClick={onNavigate}>
-        <Logo iconOnly />
-        <div className="leading-tight">
-          <p className="text-[15px] font-extrabold">
-            Heli<span className="text-gradient-brand">Jump</span>
-          </p>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
-            Backoffice
-          </p>
-        </div>
+    // min-h-0 + flex-1 (not h-full): as a flex child this lets the nav scroll
+    // while the profile block stays pinned to the sidebar's bottom edge.
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/*
+       * The game's own full logo lockup — same asset the player app uses, not
+       * a text wordmark and not a Backoffice-specific variant. Stacked, with
+       * the panel name as a small caption underneath, so the brand reads first
+       * and "Backoffice" reads as a qualifier.
+       */}
+      <Link
+        href="/"
+        className="flex flex-col items-start gap-1.5 px-5 pb-5 pt-5"
+        onClick={onNavigate}
+        aria-label="HelixCoin Backoffice"
+      >
+        <Logo compact className="h-9 w-auto" />
+        <span className="bo-overline pl-0.5 text-bo-muted">Backoffice</span>
       </Link>
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-6 scrollbar-none">
+      <nav className="flex-1 overflow-y-auto px-3 pb-4 scrollbar-none">
         {ADMIN_NAV.map((group) => (
-          <div key={group.label} className="mb-4">
-            <p className="px-2 pb-1.5 pt-2 text-[10px] font-bold uppercase tracking-widest text-text-muted/70">
-              {group.label}
-            </p>
-            <div className="flex flex-col gap-0.5">
+          <div key={group.label} className="mb-5 last:mb-0">
+            <p className="bo-overline px-3 pb-2 text-bo-muted/80">{group.label}</p>
+            <div className="flex flex-col gap-px">
               {group.items.map((item) => {
                 const active = pathname === item.href;
                 return (
@@ -42,13 +65,26 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                      "group relative flex items-center gap-2.5 rounded-bo-sm py-[7px] pl-3 pr-2.5 text-[13px] transition-colors duration-[120ms]",
                       active
-                        ? "bg-gradient-to-r from-purple/25 to-pink/10 text-white border border-purple/30"
-                        : "text-text-secondary hover:bg-white/[0.04] hover:text-white border border-transparent"
+                        ? "bg-white/[0.055] font-medium text-bo-text"
+                        : "font-normal text-bo-secondary hover:bg-white/[0.03] hover:text-bo-text"
                     )}
                   >
-                    <item.icon className="size-4 shrink-0" />
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute left-0 top-1/2 h-[15px] w-[2px] -translate-y-1/2 rounded-full bg-bo-brand transition-opacity duration-[120ms]",
+                        active ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <item.icon
+                      className={cn(
+                        "size-4 shrink-0 transition-colors duration-[120ms]",
+                        active ? "text-bo-text" : "text-bo-muted group-hover:text-bo-secondary"
+                      )}
+                      strokeWidth={1.75}
+                    />
                     <span className="truncate">{item.label}</span>
                   </Link>
                 );
@@ -57,15 +93,37 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         ))}
       </nav>
+    </div>
+  );
+}
 
-      <div className="border-t border-border p-3">
-        <div className="flex items-center gap-2 rounded-xl border border-green/25 bg-green/[0.06] px-3 py-2">
-          <span className="size-2 shrink-0 animate-pulse rounded-full bg-green shadow-[0_0_8px_rgba(22,242,165,0.8)]" />
-          <div className="min-w-0 leading-tight">
-            <p className="text-xs font-semibold">Todos os sistemas operacionais</p>
-            <p className="text-[10px] text-text-muted">Ambiente: Produção · v2.4.1</p>
-          </div>
+/** Identity block pinned to the sidebar footer, Linear/Vercel style. */
+function SidebarProfile() {
+  const { data: currentUser, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2.5 border-t border-bo-hairline px-4 py-3">
+        <Skeleton className="size-7 rounded-bo-sm" />
+        <div className="flex-1 space-y-1">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-2.5 w-16" />
         </div>
+      </div>
+    );
+  }
+  if (!currentUser) return null;
+
+  return (
+    <div className="flex items-center gap-2.5 border-t border-bo-hairline px-4 py-3">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-bo-sm border border-bo-hairline-strong bg-bo-raised text-[11px] font-semibold text-bo-text">
+        {currentUser.fullName.charAt(0).toUpperCase()}
+      </span>
+      <div className="min-w-0 leading-tight">
+        <p className="truncate text-xs font-medium text-bo-text">{currentUser.fullName}</p>
+        <p className="truncate text-[11px] text-bo-muted">
+          {ROLE_SHORT_LABEL[currentUser.role] ?? currentUser.role}
+        </p>
       </div>
     </div>
   );
@@ -77,10 +135,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const currentItem = findNavItem(pathname);
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex min-h-dvh" data-scope="backoffice">
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-dvh w-[236px] shrink-0 border-r border-border glass-panel lg:block">
+      <aside className="sticky top-0 hidden h-dvh w-[220px] shrink-0 flex-col border-r border-bo-hairline bg-bo-bg/60 backdrop-blur-xl lg:flex">
         <SidebarContent />
+        <SidebarProfile />
       </aside>
 
       {/* Mobile / tablet drawer */}
@@ -98,73 +157,67 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 32 }}
-              className="fixed left-0 top-0 z-50 h-dvh w-[260px] border-r border-border glass-panel lg:hidden"
+              transition={{ type: "spring", stiffness: 420, damping: 40 }}
+              className="fixed left-0 top-0 z-50 flex h-dvh w-[248px] flex-col border-r border-bo-hairline bg-bo-bg shadow-bo-overlay lg:hidden"
             >
               <button
                 onClick={() => setMobileOpen(false)}
-                className="absolute right-3 top-4 flex size-8 items-center justify-center rounded-lg border border-border text-text-secondary"
+                className="absolute right-3 top-4 flex size-8 items-center justify-center rounded-bo-sm border border-bo-hairline text-bo-secondary transition-colors hover:text-bo-text"
                 aria-label="Fechar menu"
               >
-                <X className="size-4" />
+                <X className="size-4" strokeWidth={1.75} />
               </button>
               <SidebarContent onNavigate={() => setMobileOpen(false)} />
+              <SidebarProfile />
             </motion.aside>
           </>
         )}
       </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Topbar */}
-        <header className="sticky top-0 z-40 border-b border-border glass-panel">
-          <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
+        {/*
+         * Topbar carries orientation (breadcrumb) and alerts only. A global
+         * search field deliberately stays out: there is no search backend
+         * behind it, and an ornamental input that returns nothing is exactly
+         * the kind of thing the design audit flagged as "parece real, não é".
+         */}
+        <header className="sticky top-0 z-40 border-b border-bo-hairline bg-bo-bg/70 backdrop-blur-xl">
+          <div className="flex h-[52px] items-center gap-3 px-4 lg:px-7">
             <button
               onClick={() => setMobileOpen(true)}
-              className="flex size-9 items-center justify-center rounded-xl border border-border text-text-secondary lg:hidden"
+              className="flex size-8 items-center justify-center rounded-bo-sm border border-bo-hairline text-bo-secondary transition-colors hover:border-bo-hairline-strong hover:text-bo-text lg:hidden"
               aria-label="Abrir menu"
             >
-              <Menu className="size-4" />
+              <Menu className="size-4" strokeWidth={1.75} />
             </button>
 
-            <p className="hidden text-sm font-semibold text-text-secondary sm:block">
-              {currentItem ? currentItem.label : "Backoffice"}
-            </p>
+            <nav aria-label="Trilha" className="hidden min-w-0 items-center gap-1.5 sm:flex">
+              <span className="text-[13px] text-bo-muted">Backoffice</span>
+              {currentItem && (
+                <>
+                  <ChevronRight className="size-3.5 shrink-0 text-bo-muted/60" strokeWidth={1.75} />
+                  <span className="truncate text-[13px] font-medium text-bo-text">
+                    {currentItem.label}
+                  </span>
+                </>
+              )}
+            </nav>
 
-            <div className="ml-auto flex items-center gap-2">
-              <button className="hidden h-9 items-center gap-2 rounded-xl border border-border bg-white/[0.03] px-3 text-xs text-text-muted transition-colors hover:border-border-strong md:flex">
-                <Search className="size-3.5" />
-                Buscar em tudo…
-                <kbd className="rounded border border-border bg-white/[0.05] px-1.5 py-0.5 text-[10px] font-semibold">
-                  Ctrl K
-                </kbd>
-              </button>
-
-              <button
-                className="relative flex size-9 items-center justify-center rounded-xl border border-border text-text-secondary transition-colors hover:text-white"
-                aria-label="Alertas"
+            <div className="ml-auto flex items-center gap-1.5">
+              <Link
+                href="/notifications"
+                className="flex size-8 items-center justify-center rounded-bo-sm text-bo-secondary transition-colors hover:bg-white/[0.04] hover:text-bo-text"
+                aria-label="Notificações"
               >
-                <Bell className="size-4" />
-                <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-error text-[9px] font-bold text-white">
-                  4
-                </span>
-              </button>
-
-              <div className="flex items-center gap-2 rounded-xl border border-border bg-white/[0.03] py-1 pl-1 pr-2.5">
-                <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-purple to-pink text-xs font-bold">
-                  R
-                </span>
-                <div className="hidden leading-tight sm:block">
-                  <p className="text-xs font-semibold">Rafael Lima</p>
-                  <p className="flex items-center gap-1 text-[10px] text-text-muted">
-                    <ShieldCheck className="size-2.5" /> Owner
-                  </p>
-                </div>
-              </div>
+                <Bell className="size-4" strokeWidth={1.75} />
+              </Link>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-6 lg:px-6">{children}</main>
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-7 lg:px-7 xl:py-9 2xl:max-w-[1600px]">
+          {children}
+        </main>
       </div>
     </div>
   );

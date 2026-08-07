@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader, SectionCard, DetailRow } from "@/components/admin/ui";
+import { PageHeader, SectionCard, ChartCard, DetailRow, MockBadge } from "@/components/admin/ui";
 import { AreaChart, BarChart } from "@/components/admin/charts";
 import { AdminServices } from "@/lib/admin/services";
 import { useAdminData } from "@/lib/admin/use-admin-data";
@@ -54,10 +54,11 @@ export default function AdminFinancePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard
+        <ChartCard
           title="GGR mensal"
           description="Receita bruta de jogo — 2026"
           className="xl:col-span-2"
+          actions={<MockBadge />}
         >
           <AreaChart
             data={ggrMonthly}
@@ -65,7 +66,7 @@ export default function AdminFinancePage() {
             formatValue={(v) => formatCurrency(v)}
             height={220}
           />
-        </SectionCard>
+        </ChartCard>
 
         <SectionCard title="Resultado do dia" description="Composição do lucro (24h)">
           {data && (
@@ -89,14 +90,14 @@ export default function AdminFinancePage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="Lucro líquido por dia" description="Últimos 7 dias">
+      <ChartCard title="Lucro líquido por dia" description="Últimos 7 dias" actions={<MockBadge />}>
         <BarChart
           data={netByDay}
           color="#8B5CF6"
           formatValue={(v) => formatCurrency(v)}
           height={200}
         />
-      </SectionCard>
+      </ChartCard>
     </div>
   );
 }

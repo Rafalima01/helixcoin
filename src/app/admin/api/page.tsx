@@ -82,6 +82,7 @@ export default function AdminApiPage() {
       <PageHeader
         title="API Management"
         description="Chaves, escopos e webhooks. Rate limiting e rotação automática serão aplicados pelo gateway de API."
+        mock
         actions={
           <Button variant="primary" size="sm" onClick={notImplemented}>
             <Plus className="size-4" /> Nova chave

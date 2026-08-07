@@ -37,6 +37,7 @@ export default function AdminLogsPage() {
       <PageHeader
         title="Logs"
         description="Stream unificado dos serviços. Na integração, este painel receberá eventos em tempo real via WebSocket."
+        mock
         actions={
           <>
             <Button variant="secondary" size="sm" onClick={notImplemented}>

@@ -1,3 +1,4 @@
+import type { MatchStatus } from "@prisma/client";
 import type {
   IMatchRepository,
   CreateMatchInput,
@@ -64,6 +65,14 @@ export class InMemoryMatchRepository implements IMatchRepository {
   async update(id: string, patch: UpdateMatchInput): Promise<Match> {
     const existing = this.rows.get(id);
     if (!existing) throw new NotFoundError("Match");
+    const updated: Match = { ...existing, ...patch, updatedAt: new Date() };
+    this.rows.set(id, updated);
+    return updated;
+  }
+
+  async updateIfStatusIn(id: string, fromStatuses: MatchStatus[], patch: UpdateMatchInput): Promise<Match | null> {
+    const existing = this.rows.get(id);
+    if (!existing || !fromStatuses.includes(existing.status)) return null;
     const updated: Match = { ...existing, ...patch, updatedAt: new Date() };
     this.rows.set(id, updated);
     return updated;

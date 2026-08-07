@@ -15,6 +15,7 @@ import {
   ENGINE_VERSION,
   MULTIPLIER_EPSILON,
   ANTI_CHEAT_INVALIDATION_POLICY,
+  CANONICAL_PROGRESS_GRACE,
 } from "@/modules/match-engine/constants/match-engine.constants";
 import { MATCH_ENGINE_EVENTS } from "@/modules/match-engine/events/match-engine.events";
 import { getMultiplierForPlatforms, roundToCents } from "@/lib/multiplier";
@@ -137,7 +138,21 @@ export class MatchEngineService {
     assertTransition(match.status, "IN_PROGRESS");
 
     const now = new Date();
-    const updated = await this.matches.update(matchId, { status: "IN_PROGRESS", startedAt: now });
+    // Compare-and-swap — a concurrent duplicate begin() (double-tap, network
+    // retry) or a racing forfeit (AWAITING_START -> CANCELLED is also a
+    // valid transition) could otherwise both pass the assertTransition
+    // above and both write: a plain update() would let the loser silently
+    // reset startedAt/updatedAt to a LATER timestamp and fire a duplicate
+    // STARTED event. On CAS failure, return whatever the winner committed.
+    const updated = await this.matches.updateIfStatusIn(matchId, [match.status], {
+      status: "IN_PROGRESS",
+      startedAt: now,
+    });
+    if (!updated) {
+      const current = await this.matches.findById(matchId);
+      if (!current) throw new NotFoundError("Match");
+      return current;
+    }
 
     await this.matchEvents.create({ matchId, type: "STARTED" });
     eventBus.publish(MATCH_ENGINE_EVENTS.started, { match: updated }, matchId);
@@ -150,13 +165,20 @@ export class MatchEngineService {
       throw new BusinessRuleError("Partida não está em andamento");
     }
 
+    const now = new Date();
     const elapsedSeconds = this.elapsedSeconds(match);
-    const antiCheat = this.runAntiCheat(match, "loss", input.platformsPassed, elapsedSeconds, input);
+    const progress = this.computeCanonicalProgress(match, input.platformsPassed, now);
+    const antiCheat = this.runAntiCheat(match, "loss", input.platformsPassed, elapsedSeconds, progress, input);
     if (antiCheat?.flagged) {
       return this.invalidate(match, antiCheat.reason ?? "unknown", antiCheat.riskScore, userId);
     }
 
-    const multiplier = getMultiplierForPlatforms(input.platformsPassed);
+    // Multiplier/potentialPayout are derived EXCLUSIVELY from the server's
+    // own canonical progress value (progress.canonical) — never from
+    // input.platformsPassed directly. See computeCanonicalProgress's doc
+    // comment: this is what makes the server, not the client, authoritative
+    // over the number that determines the payout.
+    const multiplier = getMultiplierForPlatforms(progress.canonical);
     const potentialPayout = Math.round(match.betAmount * multiplier);
     const goalReached = multiplier >= match.targetMultiplier - MULTIPLIER_EPSILON;
 
@@ -166,29 +188,56 @@ export class MatchEngineService {
       nextStatus = "GOAL_REACHED";
     }
 
-    let updated = await this.matches.update(matchId, {
+    // Compare-and-swap, guarded to the EXACT status this call read at
+    // loadOwned() above: without it, a stale reportProgress racing a
+    // concurrent resolve()/invalidate() for the same match could silently
+    // overwrite a status either of those just committed (e.g. resurrecting
+    // a match anti-cheat just invalidated back to IN_PROGRESS) — a plain
+    // update() has no way to detect that the row moved out from under it.
+    // On CAS failure, someone else already won; return their committed row
+    // and skip emitting a duplicate/incorrect event trail.
+    let updated = await this.matches.updateIfStatusIn(matchId, [match.status], {
       status: nextStatus,
-      platformsPassed: input.platformsPassed,
+      platformsPassed: progress.canonical,
       multiplier,
       potentialPayout,
-      longestStreak: Math.max(match.longestStreak, input.longestStreak ?? input.platformsPassed),
+      longestStreak: Math.max(match.longestStreak, input.longestStreak ?? progress.canonical),
       collisionCount: input.collisionCount ?? match.collisionCount,
       avgSpeed: input.avgSpeed ?? match.avgSpeed,
       riskScore: antiCheat?.riskScore ?? match.riskScore,
     });
+    if (!updated) {
+      const current = await this.matches.findById(matchId);
+      if (!current) throw new NotFoundError("Match");
+      return current;
+    }
 
     if (nextStatus === "GOAL_REACHED") {
-      await this.matchEvents.create({ matchId, type: "GOAL_REACHED", payload: { platformsPassed: input.platformsPassed, multiplier } });
+      await this.matchEvents.create({
+        matchId,
+        type: "GOAL_REACHED",
+        payload: { platformsPassed: progress.canonical, claimedPlatformsPassed: input.platformsPassed, multiplier },
+      });
       eventBus.publish(MATCH_ENGINE_EVENTS.goalReached, { match: updated }, matchId);
 
       assertTransition(updated.status, "CASHOUT_AVAILABLE");
-      updated = await this.matches.update(matchId, { status: "CASHOUT_AVAILABLE" });
+      // Our own CAS write above is what just set GOAL_REACHED, so this
+      // promotion is uncontested in practice — CAS anyway for consistency
+      // with every other status write in this file.
+      const promoted = await this.matches.updateIfStatusIn(matchId, ["GOAL_REACHED"], { status: "CASHOUT_AVAILABLE" });
+      if (promoted) updated = promoted;
     }
 
     await this.matchEvents.create({
       matchId,
       type: "PROGRESSED",
-      payload: { platformsPassed: input.platformsPassed, multiplier, potentialPayout, riskScore: updated.riskScore },
+      payload: {
+        platformsPassed: progress.canonical,
+        claimedPlatformsPassed: input.platformsPassed,
+        multiplier,
+        potentialPayout,
+        riskScore: updated.riskScore,
+      },
     });
     eventBus.publish(MATCH_ENGINE_EVENTS.progressed, { match: updated }, matchId);
 
@@ -203,27 +252,36 @@ export class MatchEngineService {
       return match;
     }
 
+    const now = new Date();
     const elapsedSeconds = this.elapsedSeconds(match);
+    const progress = this.computeCanonicalProgress(match, input.platformsPassed, now);
     const action = input.action === "cashout" ? "cashout" : input.action === "forfeit" ? "forfeit" : "loss";
-    const antiCheat = this.runAntiCheat(match, action, input.platformsPassed, elapsedSeconds, input);
+    const antiCheat = this.runAntiCheat(match, action, input.platformsPassed, elapsedSeconds, progress, input);
     if (antiCheat?.flagged) {
       return this.invalidate(match, antiCheat.reason ?? "unknown", antiCheat.riskScore, userId);
     }
 
     if (input.action === "loss" || input.action === "forfeit") {
-      return this.resolveTermination(match, input, input.action === "forfeit" ? "CANCELLED" : "LOST", elapsedSeconds);
+      return this.resolveTermination(
+        match,
+        input,
+        progress.canonical,
+        input.action === "forfeit" ? "CANCELLED" : "LOST",
+        elapsedSeconds
+      );
     }
-    return this.resolveCashout(match, input, elapsedSeconds);
+    return this.resolveCashout(match, input, progress.canonical, elapsedSeconds);
   }
 
   private async resolveTermination(
     match: Match,
     input: MatchResolveInput,
+    canonicalPlatformsPassed: number,
     status: "LOST" | "CANCELLED",
     elapsedSeconds: number
   ): Promise<Match> {
     assertTransition(match.status, status);
-    const multiplier = getMultiplierForPlatforms(input.platformsPassed);
+    const multiplier = getMultiplierForPlatforms(canonicalPlatformsPassed);
     const now = new Date();
 
     // CANCELLED ("forfeit") refunds the bet — the wallet was debited at
@@ -236,9 +294,16 @@ export class MatchEngineService {
       balanceAfter = walletMove.balanceAfter;
     }
 
-    const updated = await this.matches.update(match.id, {
+    // Compare-and-swap (updateIfStatusIn, not plain update): a concurrent
+    // resolve() for the same match could have already written a terminal
+    // status between loadOwned() above and this write. If so, `updated` is
+    // null and we fall back to returning the winner's already-committed row
+    // — idempotent, no double MatchEvent trail. The wallet call above is
+    // itself idempotent per-match (see IWalletLedger's idempotency-key
+    // scheme), so a "lost" race here never double-refunds.
+    const updated = await this.matches.updateIfStatusIn(match.id, [...ACTIVE_STATUSES], {
       status,
-      platformsPassed: input.platformsPassed,
+      platformsPassed: canonicalPlatformsPassed,
       multiplier,
       payout: 0,
       potentialPayout: 0,
@@ -246,14 +311,32 @@ export class MatchEngineService {
       resolvedAt: now,
       durationSeconds: Math.round(elapsedSeconds),
     });
+    if (!updated) {
+      const current = await this.matches.findById(match.id);
+      if (!current) throw new NotFoundError("Match");
+      return current;
+    }
 
-    await this.matchEvents.create({ matchId: match.id, type: status === "LOST" ? "LOST" : "CANCELLED", payload: { platformsPassed: input.platformsPassed } });
+    await this.matchEvents.create({
+      matchId: match.id,
+      type: status === "LOST" ? "LOST" : "CANCELLED",
+      payload: { platformsPassed: canonicalPlatformsPassed, claimedPlatformsPassed: input.platformsPassed },
+    });
     eventBus.publish(status === "LOST" ? MATCH_ENGINE_EVENTS.lost : MATCH_ENGINE_EVENTS.cancelled, { match: updated }, match.id);
     return updated;
   }
 
-  private async resolveCashout(match: Match, input: MatchResolveInput, elapsedSeconds: number): Promise<Match> {
-    await this.matchEvents.create({ matchId: match.id, type: "CASHOUT_REQUESTED", payload: { platformsPassed: input.platformsPassed } });
+  private async resolveCashout(
+    match: Match,
+    input: MatchResolveInput,
+    canonicalPlatformsPassed: number,
+    elapsedSeconds: number
+  ): Promise<Match> {
+    await this.matchEvents.create({
+      matchId: match.id,
+      type: "CASHOUT_REQUESTED",
+      payload: { platformsPassed: canonicalPlatformsPassed, claimedPlatformsPassed: input.platformsPassed },
+    });
     eventBus.publish(MATCH_ENGINE_EVENTS.cashoutRequested, { match }, match.id);
 
     if (match.status !== "CASHOUT_AVAILABLE") {
@@ -262,7 +345,7 @@ export class MatchEngineService {
       throw new BusinessRuleError("Meta ainda não atingida — o resgate está bloqueado.");
     }
 
-    const multiplier = getMultiplierForPlatforms(input.platformsPassed);
+    const multiplier = getMultiplierForPlatforms(canonicalPlatformsPassed);
     if (multiplier < match.targetMultiplier - MULTIPLIER_EPSILON) {
       await this.matchEvents.create({ matchId: match.id, type: "CASHOUT_DENIED", payload: { reason: "multiplier_below_target" } });
       eventBus.publish(MATCH_ENGINE_EVENTS.cashoutDenied, { match, reason: "multiplier_below_target" }, match.id);
@@ -274,9 +357,12 @@ export class MatchEngineService {
     const walletMove = await this.wallet.creditForPayout(match.userId, payout, match.id);
     const now = new Date();
 
-    const updated = await this.matches.update(match.id, {
+    // See resolveTermination's comment on updateIfStatusIn — same
+    // compare-and-swap, same wallet-idempotency backstop against a
+    // concurrent double-resolve.
+    const updated = await this.matches.updateIfStatusIn(match.id, [...ACTIVE_STATUSES], {
       status: "CASHED_OUT",
-      platformsPassed: input.platformsPassed,
+      platformsPassed: canonicalPlatformsPassed,
       multiplier,
       payout,
       potentialPayout: payout,
@@ -284,6 +370,11 @@ export class MatchEngineService {
       resolvedAt: now,
       durationSeconds: Math.round(elapsedSeconds),
     });
+    if (!updated) {
+      const current = await this.matches.findById(match.id);
+      if (!current) throw new NotFoundError("Match");
+      return current;
+    }
 
     await this.matchEvents.create({ matchId: match.id, type: "CASHOUT_APPROVED", payload: { payout, multiplier } });
     eventBus.publish(MATCH_ENGINE_EVENTS.cashoutApproved, { match: updated }, match.id);
@@ -305,7 +396,11 @@ export class MatchEngineService {
       balanceAfter = walletMove.balanceAfter;
     }
 
-    const updated = await this.matches.update(match.id, {
+    // Compare-and-swap here too — see resolveTermination's comment. A
+    // concurrent resolve()/reportProgress() on the same match could have
+    // already written a terminal status; if so, this is a no-op refund
+    // attempt (wallet idempotency-keyed, safe) and we return the winner's row.
+    const updated = await this.matches.updateIfStatusIn(match.id, [...ACTIVE_STATUSES], {
       status: "INVALIDATED",
       payout: 0,
       potentialPayout: 0,
@@ -315,6 +410,11 @@ export class MatchEngineService {
       riskScore,
       invalidationReason: reason,
     });
+    if (!updated) {
+      const current = await this.matches.findById(match.id);
+      if (!current) throw new NotFoundError("Match");
+      return current;
+    }
 
     await this.matchEvents.create({ matchId: match.id, type: "INVALIDATED", payload: { reason, riskScore } });
     eventBus.publish(MATCH_ENGINE_EVENTS.invalidated, { match: updated }, match.id);
@@ -331,11 +431,48 @@ export class MatchEngineService {
     return updated;
   }
 
+  /**
+   * The server's own authoritative view of match progress.
+   * `claimedPlatformsPassed` (whatever the client just sent) is a claim,
+   * never a fact — this computes what's actually achievable since the last
+   * server-recorded checkpoint (`match.updatedAt` / `match.platformsPassed`,
+   * both already updated on every prior write, so no new column is needed)
+   * using the admin-configured `AntiCheatConfig.maxPlatformsPerSecond`
+   * applied PER INTERVAL rather than as a whole-match average. A claim can
+   * never push the canonical value past what real elapsed wall-clock time
+   * (measured by the server, not reported by the client) permits, and the
+   * result only ever moves forward (`Math.max` floor at the previous
+   * canonical value) — so a stray lower resubmission can't regress it.
+   *
+   * `reportProgress`/`resolve` use ONLY the returned `canonical` value to
+   * compute the multiplier/payout — `claimedPlatformsPassed` itself never
+   * reaches `getMultiplierForPlatforms`. `intervalSeconds`/`intervalClaimed`
+   * are handed to AntiCheatService so blatant (not just borderline) claims
+   * still invalidate the match, not merely get clamped away.
+   */
+  private computeCanonicalProgress(
+    match: Match,
+    claimedPlatformsPassed: number,
+    now: Date
+  ): { canonical: number; intervalSeconds: number; intervalClaimed: number } {
+    const previousCanonical = match.platformsPassed;
+    const intervalSeconds = Math.max(0, (now.getTime() - match.updatedAt.getTime()) / 1000);
+    const limit = (match.antiCheatSnapshot as unknown as AntiCheatConfig | null)?.maxPlatformsPerSecond;
+    const maxDelta =
+      limit === undefined || !Number.isFinite(limit)
+        ? Infinity
+        : Math.floor(intervalSeconds * limit) + CANONICAL_PROGRESS_GRACE;
+    const intervalClaimed = Math.max(0, claimedPlatformsPassed - previousCanonical);
+    const canonical = Math.max(previousCanonical, Math.min(claimedPlatformsPassed, previousCanonical + maxDelta));
+    return { canonical, intervalSeconds, intervalClaimed };
+  }
+
   private runAntiCheat(
     match: Match,
     action: "cashout" | "loss" | "forfeit",
     platformsPassed: number,
     elapsedSeconds: number,
+    progress: { intervalSeconds: number; intervalClaimed: number },
     telemetry: {
       maxVerticalSpeed?: number;
       maxHorizontalSpeed?: number;
@@ -349,6 +486,8 @@ export class MatchEngineService {
       action,
       platformsPassed,
       elapsedSeconds,
+      intervalPlatformsClaimed: progress.intervalClaimed,
+      intervalSeconds: progress.intervalSeconds,
       reportedMaxVerticalSpeed: telemetry.maxVerticalSpeed,
       reportedMaxHorizontalSpeed: telemetry.maxHorizontalSpeed,
       reportedMaxAcceleration: telemetry.maxAcceleration,

@@ -10,6 +10,7 @@ import {
   StatusBadge,
   Drawer,
   DetailRow,
+  DrawerSkeleton,
   AdminTabs,
   type TableColumn,
 } from "@/components/admin/ui";
@@ -76,7 +77,7 @@ export default function AdminMatchesPage() {
   const [mode, setMode] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "matches", userId, status, mode],
     queryFn: () => MatchesAdminApi.listMatches({ userId, status, mode, page: 1, pageSize: 100 }),
   });
@@ -190,6 +191,8 @@ export default function AdminMatchesPage() {
         columns={columns}
         rows={rows}
         loading={isLoading}
+        error={isError}
+        onRetry={refetch}
         onRowClick={(m) => setSelectedId(m.id)}
         emptyMessage="Nenhuma partida corresponde aos filtros"
       />
@@ -211,7 +214,7 @@ function MatchDrawer({ matchId, onClose }: { matchId: string; onClose: () => voi
   return (
     <Drawer open onClose={onClose} title={match?.matchNumber ?? "Carregando..."}>
       {isLoading || !match ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div className="flex flex-col gap-5">
           <AdminTabs

@@ -10,8 +10,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   PageHeader,
   KpiGrid,
+  KpiGridSkeleton,
+  HeroKpiGrid,
   SectionCard,
+  ChartCard,
   DataTable,
+  AdminTabs,
   type TableColumn,
 } from "@/components/admin/ui";
 import { AreaChart, BarChart, DonutChart } from "@/components/admin/charts";
@@ -152,11 +156,19 @@ function PeriodFilter({
   );
 }
 
+const STATS_TABS = [
+  { key: "overview", label: "Visão geral", description: "Usuários, cadastros e aquisição no período" },
+  { key: "financial", label: "Financeiro", description: "Depósitos, saques, GGR e resultado no período" },
+  { key: "game", label: "Jogo", description: "Partidas, cashouts e RTP realizado no período" },
+  { key: "commercial", label: "Comercial", description: "Afiliados, gerentes e comissão gerada no período" },
+] as const;
+
 export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
   const [preset, setPreset] = useState<DateRangePreset>("7d");
   const [customFrom, setCustomFrom] = useState(daysAgoISO(7));
   const [customTo, setCustomTo] = useState(todayISO());
+  const [statsTab, setStatsTab] = useState<(typeof STATS_TABS)[number]["key"]>("overview");
 
   const customReady = preset !== "custom" || (!!customFrom && !!customTo && customFrom <= customTo);
   const queryKey = ["admin", "dashboard", "summary", preset, preset === "custom" ? customFrom : null, preset === "custom" ? customTo : null];
@@ -166,7 +178,7 @@ export default function AdminDashboardPage() {
     queryFn: () => DashboardAdminApi.getSummary(preset, preset === "custom" ? { dateFrom: customFrom, dateTo: customTo } : undefined),
     enabled: customReady,
   });
-  const { data: eventsRes, isLoading: eventsLoading } = useQuery({
+  const { data: eventsRes, isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery({
     queryKey: ["admin", "dashboard", "recent-events"],
     queryFn: () => IdentityAdminApi.searchAudit({ page: 1, pageSize: 5 }),
   });
@@ -203,6 +215,39 @@ export default function AdminDashboardPage() {
     ];
   }, [summary]);
 
+  /**
+   * The 4 "hero" métricas the design audit calls for (§2 P1, §3 Fase 3, §6
+   * passo 08) — GGR, Depósitos, Lucro líquido, Usuários ativos — chosen with
+   * the user as the platform's overall-health signal, always visible above
+   * the (now trimmed) grouped sections. Pulled straight from the same
+   * `summary` fields already used below — no new data.
+   */
+  const heroKpis: KpiDTO[] | undefined = useMemo(() => {
+    if (!summary) return undefined;
+    return [
+      {
+        id: "hero-ggr",
+        label: "GGR",
+        value: formatCurrency(centsToReais(summary.kpis.ggrCents)),
+        ...pctDelta(summary.kpis.ggrCents, summary.kpis.ggrPrevCents),
+      },
+      {
+        id: "hero-deposits",
+        label: "Depósitos",
+        value: formatCurrency(centsToReais(summary.kpis.depositsCents)),
+        ...pctDelta(summary.kpis.depositsCents, summary.kpis.depositsPrevCents),
+      },
+      { id: "hero-net-profit", label: "Lucro líquido", value: formatCurrency(centsToReais(summary.financial.netProfitCents)) },
+      { id: "hero-active-users", label: "Usuários ativos", value: fmtNumber(summary.users.activeUsers) },
+    ];
+  }, [summary]);
+
+  /**
+   * Trimmed from 9 to 4 (design audit §2 P1, §6 passo 08): NGR, os 3 custos
+   * detalhados e a margem já vivem em /finance › "Resultado do dia" —
+   * mantidos aqui apenas os totais que respondem "como está o financeiro
+   * agora" sem abrir outra tela.
+   */
   const financialKpis: KpiDTO[] | undefined = useMemo(() => {
     if (!summary) return undefined;
     return [
@@ -224,17 +269,7 @@ export default function AdminDashboardPage() {
         value: formatCurrency(centsToReais(summary.kpis.ggrCents)),
         ...pctDelta(summary.kpis.ggrCents, summary.kpis.ggrPrevCents),
       },
-      {
-        id: "ngr",
-        label: "NGR",
-        value: formatCurrency(centsToReais(summary.ngrCents)),
-        ...pctDelta(summary.ngrCents, summary.ngrPrevCents),
-      },
-      { id: "bonus-cost", label: "Custo de bônus", value: formatCurrency(centsToReais(summary.financial.bonusCostCents)) },
-      { id: "affiliate-cost", label: "Custo de afiliados (CPA + RevShare)", value: formatCurrency(centsToReais(summary.financial.affiliateCostCents)) },
-      { id: "manager-cost", label: "Custo de gerentes (spread)", value: formatCurrency(centsToReais(summary.financial.managerSpreadCostCents)) },
       { id: "net-profit", label: "Lucro líquido", value: formatCurrency(centsToReais(summary.financial.netProfitCents)) },
-      { id: "margin", label: "Margem líquida (lucro/GGR)", value: fmtPct(summary.financial.marginPct) },
     ];
   }, [summary]);
 
@@ -254,17 +289,18 @@ export default function AdminDashboardPage() {
     ];
   }, [summary]);
 
+  /**
+   * Trimmed from 9 to 4 (design audit §2 P1, §6 passo 08): a rede de
+   * afiliados/gerentes já tem detalhe completo (CPA, RevShare, depósitos
+   * gerados, FTDs) em /affiliate-commissions e /managers — mantidos aqui só
+   * os totais que resumem o canal comercial de relance.
+   */
   const commercialKpis: KpiDTO[] | undefined = useMemo(() => {
     if (!summary) return undefined;
     return [
       { id: "active-affiliates", label: "Afiliados ativos", value: fmtNumber(summary.commercial.activeAffiliates) },
       { id: "active-managers", label: "Gerentes ativos", value: fmtNumber(summary.commercial.activeManagers) },
-      { id: "affiliate-players", label: "Jogadores via afiliados (nível 1)", value: fmtNumber(summary.commercial.affiliateReferredPlayers) },
-      { id: "affiliate-ftds", label: "FTDs de afiliados", value: fmtNumber(summary.commercial.affiliateFtds) },
-      { id: "affiliate-deposits", label: "Depósitos gerados (nível 1)", value: formatCurrency(centsToReais(summary.commercial.affiliateDrivenDepositsCents)) },
       { id: "commission-generated", label: "Comissão gerada (total)", value: formatCurrency(centsToReais(summary.commercial.commissionGeneratedCents)) },
-      { id: "cpa-paid", label: "CPA pago", value: formatCurrency(centsToReais(summary.commercial.cpaCostCents)) },
-      { id: "revshare-paid", label: "Revenue Share pago", value: formatCurrency(centsToReais(summary.commercial.revshareCostCents)) },
       { id: "pct-distributed", label: "% da receita distribuída", value: fmtPct(summary.commercial.pctGgrDistributed) },
     ];
   }, [summary]);
@@ -273,14 +309,6 @@ export default function AdminDashboardPage() {
   const signupsByDay = summary?.signupsByDay.map((p) => ({ label: p.label, value: p.value })) ?? [];
   const ggrByDay = summary?.ggrByDay.map((p) => ({ label: p.label, value: centsToReais(p.ggrCents) })) ?? [];
   const gatewayVolume = summary?.gatewayVolume.map((p) => ({ label: p.label, value: centsToReais(p.valueCents) })) ?? [];
-
-  const skeleton = (n: number) => (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-      {Array.from({ length: n }, (_, i) => (
-        <Skeleton key={i} className="h-28 w-full rounded-2xl" />
-      ))}
-    </div>
-  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -307,28 +335,41 @@ export default function AdminDashboardPage() {
         }
       />
 
-      <SectionCard title="Visão geral" description="Usuários, cadastros e aquisição no período">
-        {summaryLoading || !overviewKpis ? skeleton(9) : <KpiGrid kpis={overviewKpis} />}
-      </SectionCard>
+      {summaryLoading || !heroKpis ? (
+        <KpiGridSkeleton count={4} variant="hero" />
+      ) : (
+        <HeroKpiGrid kpis={heroKpis} />
+      )}
 
-      <SectionCard title="Financeiro" description="Depósitos, saques, GGR/NGR e custos no período">
-        {summaryLoading || !financialKpis ? skeleton(9) : <KpiGrid kpis={financialKpis} accents={["#16F2A5", "#FF4FAE", "#8B5CF6", "#7DD3FC"]} />}
-      </SectionCard>
-
-      <SectionCard title="Jogo" description="Partidas, cashouts e RTP realizado no período">
-        {summaryLoading || !gameKpis ? skeleton(10) : <KpiGrid kpis={gameKpis} accents={["#8B5CF6", "#7DD3FC", "#16F2A5", "#FF4FAE"]} />}
-      </SectionCard>
-
-      <SectionCard title="Comercial" description="Afiliados, gerentes e comissões no período — nível 1 direto">
-        {summaryLoading || !commercialKpis ? skeleton(9) : <KpiGrid kpis={commercialKpis} accents={["#FF4FAE", "#8B5CF6", "#16F2A5", "#7DD3FC"]} />}
+      {/*
+       * Editorial pass (redesign premium, "menos informação, mais foco"):
+       * the 4 stat groups used to render as 4 SectionCards stacked in the
+       * page flow (27 tiles always on screen at once). Same data, same
+       * KpiGrid, but now behind one AdminTabs switch — only one group's
+       * numbers are on screen at a time, and the page doesn't turn into a
+       * scroll of small boxes before you even reach the charts.
+       */}
+      <SectionCard
+        title={STATS_TABS.find((t) => t.key === statsTab)!.label}
+        description={STATS_TABS.find((t) => t.key === statsTab)!.description}
+        actions={<AdminTabs tabs={STATS_TABS.map(({ key, label }) => ({ key, label }))} value={statsTab} onChange={(k) => setStatsTab(k as typeof statsTab)} />}
+      >
+        {statsTab === "overview" &&
+          (summaryLoading || !overviewKpis ? <KpiGridSkeleton count={9} /> : <KpiGrid kpis={overviewKpis} />)}
+        {statsTab === "financial" &&
+          (summaryLoading || !financialKpis ? <KpiGridSkeleton count={4} /> : <KpiGrid kpis={financialKpis} />)}
+        {statsTab === "game" &&
+          (summaryLoading || !gameKpis ? <KpiGridSkeleton count={10} /> : <KpiGrid kpis={gameKpis} />)}
+        {statsTab === "commercial" &&
+          (summaryLoading || !commercialKpis ? <KpiGridSkeleton count={4} /> : <KpiGrid kpis={commercialKpis} />)}
       </SectionCard>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard title="Depósitos por dia" description="Volume bruto — período selecionado" className="xl:col-span-2">
+        <ChartCard title="Depósitos por dia" description="Volume bruto — período selecionado" className="xl:col-span-2">
           {summaryLoading ? <Skeleton className="h-[210px] w-full rounded-xl" /> : <AreaChart data={depositsByDay} formatValue={(v) => formatCurrency(v)} height={210} />}
-        </SectionCard>
+        </ChartCard>
 
-        <SectionCard title="Volume por gateway" description="Depósitos confirmados — período selecionado">
+        <ChartCard title="Volume por gateway" description="Depósitos confirmados — período selecionado">
           {summaryLoading ? (
             <Skeleton className="h-40 w-full rounded-xl" />
           ) : gatewayVolume.length > 0 ? (
@@ -352,13 +393,13 @@ export default function AdminDashboardPage() {
               </p>
             </div>
           </div>
-        </SectionCard>
+        </ChartCard>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <SectionCard title="Novos cadastros por dia" description="Jogadores (role USER) — período selecionado" className="xl:col-span-2">
+        <ChartCard title="Novos cadastros por dia" description="Jogadores (role USER) — período selecionado" className="xl:col-span-2">
           {summaryLoading ? <Skeleton className="h-[210px] w-full rounded-xl" /> : <BarChart data={signupsByDay} height={210} />}
-        </SectionCard>
+        </ChartCard>
 
         <SectionCard title="Alertas ativos" description="Eventos que exigem atenção">
           {summaryLoading ? (
@@ -406,9 +447,9 @@ export default function AdminDashboardPage() {
         </SectionCard>
       </div>
 
-      <SectionCard title="GGR / NGR por dia" description="Receita bruta e líquida — período selecionado">
+      <ChartCard title="GGR / NGR por dia" description="Receita bruta e líquida — período selecionado">
         {summaryLoading ? <Skeleton className="h-[210px] w-full rounded-xl" /> : <AreaChart data={ggrByDay} formatValue={(v) => formatCurrency(v)} height={210} />}
-      </SectionCard>
+      </ChartCard>
 
       <SectionCard
         title="Eventos recentes"
@@ -423,7 +464,7 @@ export default function AdminDashboardPage() {
         className="p-0 [&>div:first-child]:px-5 [&>div:first-child]:pt-5"
       >
         <div className="-mx-0">
-          <DataTable columns={eventColumns} rows={events} loading={eventsLoading} pageSize={5} />
+          <DataTable columns={eventColumns} rows={events} loading={eventsLoading} error={eventsError} onRetry={refetchEvents} pageSize={5} />
         </div>
       </SectionCard>
     </div>

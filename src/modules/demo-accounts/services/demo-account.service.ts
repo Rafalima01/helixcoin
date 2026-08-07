@@ -8,7 +8,7 @@ import type { IDemoAccountRepository } from "@/modules/demo-accounts/interfaces/
 import type { DemoAccountRow } from "@/modules/demo-accounts/entities/demo-account.entity";
 import { generateDemoLogin, generateDemoPassword, demoEmailFor } from "@/modules/demo-accounts/utils/credentials.util";
 import { hashPassword } from "@/server/auth/password";
-import { revokeFamily } from "@/server/auth/tokens";
+import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
 import { generateReferralCode } from "@/modules/identity/utils/referral-code.util";
 import { AuditService } from "@/server/audit";
 import { BusinessRuleError, NotFoundError } from "@/server/errors";
@@ -145,6 +145,7 @@ export class DemoAccountService {
     const active = await this.sessions.listByUser(user.id);
     for (const s of active) {
       if (s.status === "ACTIVE") {
+        await blacklistFamilyAccessTokens(s.familyId);
         await revokeFamily(s.familyId);
         await this.sessions.revoke(s.id, new Date());
       }

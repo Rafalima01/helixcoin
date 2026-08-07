@@ -35,6 +35,7 @@ import {
   UserCheck,
   Smartphone,
   FlaskConical,
+  HandCoins,
   type LucideIcon,
 } from "lucide-react";
 
@@ -76,6 +77,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       { href: "/affiliate-commissions", label: "Comissões", icon: Coins },
       { href: "/affiliate-settings", label: "Configurações", icon: Settings },
       { href: "/demo-accounts", label: "Contas Demo", icon: FlaskConical },
+      { href: "/commercial-withdrawals", label: "Saques Comerciais", icon: HandCoins },
     ],
   },
   {

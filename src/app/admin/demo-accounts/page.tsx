@@ -27,7 +27,7 @@ export default function AdminDemoAccountsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<DemoAccountListItemDto | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "demo-accounts", "list"],
     queryFn: () => DemoAccountsAdminApi.list(),
   });
@@ -78,7 +78,7 @@ export default function AdminDemoAccountsPage() {
           </Button>
         }
       />
-      <DataTable columns={columns} rows={rows} loading={isLoading} onRowClick={(r) => setSelected(r)} emptyMessage="Nenhuma conta demo criada ainda" />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} onRowClick={(r) => setSelected(r)} emptyMessage="Nenhuma conta demo criada ainda" />
       <CreateDemoAccountModal open={createOpen} onClose={() => setCreateOpen(false)} />
       <DemoAccountDrawer account={selectedFresh} onClose={() => setSelected(null)} />
     </div>

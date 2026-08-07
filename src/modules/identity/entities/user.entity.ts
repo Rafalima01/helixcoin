@@ -1,6 +1,20 @@
 import type { Role, UserStatus } from "@prisma/client";
 
 /**
+ * Snapshot of the unique identity fields (email/username/phone/cpf) taken
+ * right before softDelete() tombstones them — see IUserRepository.softDelete's
+ * doc comment for why tombstoning is necessary. restore() reads this back to
+ * make a soft-deleted user's original identity reappear, instead of leaving
+ * them stuck with the tombstone values forever.
+ */
+export interface DeletedIdentitySnapshot {
+  email: string;
+  username: string;
+  phone: string | null;
+  cpf: string | null;
+}
+
+/**
  * Domain User — the full row, including `passwordHash`. Services operate on
  * this; DTOs (dto/user.dto.ts) strip `passwordHash` before anything crosses
  * an HTTP boundary. Never serialize this type directly in a response.
@@ -38,6 +52,8 @@ export interface UserEntity {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  /** Only ever non-null while deletedAt is set — see DeletedIdentitySnapshot's doc comment. */
+  deletedIdentitySnapshot: DeletedIdentitySnapshot | null;
 }
 
 export function fullName(user: Pick<UserEntity, "firstName" | "lastName">): string {

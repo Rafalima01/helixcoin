@@ -162,35 +162,47 @@ model User {
   /// que o game-config usa para resolver o modo de dificuldade DEMO.
   isDemo Boolean @default(false)
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime? // soft delete — repositories must filter this explicitly
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  deletedAt               DateTime? // soft delete — repositories must filter this explicitly
+  /// Snapshot of {email,username,phone,cpf} taken right before softDelete()
+  /// overwrites those columns with tombstone values — see
+  /// UserManagementService.softDelete's doc comment. email/username/phone/cpf
+  /// carry plain (non-partial) @unique constraints, so a soft-deleted row
+  /// would otherwise hold those values forever, blocking a real person (or a
+  /// tester) from ever signing up again with the same CPF/phone/email.
+  /// restore() reads this back to bring the original identity back, when
+  /// nothing else has claimed it in the meantime.
+  deletedIdentitySnapshot Json?
 
-  wallet                    Wallet?
-  matches                   Match[]
-  transactions              WalletTransaction[]
-  createdGameConfigs        GameEconomyConfig[]
-  achievements              UserAchievement[]
-  notifications             Notification[]
-  sessions                  Session[]
-  passwordResetTokens       PasswordResetToken[]
-  emailVerificationTokens   EmailVerificationToken[]
-  mfaMethods                MfaMethod[]
-  mfaRecoveryCodes          MfaRecoveryCode[]
-  deposits                  Deposit[]
-  withdraws                 Withdraw[]
-  gatewayCredentialsCreated GatewayCredential[]
-  managerProfile            ManagerProfile?
-  affiliateProfile          AffiliateProfile?
-  commissionsAsOrigin       Commission[]             @relation("CommissionOrigin")
-  commissionsAsPayee        Commission[]             @relation("CommissionPayee")
-  managerInvitesCreated     ManagerInvite[]          @relation("ManagerInviteCreatedBy")
-  managerInviteAccepted     ManagerInvite?           @relation("ManagerInviteAcceptedBy")
-  managerInvitesRevoked     ManagerInvite[]          @relation("ManagerInviteRevokedBy")
-  managerInvitesApproved    ManagerInvite[]          @relation("ManagerInviteApprovedBy")
-  managerInvitesRejected    ManagerInvite[]          @relation("ManagerInviteRejectedBy")
-  pushSubscriptions         PushSubscription[]
-  notificationPreferences   NotificationPreference[]
+  wallet                     Wallet?
+  matches                    Match[]
+  transactions               WalletTransaction[]
+  createdGameConfigs         GameEconomyConfig[]
+  achievements               UserAchievement[]
+  notifications              Notification[]
+  sessions                   Session[]
+  passwordResetTokens        PasswordResetToken[]
+  emailVerificationTokens    EmailVerificationToken[]
+  mfaMethods                 MfaMethod[]
+  mfaRecoveryCodes           MfaRecoveryCode[]
+  deposits                   Deposit[]
+  withdraws                  Withdraw[]
+  gatewayCredentialsCreated  GatewayCredential[]
+  managerProfile             ManagerProfile?
+  affiliateProfile           AffiliateProfile?
+  commissionsAsOrigin        Commission[]             @relation("CommissionOrigin")
+  commissionsAsPayee         Commission[]             @relation("CommissionPayee")
+  pixKeys                    PixKey[]
+  commercialWithdraws        CommercialWithdraw[]
+  commercialWithdrawsDecided CommercialWithdraw[]     @relation("CommercialWithdrawDecider")
+  managerInvitesCreated      ManagerInvite[]          @relation("ManagerInviteCreatedBy")
+  managerInviteAccepted      ManagerInvite?           @relation("ManagerInviteAcceptedBy")
+  managerInvitesRevoked      ManagerInvite[]          @relation("ManagerInviteRevokedBy")
+  managerInvitesApproved     ManagerInvite[]          @relation("ManagerInviteApprovedBy")
+  managerInvitesRejected     ManagerInvite[]          @relation("ManagerInviteRejectedBy")
+  pushSubscriptions          PushSubscription[]
+  notificationPreferences    NotificationPreference[]
 
   @@index([referredById])
   @@index([affiliateLinkId])
@@ -625,7 +637,7 @@ model GatewayCredential {
   /// regardless of real reachability, so the admin "Gateways" screen and the
   /// failover browser test can force a candidate offline on demand. Null
   /// means "report real health" (always ONLINE for Mock).
-  simulatedHealth GatewayHealthStatus?
+  simulatedHealth    GatewayHealthStatus?
   /// Mock-only test lever (Fase 10) — see GatewaySimulatedFault doc comment.
   /// Null means "no simulated fault" (calls succeed normally).
   simulatedErrorMode GatewaySimulatedFault?
@@ -1279,7 +1291,7 @@ model AffiliateProfile {
   /// "Meu Link" (/r/{User.referralCode}) hit-count for this affiliate —
   /// mirrors ManagerProfile.platformLinkClicks, incremented by
   /// /r/[code]/route.ts when the code resolves to an APPROVED affiliate.
-  linkClicks Int @default(0)
+  linkClicks          Int     @default(0)
   /// Granted by the owning Manager (or Admin) — lets this affiliate surface
   /// their manager's "Convidar Afiliados" link (ManagerProfile.inviteCode) in
   /// their own panel, recruiting new affiliates under the SAME manager.
@@ -1402,6 +1414,106 @@ model AffiliateSettings {
   updatedAt DateTime @updatedAt
 }
 
+// ============================================================================
+// Commercial Withdrawals — Affiliates + Managers (Fase X) — src/modules/
+// commercial-withdrawals is the ONLY writer of PixKey/CommercialWithdraw.
+// Symmetric, always admin-approved (never automatic) withdrawal flow for
+// Affiliate/Manager commission balances, with reusable saved PIX keys —
+// completely separate from src/modules/payments' player-facing Withdraw
+// flow (Deposit/Withdraw/GatewayCredential), which stays untouched. Every
+// balance movement still goes exclusively through WalletService (lock/
+// unlock/debit) — this module never writes a Wallet balance directly.
+// ============================================================================
+
+enum PixKeyType {
+  CPF
+  CNPJ
+  EMAIL
+  PHONE
+  RANDOM
+}
+
+/// A reusable, saved PIX destination — an Affiliate/Manager picks one of
+/// these (or adds a new one) each time they request a commercial withdrawal,
+/// instead of retyping a key every time (contrast src/modules/payments'
+/// Withdraw, which stores the key inline per-request with no reuse).
+model PixKey {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         PixKeyType
+  keyEncrypted String
+  holderCpf    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  commercialWithdraws CommercialWithdraw[]
+
+  @@index([userId])
+}
+
+enum CommercialWithdrawPayeeRole {
+  AFFILIATE
+  MANAGER
+}
+
+enum CommercialWithdrawStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  /// Reserved for a future self-service cancel action — no CANCEL
+  /// endpoint/UI exists this pass (only Approve/Reject were requested, see
+  /// commercial-withdraw.service.ts). Same "modeled but inert" convention as
+  /// e.g. GatewaySimulatedFault's unused variants before Fase 10 wired them.
+  CANCELLED
+}
+
+/// One commercial withdrawal request — an Affiliate/Manager cashing out
+/// their commission balance. Always admin-approved, never automatic (see
+/// CommercialWithdrawService.decide) — deliberately distinct from
+/// src/modules/payments' Withdraw, which goes through a real payment
+/// gateway. Funds move to LOCKED at request time (WalletService.lock),
+/// exactly like a player Withdraw, and only ever leave LOCKED via an admin
+/// approve (debit) or reject (unlock) — see the service's CAS-based decide().
+model CommercialWithdraw {
+  id        String                      @id @default(uuid())
+  userId    String
+  user      User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payeeRole CommercialWithdrawPayeeRole
+
+  amountCents Int
+  status      CommercialWithdrawStatus @default(PENDING)
+
+  /// Null if the source PixKey was later deleted — the request itself still
+  /// carries its own encrypted snapshot below, so history is never lost.
+  pixKeyId        String?
+  pixKey          PixKey?    @relation(fields: [pixKeyId], references: [id], onDelete: SetNull)
+  pixKeyType      PixKeyType
+  pixKeyEncrypted String
+  holderCpf       String
+
+  /// The WalletService.lock() transaction created at request time.
+  lockWalletTransactionId   String? @unique
+  /// The WalletService.debit()/unlock() transaction created at decide() time.
+  settleWalletTransactionId String? @unique
+
+  rejectionReason String?
+  decidedByUserId String?
+  decidedByUser   User?   @relation("CommercialWithdrawDecider", fields: [decidedByUserId], references: [id])
+
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([payeeRole, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
 /// Single global row (id "global"), same pattern as AffiliateSettings.
 /// Admin-configurable via /api/admin/promotions/settings.
 model PromotionSettings {
@@ -1422,13 +1534,13 @@ model PromotionSettings {
   secondDepositBonusPercent Float @default(0.2)
 
   /// Countdown banner on the Deposit screen. false = timer never renders.
-  depositPromoEnabled Boolean @default(true)
+  depositPromoEnabled         Boolean @default(true)
   /// Timer duration in seconds — never hardcoded in the frontend. Anchored
   /// client-side per browser session (see useDepositPromoCountdown): the
   /// deadline is computed once and persisted, so it never resets just from
   /// navigating within the app — only when it actually expires or this value
   /// changes.
-  depositPromoDurationSeconds Int @default(300)
+  depositPromoDurationSeconds Int     @default(300)
 
   /// Quick-amount buttons on the Deposit screen — same concept as
   /// GameEconomyConfig.general.quickBetAmounts (admin-configurable,

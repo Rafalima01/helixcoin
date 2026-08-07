@@ -22,6 +22,7 @@ export default function AdminIntegrationsPage() {
       <PageHeader
         title="Integrações"
         description="Serviços externos conectados à plataforma. Credenciais ficarão em vault seguro no Backend."
+        mock
         actions={
           <Button variant="primary" size="sm" onClick={notImplemented}>
             <Plug className="size-4" /> Nova integração

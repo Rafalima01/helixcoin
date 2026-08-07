@@ -12,7 +12,7 @@ vi.mock("@/server/audit", () => ({ AuditService: { record: vi.fn() } }));
 
 vi.mock("@/server/auth/tokens", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/auth/tokens")>();
-  return { ...actual, revokeFamily: vi.fn() };
+  return { ...actual, revokeFamily: vi.fn(), blacklistFamilyAccessTokens: vi.fn() };
 });
 
 const meta: RequestMeta = { ip: "127.0.0.1", userAgent: "vitest" };

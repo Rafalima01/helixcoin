@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PageHeader, DataTable, StatusBadge, Meter, SectionCard, type TableColumn } from "@/components/admin/ui";
+import { PageHeader, DataTable, StatusBadge, Meter, SectionCard, MockBadge, DrawerSkeleton, type TableColumn } from "@/components/admin/ui";
 import { AdminServices } from "@/lib/admin/services";
 import { useAdminData, notImplemented } from "@/lib/admin/use-admin-data";
 import type { PromotionDTO } from "@/lib/admin/types";
@@ -38,7 +38,7 @@ function PromotionSettingsCards() {
   });
   const settings = data?.data;
 
-  if (isLoading || !settings) return <p className="text-sm text-text-muted">Carregando...</p>;
+  if (isLoading || !settings) return <DrawerSkeleton />;
   // key={settings.updatedAt} remounts every card after a successful save — same trick as affiliate-settings/page.tsx.
   return (
     <div className="flex flex-col gap-5" key={settings.updatedAt}>
@@ -275,6 +275,10 @@ export default function AdminPromotionsPage() {
         }
       />
       <PromotionSettingsCards />
+      <div className="flex items-center gap-2.5">
+        <h3 className="font-bold">Campanhas</h3>
+        <MockBadge />
+      </div>
       <DataTable columns={columns} rows={data ?? []} loading={loading} />
     </div>
   );

@@ -128,7 +128,7 @@ function RtpConfigEditor({
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
 
-  const { data: versionsData, isLoading: versionsLoading } = useQuery({
+  const { data: versionsData, isLoading: versionsLoading, isError: versionsError, refetch: versionsRefetch } = useQuery({
     queryKey: ["admin", "game-config", "versions"],
     queryFn: () => GameConfigAdminApi.listVersions(1, 50),
     enabled: tab === "versions",
@@ -229,7 +229,13 @@ function RtpConfigEditor({
           {tab === "goals" && <GoalsTab form={form} onChange={updateGeneral} />}
           {tab === "anticheat" && <AntiCheatTab antiCheat={form.antiCheat} onChange={updateAntiCheat} />}
           {tab === "versions" && (
-            <VersionsTab versions={versionsData?.data ?? []} loading={versionsLoading} onRestore={handleRestore} />
+            <VersionsTab
+              versions={versionsData?.data ?? []}
+              loading={versionsLoading}
+              error={versionsError}
+              onRetry={versionsRefetch}
+              onRestore={handleRestore}
+            />
           )}
         </div>
         {currentModeTab && (
@@ -524,10 +530,14 @@ function AntiCheatTab({
 function VersionsTab({
   versions,
   loading,
+  error,
+  onRetry,
   onRestore,
 }: {
   versions: GameEconomyConfigVersionSummaryDto[];
   loading: boolean;
+  error: boolean;
+  onRetry: () => void;
   onRestore: (versionId: string) => void;
 }) {
   const columns: TableColumn<GameEconomyConfigVersionSummaryDto>[] = [
@@ -588,7 +598,7 @@ function VersionsTab({
 
   return (
     <SectionCard title="Histórico de versões" description="Toda alteração vira uma nova versão — nada é sobrescrito ou apagado">
-      <DataTable columns={columns} rows={versions} loading={loading} pageSize={10} emptyMessage="Nenhuma versão ainda" />
+      <DataTable columns={columns} rows={versions} loading={loading} error={error} onRetry={onRetry} pageSize={10} emptyMessage="Nenhuma versão ainda" />
     </SectionCard>
   );
 }

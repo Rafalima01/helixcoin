@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RotateCw } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
+import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, JsonViewer, DrawerSkeleton, type TableColumn } from "@/components/admin/ui";
 import { WebhooksAdminApi, ApiError } from "@/lib/admin/payments-api";
 import type { PaymentWebhookAdminDto } from "@/modules/payments/dto/payments.dto";
 
@@ -25,7 +25,7 @@ export default function AdminWebhooksPage() {
   const [status, setStatus] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "payments", "webhooks", status],
     queryFn: () => WebhooksAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
   });
@@ -92,7 +92,7 @@ export default function AdminWebhooksPage() {
           ]}
         />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} onRowClick={(w) => setSelectedId(w.id)} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={10} onRowClick={(w) => setSelectedId(w.id)} />
 
       {selectedId && <WebhookDrawer id={selectedId} onClose={() => setSelectedId(null)} />}
     </div>
@@ -121,7 +121,7 @@ function WebhookDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <Drawer open onClose={onClose} title={webhook ? "Webhook" : "Carregando..."}>
       {isLoading || !webhook ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div className="flex flex-col gap-4">
           <div>
@@ -140,21 +140,9 @@ function WebhookDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             {webhook.errorMessage && <DetailRow label="Erro" value={webhook.errorMessage} />}
           </div>
 
-          <div>
-            <p className="mb-1.5 text-xs font-semibold text-text-muted">Payload</p>
-            <pre className="max-h-48 overflow-auto rounded-xl border border-border bg-white/[0.02] p-3 text-[11px] text-text-secondary">
-              {JSON.stringify(webhook.payload, null, 2)}
-            </pre>
-          </div>
+          <JsonViewer label="Payload" data={webhook.payload} />
 
-          {webhook.responseBody && (
-            <div>
-              <p className="mb-1.5 text-xs font-semibold text-text-muted">Resposta</p>
-              <pre className="max-h-32 overflow-auto rounded-xl border border-border bg-white/[0.02] p-3 text-[11px] text-text-secondary">
-                {JSON.stringify(webhook.responseBody, null, 2)}
-              </pre>
-            </div>
-          )}
+          {webhook.responseBody && <JsonViewer label="Resposta" data={webhook.responseBody} />}
 
           <Button variant="secondary" size="sm" loading={reprocess.isPending} onClick={() => reprocess.mutate()}>
             <RotateCw className="size-4" /> Reprocessar

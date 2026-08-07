@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { redis } from "@/server/cache/redis";
 import { RateLimitError } from "@/server/errors";
+import { env } from "@/server/config/env";
 import type { RouteHandler } from "@/server/http/handler";
 
 export interface RateLimitResult {
@@ -91,7 +92,50 @@ export function withRateLimit<Ctx = unknown>(
     };
 }
 
-/** Default identifier: client IP from `x-forwarded-for`, falling back to a shared bucket. */
+/**
+ * Default identifier: the caller's real IP, resolved so a client can never
+ * pick their own rate-limit bucket by forging a header.
+ *
+ * Checked in order, each only trusted because the edge that sets it
+ * OVERWRITES (not appends) whatever the client sent:
+ *   1. `CF-Connecting-IP` — Cloudflare's own header — but ONLY when
+ *      `TRUSTED_CF_CONNECTING_IP=true`. Cloudflare does not front this
+ *      deployment yet (DEPLOYMENT.md), and nothing else strips or
+ *      overwrites this header — trusting it unconditionally would let a
+ *      client set it directly and defeat every IP-keyed limiter, which is
+ *      worse than not checking it at all. Flip the env var on once
+ *      Cloudflare is actually confirmed to be the sole entry point.
+ *   2. `X-Real-IP` — set unconditionally to `$remote_addr` by the documented
+ *      Nginx config (DEPLOYMENT.md: `proxy_set_header X-Real-IP $remote_addr;`),
+ *      i.e. the actual TCP peer Nginx saw, never client-suppliable.
+ *   3. `X-Forwarded-For`, read from the RIGHT using `TRUSTED_PROXY_HOPS`
+ *      (default 1) — the fallback for a proxy that only sets XFF. Nginx's
+ *      documented config APPENDS to XFF
+ *      (`$proxy_add_x_forwarded_for`) rather than overwriting it, so with
+ *      exactly one trusted hop the real client IP is the LAST value, not
+ *      the first — the first is whatever an attacker sent, and trusting it
+ *      (the previous behavior here) let a single header defeat every
+ *      IP-keyed limiter (login, password reset, webhooks, admin).
+ *   4. `"unknown"` — shared bucket, same fallback as before.
+ */
 export function ipFromRequest(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (env.TRUSTED_CF_CONNECTING_IP) {
+    const cfConnectingIp = req.headers.get("cf-connecting-ip")?.trim();
+    if (cfConnectingIp) return cfConnectingIp;
+  }
+
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const hops = forwardedFor
+      .split(",")
+      .map((ip) => ip.trim())
+      .filter(Boolean);
+    const clientIp = hops[Math.max(0, hops.length - env.TRUSTED_PROXY_HOPS)];
+    if (clientIp) return clientIp;
+  }
+
+  return "unknown";
 }

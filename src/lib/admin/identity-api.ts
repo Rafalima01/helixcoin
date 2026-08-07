@@ -43,10 +43,11 @@ export interface UserSearchParams {
   role?: string;
   page?: number;
   pageSize?: number;
-  [key: string]: string | number | undefined;
+  includeDeleted?: boolean;
+  [key: string]: string | number | boolean | undefined;
 }
 
-function buildQuery(params: Record<string, string | number | undefined>): string {
+function buildQuery(params: Record<string, string | number | boolean | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "" && value !== "all") search.set(key, String(value));

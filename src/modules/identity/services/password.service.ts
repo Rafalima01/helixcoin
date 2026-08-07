@@ -8,7 +8,7 @@ import type {
   ConfirmPasswordResetInput,
 } from "@/modules/identity/dto/password.dto";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
-import { revokeFamily } from "@/server/auth/tokens";
+import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
 import { sha256Hex } from "@/server/security";
 import { AuditService } from "@/server/audit";
 import { eventBus } from "@/server/events";
@@ -39,6 +39,7 @@ export class PasswordService {
       const active = await this.sessions.listByUser(userId);
       for (const s of active) {
         if (s.status === "ACTIVE") {
+          await blacklistFamilyAccessTokens(s.id);
           await revokeFamily(s.id);
           await this.sessions.revoke(s.id, new Date());
         }
@@ -101,6 +102,7 @@ export class PasswordService {
     const active = await this.sessions.listByUser(stored.userId);
     for (const s of active) {
       if (s.status === "ACTIVE") {
+        await blacklistFamilyAccessTokens(s.id);
         await revokeFamily(s.id);
         await this.sessions.revoke(s.id, new Date());
       }

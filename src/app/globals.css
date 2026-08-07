@@ -63,6 +63,425 @@
   --radius-pill: 999px;
 }
 
+/*
+ * ================== Backoffice design system (Admin + Gerente only) ==================
+ * Applied via [data-scope="backoffice"], stamped on the root element of
+ * AdminShell and ManagerShell only — the player app never receives this
+ * attribute, so nothing here can leak into the game/landing surfaces, which
+ * keep their own "arcade dourado sobre roxo profundo" identity untouched.
+ *
+ * Identity: "deep navy + neon". The base is a saturated midnight-navy ramp
+ * (not neutral grey — grey is what makes a dark UI read as "lavado"), and
+ * the system carries the game's own brand colors so the Backoffice is
+ * visibly part of the HelixCoin ecosystem rather than a separate tool:
+ * the logo's violet becomes the secondary accent, the logo's coin gold
+ * becomes the reward/achievement highlight.
+ *
+ * Chroma roles are strict, which is what keeps "vivid" from becoming
+ * "noisy":
+ *   green  -> primary action + positive state
+ *   violet -> brand identity, navigation, selection
+ *   gold   -> money/reward/achievement highlights
+ *   red    -> danger only
+ *   amber  -> warning only
+ * Nothing decorative ever borrows a semantic color.
+ */
+[data-scope="backoffice"] {
+  /* ---- surface ramp: midnight navy, wide steps for real card/bg contrast ---- */
+  --bo-bg: #050d1c;
+  --bo-surface: #0b1830;
+  --bo-surface-raised: #12233f;
+  --bo-surface-overlay: #1a2e50;
+  --bo-surface-hover: rgba(120, 170, 255, 0.055);
+  --bo-surface-active: rgba(120, 170, 255, 0.09);
+
+  /* ---- hairlines: blue-shifted so borders belong to the navy, not to grey ---- */
+  --bo-hairline: rgba(125, 165, 235, 0.13);
+  --bo-hairline-strong: rgba(125, 165, 235, 0.22);
+  --bo-hairline-accent: rgba(0, 227, 154, 0.4);
+  /* Back-compat aliases for the names earlier etapas already consume. */
+  --bo-border: var(--bo-hairline);
+  --bo-border-strong: var(--bo-hairline-strong);
+
+  /* ---- ink: cool whites, never pure grey ---- */
+  --bo-text: #eef4ff;
+  --bo-text-secondary: #9db0d4;
+  --bo-text-muted: #63789e;
+  --bo-text-inverse: #041018;
+
+  /* ---- primary accent: neon mint. Action + positive. ---- */
+  --bo-accent: #00e39a;
+  --bo-accent-hover: #2ff0ae;
+  --bo-accent-ink: #6cffce;
+  --bo-accent-soft: rgba(0, 227, 154, 0.14);
+  --bo-accent-glow: rgba(0, 227, 154, 0.3);
+
+  /* ---- secondary accent: the logo's violet. Identity/navigation. ---- */
+  --bo-brand: #9b5cff;
+  --bo-brand-hover: #ad78ff;
+  --bo-brand-ink: #cfb0ff;
+  --bo-brand-soft: rgba(155, 92, 255, 0.16);
+
+  /* ---- reward highlight: the logo's coin gold. Money and achievements. ---- */
+  --bo-gold: #ffc24b;
+  --bo-gold-ink: #ffdb92;
+  --bo-gold-soft: rgba(255, 194, 75, 0.14);
+
+  /* ---- semantic state ---- */
+  --bo-positive: #00e39a;
+  --bo-positive-soft: rgba(0, 227, 154, 0.14);
+  --bo-warning: #ffb020;
+  --bo-warning-soft: rgba(255, 176, 32, 0.14);
+  --bo-danger: #ff4d6a;
+  --bo-danger-soft: rgba(255, 77, 106, 0.14);
+
+  /* ---- chart series: vivid and hue-separated so adjacent series never blur ---- */
+  --bo-chart-1: #00e39a;
+  --bo-chart-2: #9b5cff;
+  --bo-chart-3: #ffc24b;
+  --bo-chart-4: #38bdf8;
+  --bo-chart-5: #ff7a9c;
+
+  /* ---- primary action: neon mint plate on dark navy ink ---- */
+  --bo-action: #00e39a;
+  --bo-action-hover: #2ff0ae;
+  --bo-action-ink: #032218;
+
+  /* ---- radii: tight and architectural — no pill-shaped cards ---- */
+  --bo-r-xs: 4px;
+  --bo-r-sm: 6px;
+  --bo-r-md: 8px;
+  --bo-r-lg: 10px;
+  --bo-r-xl: 14px;
+  --bo-r-pill: 999px;
+
+  /* ---- spacing: 4px base, named so cards/rows/sections stop drifting ---- */
+  --bo-space-1: 4px;
+  --bo-space-2: 8px;
+  --bo-space-3: 12px;
+  --bo-space-4: 16px;
+  --bo-space-5: 20px;
+  --bo-space-6: 24px;
+  --bo-space-8: 32px;
+  --bo-space-10: 40px;
+  --bo-space-12: 48px;
+
+  /* ---- elevation: navy-tinted, so shadows sit in the palette not on top of it ---- */
+  --bo-shadow-sm: 0 1px 2px rgba(2, 8, 20, 0.5);
+  --bo-shadow-md:
+    0 1px 2px rgba(2, 8, 20, 0.45),
+    0 4px 14px -2px rgba(2, 8, 20, 0.55);
+  --bo-shadow-lg:
+    0 1px 2px rgba(2, 8, 20, 0.5),
+    0 10px 28px -4px rgba(2, 8, 20, 0.65);
+  --bo-shadow-overlay:
+    0 1px 2px rgba(2, 8, 20, 0.6),
+    0 20px 56px -8px rgba(2, 8, 20, 0.8);
+  /* Top inner highlight — reads as a physical lit edge, replaces outer glow. */
+  --bo-sheen: inset 0 1px 0 rgba(150, 190, 255, 0.09);
+
+  /* ---- motion: one easing family, three durations ---- */
+  --bo-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --bo-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --bo-dur-fast: 120ms;
+  --bo-dur: 180ms;
+  --bo-dur-slow: 280ms;
+}
+
+/*
+ * ---------- Backoffice typography scale ----------
+ * Seven roles, each with its own size/weight/tracking/line-height pairing.
+ * Tracking tightens as size grows (optical correction) — the single detail
+ * that most separates a considered type system from default utility classes.
+ */
+[data-scope="backoffice"] .bo-display {
+  font-size: clamp(2rem, 1.4rem + 1.8vw, 2.75rem);
+  font-weight: 680;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+}
+[data-scope="backoffice"] .bo-h1 {
+  font-size: 1.375rem;
+  font-weight: 640;
+  letter-spacing: -0.021em;
+  line-height: 1.22;
+}
+[data-scope="backoffice"] .bo-h2 {
+  font-size: 1rem;
+  font-weight: 620;
+  letter-spacing: -0.014em;
+  line-height: 1.35;
+}
+[data-scope="backoffice"] .bo-h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  line-height: 1.4;
+}
+[data-scope="backoffice"] .bo-body {
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: -0.003em;
+  line-height: 1.6;
+}
+[data-scope="backoffice"] .bo-caption {
+  font-size: 0.75rem;
+  font-weight: 450;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+[data-scope="backoffice"] .bo-overline {
+  font-size: 0.6875rem;
+  font-weight: 560;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+/* Numerals that sit in columns or change in place — always tabular. */
+[data-scope="backoffice"] .bo-numeric {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * ---------- Backoffice surfaces ----------
+ * Scoped overrides of the shared .glass-card / .glass-panel utilities. The
+ * player app keeps the frosted violet treatment; inside the Backoffice the
+ * same class names resolve to flat graphite with a hairline and a real
+ * layered shadow — so every existing consumer is restyled without a single
+ * call-site edit.
+ */
+[data-scope="backoffice"] .glass-card {
+  background: var(--bo-surface);
+  border: 1px solid var(--bo-hairline);
+  border-radius: var(--bo-r-xl);
+  box-shadow: var(--bo-shadow-md), var(--bo-sheen);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-scope="backoffice"] .glass-panel {
+  background: color-mix(in srgb, var(--bo-bg) 80%, transparent);
+  border-color: var(--bo-hairline);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+/* Ambient field — two faint washes in the brand's own hues (violet from the
+   logo, mint from the accent) so the navy has depth and belongs to the game's
+   world, without the saturated multi-color radials the player app uses. */
+[data-scope="backoffice"] {
+  background:
+    radial-gradient(64% 48% at 12% -6%, rgba(155, 92, 255, 0.1) 0%, transparent 68%),
+    radial-gradient(58% 44% at 96% 2%, rgba(0, 227, 154, 0.055) 0%, transparent 66%),
+    var(--bo-bg);
+  background-attachment: fixed;
+}
+
+/* Focus: one ring treatment for the entire Backoffice. */
+[data-scope="backoffice"] :focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bo-bg),
+    0 0 0 4px var(--bo-accent);
+  border-radius: var(--bo-r-sm);
+}
+
+/* Scrollbars: neutral, thin, only visible on hover of the scrolled region. */
+[data-scope="backoffice"] * {
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  scrollbar-width: thin;
+}
+[data-scope="backoffice"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+[data-scope="backoffice"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--bo-r-pill);
+}
+[data-scope="backoffice"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+[data-scope="backoffice"] ::selection {
+  background: var(--bo-accent-glow);
+  color: #fff;
+}
+
+/*
+ * ---------- Backoffice button system ----------
+ * Restyles every Button variant inside the Backoffice via the data-variant
+ * hook, with zero call-site changes and zero effect on the player app.
+ * These rules are intentionally unlayered so they win over Tailwind's
+ * @layer utilities regardless of specificity.
+ *
+ * The rule that defines the identity: no variant uses a gradient, an outer
+ * colored glow, or the accent as a fill. Primary is a solid near-white
+ * plate; everything else is graphite. Depth comes from a 1px top sheen and
+ * a tight shadow, the way a physical key is lit — not from a halo.
+ */
+[data-scope="backoffice"] button[data-variant] {
+  border-radius: var(--bo-r-md);
+  font-weight: 550;
+  letter-spacing: -0.006em;
+  transition:
+    background-color var(--bo-dur-fast) var(--bo-ease),
+    border-color var(--bo-dur-fast) var(--bo-ease),
+    color var(--bo-dur-fast) var(--bo-ease),
+    box-shadow var(--bo-dur-fast) var(--bo-ease);
+}
+
+/* Sizes: shorter and tighter than the player app's chunky game buttons. */
+[data-scope="backoffice"] button[data-size="sm"] {
+  height: 30px;
+  padding-inline: 10px;
+  font-size: 0.8125rem;
+  border-radius: var(--bo-r-sm);
+}
+[data-scope="backoffice"] button[data-size="md"] {
+  height: 36px;
+  padding-inline: 14px;
+  font-size: 0.875rem;
+}
+[data-scope="backoffice"] button[data-size="lg"] {
+  height: 42px;
+  padding-inline: 18px;
+  font-size: 0.9375rem;
+}
+[data-scope="backoffice"] button[data-size="icon"] {
+  height: 36px;
+  width: 36px;
+  padding-inline: 0;
+}
+
+/* --- primary: solid near-white plate. The one high-contrast element. --- */
+/* "gold" and "arcade" are the player app's game CTAs; a few Backoffice
+   screens still request them, so inside the scope they resolve to the same
+   primary plate instead of leaking arcade styling into an admin surface. */
+[data-scope="backoffice"] button[data-variant="primary"],
+[data-scope="backoffice"] button[data-variant="gold"],
+[data-scope="backoffice"] button[data-variant="arcade"] {
+  background: var(--bo-action);
+  background-image: none;
+  color: var(--bo-action-ink);
+  border: 1px solid transparent;
+  font-family: inherit;
+  letter-spacing: -0.006em;
+  box-shadow:
+    var(--bo-shadow-sm),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+[data-scope="backoffice"] button[data-variant="primary"]:hover,
+[data-scope="backoffice"] button[data-variant="gold"]:hover,
+[data-scope="backoffice"] button[data-variant="arcade"]:hover {
+  background: var(--bo-action-hover);
+  box-shadow:
+    var(--bo-shadow-md),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+[data-scope="backoffice"] button[data-variant="primary"]:active,
+[data-scope="backoffice"] button[data-variant="gold"]:active,
+[data-scope="backoffice"] button[data-variant="arcade"]:active {
+  box-shadow: none;
+}
+
+/* --- secondary: raised graphite, the default for most actions --- */
+[data-scope="backoffice"] button[data-variant="secondary"] {
+  background: var(--bo-surface-raised);
+  border: 1px solid var(--bo-hairline);
+  color: var(--bo-text);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--bo-shadow-sm), var(--bo-sheen);
+}
+[data-scope="backoffice"] button[data-variant="secondary"]:hover {
+  background: var(--bo-surface-overlay);
+  border-color: var(--bo-hairline-strong);
+}
+[data-scope="backoffice"] button[data-variant="secondary"]:active {
+  box-shadow: none;
+}
+
+/* --- ghost: no chrome until touched --- */
+[data-scope="backoffice"] button[data-variant="ghost"] {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--bo-text-secondary);
+  box-shadow: none;
+}
+[data-scope="backoffice"] button[data-variant="ghost"]:hover {
+  background: var(--bo-surface-hover);
+  color: var(--bo-text);
+}
+
+/* --- outline: hairline only, accent on approach --- */
+[data-scope="backoffice"] button[data-variant="outline"] {
+  background: transparent;
+  border: 1px solid var(--bo-hairline-strong);
+  color: var(--bo-text);
+  box-shadow: none;
+}
+[data-scope="backoffice"] button[data-variant="outline"]:hover {
+  border-color: var(--bo-hairline-accent);
+  color: var(--bo-accent-ink);
+  background: var(--bo-accent-soft);
+}
+
+/* --- danger / success: solid semantic fill, never a gradient --- */
+[data-scope="backoffice"] button[data-variant="danger"] {
+  background: var(--bo-danger);
+  background-image: none;
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: var(--bo-shadow-sm), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+[data-scope="backoffice"] button[data-variant="danger"]:hover {
+  background: color-mix(in srgb, var(--bo-danger) 88%, #fff);
+  box-shadow: var(--bo-shadow-md), inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+}
+[data-scope="backoffice"] button[data-variant="success"] {
+  background: var(--bo-positive);
+  background-image: none;
+  color: #04231a;
+  border: 1px solid transparent;
+  box-shadow: var(--bo-shadow-sm), inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+[data-scope="backoffice"] button[data-variant="success"]:hover {
+  background: color-mix(in srgb, var(--bo-positive) 88%, #fff);
+  box-shadow: var(--bo-shadow-md), inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+
+/* --- shared states --- */
+[data-scope="backoffice"] button[data-variant]:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+/* Loading keeps the plate lit but stops the hover promise. */
+[data-scope="backoffice"] button[data-variant][data-loading] {
+  cursor: progress;
+  opacity: 0.75;
+  box-shadow: none;
+}
+
+/* Softer, slower skeleton sweep than the player app's shimmer. */
+[data-scope="backoffice"] .shimmer-bg {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.02) 25%,
+    rgba(255, 255, 255, 0.055) 37%,
+    rgba(255, 255, 255, 0.02) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 2.4s var(--bo-ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-scope="backoffice"] .shimmer-bg {
+    animation: none;
+  }
+}
+
 @theme inline {
   /* Canonical tokens — generate utilities like bg-surface, text-primary, border-glow, etc. */
   --color-background: var(--color-background);
@@ -101,6 +520,50 @@
   --color-error: var(--color-error);
   --color-warning: var(--color-warning);
   --color-success: var(--color-success);
+
+  /*
+   * Backoffice namespace — generates bg-bo-*, text-bo-*, border-bo-*,
+   * rounded-bo-*, shadow-bo-*. The underlying variables only exist under
+   * [data-scope="backoffice"], so these utilities are meaningful exclusively
+   * inside AdminShell/ManagerShell and are never reached for elsewhere.
+   */
+  --color-bo-bg: var(--bo-bg);
+  --color-bo-surface: var(--bo-surface);
+  --color-bo-raised: var(--bo-surface-raised);
+  --color-bo-overlay: var(--bo-surface-overlay);
+  --color-bo-hairline: var(--bo-hairline);
+  --color-bo-hairline-strong: var(--bo-hairline-strong);
+  --color-bo-text: var(--bo-text);
+  --color-bo-secondary: var(--bo-text-secondary);
+  --color-bo-muted: var(--bo-text-muted);
+  --color-bo-inverse: var(--bo-text-inverse);
+  --color-bo-accent: var(--bo-accent);
+  --color-bo-accent-ink: var(--bo-accent-ink);
+  --color-bo-accent-soft: var(--bo-accent-soft);
+  --color-bo-brand: var(--bo-brand);
+  --color-bo-brand-ink: var(--bo-brand-ink);
+  --color-bo-brand-soft: var(--bo-brand-soft);
+  --color-bo-gold: var(--bo-gold);
+  --color-bo-gold-ink: var(--bo-gold-ink);
+  --color-bo-gold-soft: var(--bo-gold-soft);
+  --color-bo-positive: var(--bo-positive);
+  --color-bo-positive-soft: var(--bo-positive-soft);
+  --color-bo-warning: var(--bo-warning);
+  --color-bo-warning-soft: var(--bo-warning-soft);
+  --color-bo-danger: var(--bo-danger);
+  --color-bo-danger-soft: var(--bo-danger-soft);
+  --color-bo-action: var(--bo-action);
+  --color-bo-action-ink: var(--bo-action-ink);
+
+  --radius-bo-sm: var(--bo-r-sm);
+  --radius-bo-md: var(--bo-r-md);
+  --radius-bo-lg: var(--bo-r-lg);
+  --radius-bo-xl: var(--bo-r-xl);
+
+  --shadow-bo-sm: var(--bo-shadow-sm);
+  --shadow-bo-md: var(--bo-shadow-md);
+  --shadow-bo-lg: var(--bo-shadow-lg);
+  --shadow-bo-overlay: var(--bo-shadow-overlay);
 
   --font-sans: var(--font-inter);
   /* Display face — headlines, multipliers, important values, game CTAs, promo elements only. Never for body/labels/forms/tables. */
@@ -150,6 +613,29 @@
   }
   100% {
     transform: translateX(-50%);
+  }
+}
+
+/*
+ * Chart mount animation — a soft fade + rise instead of the data just
+ * "appearing", used by AreaChart's line and BarChart's bars.
+ */
+@keyframes bo-chart-draw-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+[data-scope="backoffice"] .chart-draw-in {
+  animation: bo-chart-draw-in 0.5s var(--bo-ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-scope="backoffice"] .chart-draw-in {
+    animation: none;
   }
 }
 

@@ -1,4 +1,4 @@
-import type { Match as PrismaMatch, Prisma } from "@prisma/client";
+import type { Match as PrismaMatch, MatchStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
   IMatchRepository,
@@ -116,6 +116,13 @@ export class PrismaMatchRepository implements IMatchRepository {
     if (!existing) throw new NotFoundError("Match");
     const row = await prisma.match.update({ where: { id }, data: patch });
     return toEntity(row);
+  }
+
+  async updateIfStatusIn(id: string, fromStatuses: MatchStatus[], patch: UpdateMatchInput): Promise<Match | null> {
+    const result = await prisma.match.updateMany({ where: { id, status: { in: fromStatuses } }, data: patch });
+    if (result.count === 0) return null;
+    const row = await prisma.match.findUnique({ where: { id } });
+    return row ? toEntity(row) : null;
   }
 
   async listForUser(userId: string, limit: number): Promise<MatchSummary[]> {

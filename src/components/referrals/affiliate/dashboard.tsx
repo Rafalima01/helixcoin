@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   PercentIcon as Percent,
   UsersIcon as Users,
@@ -21,6 +20,7 @@ import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PixKeyWithdrawModal } from "@/components/commercial/pix-key-withdraw-modal";
 import { useWallet } from "@/hooks/use-wallet";
 import { useAffiliateDashboard, useAssignAffiliateManager } from "@/hooks/use-affiliate";
 import { formatCurrency, cn } from "@/lib/utils";
@@ -163,6 +163,7 @@ export function AffiliateDashboard({
   const { data: stats, isLoading: statsLoading } = useAffiliateDashboard();
   const { mutate: assignManager } = useAssignAffiliateManager();
   const attemptedManagerAssign = useRef(false);
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
 
   // First-touch attribution for someone who arrived via a Manager's
   // "Convidar Afiliados" link — see AffiliateService.assignManagerIfUnset.
@@ -263,11 +264,9 @@ export function AffiliateDashboard({
         </div>
 
         {availableCents > 0 ? (
-          <Link href="/withdraw">
-            <Button variant="gold" size="lg" className="w-full">
-              <ArrowLineUp className="size-4" weight="duotone" /> Resgatar
-            </Button>
-          </Link>
+          <Button variant="gold" size="lg" className="w-full" onClick={() => setWithdrawModalOpen(true)}>
+            <ArrowLineUp className="size-4" weight="duotone" /> Resgatar
+          </Button>
         ) : (
           <div className="flex flex-col gap-1.5">
             <Button variant="gold" size="lg" className="w-full" disabled>
@@ -317,6 +316,8 @@ export function AffiliateDashboard({
           </Card>
         ))}
       </div>
+
+      <PixKeyWithdrawModal open={withdrawModalOpen} onClose={() => setWithdrawModalOpen(false)} role="AFFILIATE" />
     </div>
   );
 }

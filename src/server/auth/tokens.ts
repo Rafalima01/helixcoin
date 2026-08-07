@@ -118,6 +118,33 @@ export async function blacklistAccessToken(claims: AccessTokenClaims): Promise<v
   await CacheService.set(blacklistKey(claims.sessionId), true, remaining);
 }
 
+/**
+ * Immediately invalidates every access token issued under a refresh-token
+ * family — closes the up-to-JWT_ACCESS_TTL window during which a
+ * just-blocked/-deleted/password-changed/revoked user could otherwise keep
+ * using an access token that was already handed out before the action.
+ * Access tokens are stateless JWTs, never looked up against the DB on the
+ * hot path (see this module's file doc comment) — `getAuthContext` only
+ * ever checks this blacklist (see auth/context.ts) — so `revokeFamily`
+ * alone only stops FUTURE refreshes; it doesn't touch a token that's
+ * already in the caller's hands.
+ *
+ * MUST be called BEFORE `revokeFamily(familyId)` for the same family —
+ * `revokeFamily` deletes the very Redis SET (`familyKey`) this reads to
+ * find the family's current live sessionId. Same granularity as
+ * `revokeFamily` itself: one family = one login chain = normally one live
+ * session at a time, so this never over-revokes a user's OTHER devices —
+ * every admin-triggered call site already loops per-session/per-family for
+ * exactly that reason (see UserManagementService.block, SessionService.*,
+ * PasswordService.*).
+ */
+export async function blacklistFamilyAccessTokens(familyId: string): Promise<void> {
+  const sessionIds = await redis.smembers(familyKey(familyId));
+  if (sessionIds.length === 0) return;
+  const ttlSeconds = parseDurationSeconds(env.JWT_ACCESS_TTL);
+  await Promise.all(sessionIds.map((sessionId) => CacheService.set(blacklistKey(sessionId), true, ttlSeconds)));
+}
+
 export async function isAccessTokenBlacklisted(sessionId: string): Promise<boolean> {
   return CacheService.exists(blacklistKey(sessionId));
 }

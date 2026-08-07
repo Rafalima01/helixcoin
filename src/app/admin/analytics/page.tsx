@@ -1,6 +1,6 @@
 "use client";
 
-import { PageHeader, SectionCard, KpiGrid } from "@/components/admin/ui";
+import { PageHeader, ChartCard, KpiGrid } from "@/components/admin/ui";
 import { AreaChart, BarChart, DonutChart } from "@/components/admin/charts";
 import { labeledSeries, DAYS, HOURS } from "@/lib/admin/mock-data";
 
@@ -33,27 +33,28 @@ export default function AdminAnalyticsPage() {
       <PageHeader
         title="Analytics"
         description="Comportamento de produto e aquisição. Fonte futura: eventos em tempo real via pipeline de dados."
+        mock
       />
       <KpiGrid kpis={KPIS} />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <SectionCard title="Usuários ativos por dia" description="Últimos 7 dias">
+        <ChartCard title="Usuários ativos por dia" description="Últimos 7 dias">
           <AreaChart data={dau} height={200} formatValue={(v) => v.toLocaleString("pt-BR")} />
-        </SectionCard>
-        <SectionCard title="Sessões por hora" description="Distribuição nas últimas 24h">
+        </ChartCard>
+        <ChartCard title="Sessões por hora" description="Distribuição nas últimas 24h">
           <BarChart
             data={sessionsByHour}
             color="#FF4FAE"
             height={200}
             formatValue={(v) => v.toLocaleString("pt-BR")}
           />
-        </SectionCard>
-        <SectionCard title="Retenção de coortes" description="% de jogadores que retornam">
+        </ChartCard>
+        <ChartCard title="Retenção de coortes" description="% de jogadores que retornam">
           <BarChart data={retention} color="#7DD3FC" height={200} formatValue={(v) => `${v}%`} />
-        </SectionCard>
-        <SectionCard title="Aquisição por canal" description="Novos cadastros (30d)">
+        </ChartCard>
+        <ChartCard title="Aquisição por canal" description="Novos cadastros (30d)">
           <DonutChart data={acquisition} formatValue={(v) => `${v}%`} />
-        </SectionCard>
+        </ChartCard>
       </div>
     </div>
   );

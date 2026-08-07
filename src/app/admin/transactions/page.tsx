@@ -10,6 +10,8 @@ import {
   StatusBadge,
   Drawer,
   DetailRow,
+  JsonViewer,
+  DrawerSkeleton,
   type TableColumn,
 } from "@/components/admin/ui";
 import { TransactionsAdminApi } from "@/lib/admin/wallet-api";
@@ -68,7 +70,7 @@ export default function AdminTransactionsPage() {
   const [status, setStatus] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "transactions", userId, type, status],
     queryFn: () => TransactionsAdminApi.listTransactions({ userId, type, status, page: 1, pageSize: 100 }),
   });
@@ -160,6 +162,8 @@ export default function AdminTransactionsPage() {
         columns={columns}
         rows={rows}
         loading={isLoading}
+        error={isError}
+        onRetry={refetch}
         onRowClick={(t) => setSelectedId(t.id)}
         emptyMessage="Nenhuma transação corresponde aos filtros"
       />
@@ -179,7 +183,7 @@ function TransactionDrawer({ id, onClose }: { id: string; onClose: () => void })
   return (
     <Drawer open onClose={onClose} title={tx ? (TYPE_LABEL[tx.type] ?? tx.type) : "Carregando..."}>
       {isLoading || !tx ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div>
           <DetailRow label="ID" value={<code className="text-xs">{tx.id}</code>} />
@@ -205,10 +209,7 @@ function TransactionDrawer({ id, onClose }: { id: string; onClose: () => void })
           <DetailRow label="Criada em" value={formatDate(tx.createdAt)} />
           {tx.metadata && (
             <div className="mt-4">
-              <p className="mb-1.5 text-xs font-semibold text-text-muted">Metadata</p>
-              <pre className="overflow-x-auto rounded-lg bg-black/30 p-2 text-[11px] text-text-secondary">
-                {JSON.stringify(tx.metadata, null, 2)}
-              </pre>
+              <JsonViewer label="Metadata" data={tx.metadata} />
             </div>
           )}
           <p className="mt-4 text-[11px] text-text-muted">

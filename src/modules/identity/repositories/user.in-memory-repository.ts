@@ -1,4 +1,4 @@
-import type { UserEntity } from "@/modules/identity/entities/user.entity";
+import type { DeletedIdentitySnapshot, UserEntity } from "@/modules/identity/entities/user.entity";
 import type {
   CreateUserRecord,
   IUserRepository,
@@ -6,6 +6,7 @@ import type {
   UserSearchResult,
 } from "@/modules/identity/interfaces/user-repository.interface";
 import type { UserSearchQuery } from "@/modules/identity/dto/user.dto";
+import { tombstoneEmailFor, tombstoneUsernameFor } from "@/modules/identity/utils/auto-identity.util";
 
 export class InMemoryUserRepository implements IUserRepository {
   private readonly users = new Map<string, UserEntity>();
@@ -71,6 +72,7 @@ export class InMemoryUserRepository implements IUserRepository {
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
+      deletedIdentitySnapshot: null,
     };
     this.users.set(user.id, user);
     return user;
@@ -91,12 +93,34 @@ export class InMemoryUserRepository implements IUserRepository {
 
   async softDelete(id: string): Promise<void> {
     const user = this.users.get(id);
-    if (user) this.users.set(id, { ...user, deletedAt: new Date() });
+    if (!user) return;
+    const snapshot: DeletedIdentitySnapshot = {
+      email: user.email,
+      username: user.username,
+      phone: user.phone,
+      cpf: user.cpf,
+    };
+    this.users.set(id, {
+      ...user,
+      deletedAt: new Date(),
+      deletedIdentitySnapshot: snapshot,
+      email: tombstoneEmailFor(id),
+      username: tombstoneUsernameFor(id),
+      phone: null,
+      cpf: null,
+    });
   }
 
   async restore(id: string): Promise<void> {
     const user = this.users.get(id);
-    if (user) this.users.set(id, { ...user, deletedAt: null });
+    if (!user) return;
+    const snapshot = user.deletedIdentitySnapshot;
+    this.users.set(id, {
+      ...user,
+      deletedAt: null,
+      deletedIdentitySnapshot: null,
+      ...(snapshot ? { email: snapshot.email, username: snapshot.username, phone: snapshot.phone, cpf: snapshot.cpf } : {}),
+    });
   }
 
   async search(query: UserSearchQuery): Promise<UserSearchResult> {

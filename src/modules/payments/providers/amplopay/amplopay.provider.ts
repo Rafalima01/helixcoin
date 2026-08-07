@@ -364,12 +364,22 @@ export class AmploPayProvider implements PaymentProvider {
         : (parsed.withdraw?.id ?? parsed.withdraw?.transactionId);
     if (!providerTransactionId) return { valid: false };
 
+    // `token` IS the shared webhook secret (see this method's doc comment) —
+    // it must never leave this function inside `parsedPayload`, which
+    // becomes the persisted, admin-visible `PaymentWebhook.payload`
+    // (WebhookDispatcherService) and would otherwise leak the live secret in
+    // plaintext to every AUDIT/COMPLIANCE/ADMIN viewer forever. Safe to
+    // strip: `reprocess()` only replays settlement from the stored payload,
+    // it never re-validates the signature against it.
+    const redactedPayload: Record<string, unknown> = { ...parsed };
+    delete redactedPayload.token;
+
     return {
       valid: true,
       eventType,
       relatedType,
       providerTransactionId,
-      parsedPayload: parsed as unknown as Record<string, unknown>,
+      parsedPayload: redactedPayload,
     };
   }
 

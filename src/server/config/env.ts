@@ -45,6 +45,36 @@ const envSchema = z.object({
 
   WS_PORT: z.coerce.number().int().positive().default(3001),
 
+  /**
+   * Number of reverse-proxy hops in front of this app that append their own
+   * value to `X-Forwarded-For` — used by `ipFromRequest`
+   * (src/server/cache/rate-limit.ts) as the fallback once
+   * `TRUSTED_CF_CONNECTING_IP`/`X-Real-IP` don't apply. Matches the single
+   * documented Nginx hop (`proxy_set_header X-Forwarded-For
+   * $proxy_add_x_forwarded_for;` — DEPLOYMENT.md), which APPENDS rather than
+   * overwrites, so the real client IP is the LAST value, not the first
+   * (which an attacker fully controls). Bump this only if another proxy is
+   * added in front of Nginx.
+   */
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(1).default(1),
+
+  /**
+   * Explicit opt-in gate for trusting `CF-Connecting-IP` in `ipFromRequest`.
+   * Defaults to false because, unlike `X-Real-IP` (unconditionally
+   * overwritten by the documented Nginx config), NOTHING in the current
+   * deployment strips or overwrites this header — until Cloudflare is
+   * actually placed in front, a client can set `CF-Connecting-IP` directly
+   * on a request to Nginx/Next.js and have it trusted outright, defeating
+   * every IP-keyed rate limiter. Flip this on only once Cloudflare (or an
+   * equivalent edge that guarantees stripping/overwriting client-sent
+   * values) is confirmed to be the sole entry point in front of Nginx.
+   */
+  TRUSTED_CF_CONNECTING_IP: z
+    .string()
+    .optional()
+    .default("false")
+    .transform((v) => v === "true"),
+
   UPLOADS_DRIVER: z.enum(["local", "s3"]).default("local"),
   UPLOADS_LOCAL_DIR: z.string().default("./.uploads"),
   UPLOADS_S3_BUCKET: z.string().optional().default(""),

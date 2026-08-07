@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { PageHeader, DataTable, FilterBar, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
+import { PageHeader, DataTable, FilterBar, Drawer, DetailRow, LedgerRow, DrawerSkeleton, type TableColumn } from "@/components/admin/ui";
 import { LedgerAdminApi } from "@/lib/admin/ledger-api";
 import type { LedgerEntryDto } from "@/modules/ledger/dto/ledger.dto";
 import { formatCurrency } from "@/lib/utils";
@@ -19,7 +19,7 @@ export default function AdminLedgerPage() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "ledger", search],
     queryFn: () =>
       LedgerAdminApi.listEntries({
@@ -33,14 +33,9 @@ export default function AdminLedgerPage() {
 
   const columns: TableColumn<LedgerEntryDto>[] = [
     {
-      key: "debit",
-      header: "Débito",
-      render: (l) => <code className="text-xs text-text-secondary">{l.debitAccount}</code>,
-    },
-    {
-      key: "credit",
-      header: "Crédito",
-      render: (l) => <code className="text-xs text-text-secondary">{l.creditAccount}</code>,
+      key: "accounts",
+      header: "Débito → Crédito",
+      render: (l) => <LedgerRow debitAccount={l.debitAccount} creditAccount={l.creditAccount} />,
     },
     {
       key: "amount",
@@ -81,6 +76,8 @@ export default function AdminLedgerPage() {
         columns={columns}
         rows={rows}
         loading={isLoading}
+        error={isError}
+        onRetry={refetch}
         onRowClick={(l) => setSelectedId(l.id)}
         emptyMessage="Nenhum lançamento encontrado"
       />
@@ -100,7 +97,7 @@ function LedgerEntryDrawer({ id, onClose }: { id: string; onClose: () => void })
   return (
     <Drawer open onClose={onClose} title="Lançamento">
       {isLoading || !entry ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div>
           <DetailRow label="ID" value={<code className="text-xs">{entry.id}</code>} />

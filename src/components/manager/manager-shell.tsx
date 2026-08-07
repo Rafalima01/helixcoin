@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { ChevronRight, Menu, X } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { MANAGER_NAV } from "@/lib/manager/nav";
 import { cn } from "@/lib/utils";
@@ -13,21 +13,22 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full flex-col">
-      <Link href="/" className="flex items-center gap-2.5 px-4 pt-5 pb-4" onClick={onNavigate}>
-        <Logo iconOnly />
-        <div className="leading-tight">
-          <p className="text-[15px] font-extrabold">
-            Heli<span className="text-gradient-brand">Jump</span>
-          </p>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
-            Portal do Gerente
-          </p>
-        </div>
+    // min-h-0 + flex-1 (not h-full): as a flex child this lets the nav scroll
+    // while the footer note stays pinned to the sidebar's bottom edge.
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Same lockup and stacking as the Admin panel — one brand, two panels. */}
+      <Link
+        href="/"
+        className="flex flex-col items-start gap-1.5 px-5 pb-5 pt-5"
+        onClick={onNavigate}
+        aria-label="HelixCoin — Portal do Gerente"
+      >
+        <Logo compact className="h-9 w-auto" />
+        <span className="bo-overline pl-0.5 text-bo-muted">Portal do Gerente</span>
       </Link>
 
-      <nav className="flex-1 overflow-y-auto px-3 pb-6 scrollbar-none">
-        <div className="flex flex-col gap-0.5">
+      <nav className="flex-1 overflow-y-auto px-3 pb-4 scrollbar-none">
+        <div className="flex flex-col gap-px">
           {MANAGER_NAV.map((item) => {
             const active = pathname === item.href;
             return (
@@ -37,13 +38,26 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-[13px] font-medium transition-colors",
+                  "group relative flex items-center gap-2.5 rounded-bo-sm py-[7px] pl-3 pr-2.5 text-[13px] transition-colors duration-[120ms]",
                   active
-                    ? "bg-gradient-to-r from-purple/25 to-pink/10 text-white border border-purple/30"
-                    : "text-text-secondary hover:bg-white/[0.04] hover:text-white border border-transparent"
+                    ? "bg-white/[0.055] font-medium text-bo-text"
+                    : "font-normal text-bo-secondary hover:bg-white/[0.03] hover:text-bo-text"
                 )}
               >
-                <item.icon className="size-4 shrink-0" />
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute left-0 top-1/2 h-[15px] w-[2px] -translate-y-1/2 rounded-full bg-bo-brand transition-opacity duration-[120ms]",
+                    active ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                <item.icon
+                  className={cn(
+                    "size-4 shrink-0 transition-colors duration-[120ms]",
+                    active ? "text-bo-text" : "text-bo-muted group-hover:text-bo-secondary"
+                  )}
+                  strokeWidth={1.75}
+                />
                 <span className="truncate">{item.label}</span>
               </Link>
             );
@@ -51,13 +65,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </nav>
 
-      <div className="border-t border-border p-3">
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-white/[0.02] px-3 py-2">
-          <span className="size-2 shrink-0 rounded-full bg-text-muted" />
-          <p className="text-[10px] text-text-muted leading-tight">
-            Painel comercial — sem acesso a dados financeiros da plataforma.
-          </p>
-        </div>
+      <div className="border-t border-bo-hairline px-4 py-3">
+        <p className="text-[11px] leading-relaxed text-bo-muted">
+          Painel comercial — sem acesso à carteira/ledger da plataforma, apenas às próprias comissões e
+          saques.
+        </p>
       </div>
     </div>
   );
@@ -69,8 +81,8 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
   const currentItem = MANAGER_NAV.find((i) => i.href === pathname);
 
   return (
-    <div className="flex min-h-dvh">
-      <aside className="sticky top-0 hidden h-dvh w-[236px] shrink-0 border-r border-border glass-panel lg:block">
+    <div className="flex min-h-dvh" data-scope="backoffice">
+      <aside className="sticky top-0 hidden h-dvh w-[220px] shrink-0 border-r border-bo-hairline bg-bo-bg/60 backdrop-blur-xl lg:block">
         <SidebarContent />
       </aside>
 
@@ -88,15 +100,15 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 32 }}
-              className="fixed left-0 top-0 z-50 h-dvh w-[260px] border-r border-border glass-panel lg:hidden"
+              transition={{ type: "spring", stiffness: 420, damping: 40 }}
+              className="fixed left-0 top-0 z-50 h-dvh w-[248px] border-r border-bo-hairline bg-bo-bg shadow-bo-overlay lg:hidden"
             >
               <button
                 onClick={() => setMobileOpen(false)}
-                className="absolute right-3 top-4 flex size-8 items-center justify-center rounded-lg border border-border text-text-secondary"
+                className="absolute right-3 top-4 flex size-8 items-center justify-center rounded-bo-sm border border-bo-hairline text-bo-secondary transition-colors hover:text-bo-text"
                 aria-label="Fechar menu"
               >
-                <X className="size-4" />
+                <X className="size-4" strokeWidth={1.75} />
               </button>
               <SidebarContent onNavigate={() => setMobileOpen(false)} />
             </motion.aside>
@@ -105,23 +117,33 @@ export function ManagerShell({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 border-b border-border glass-panel">
-          <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
+        <header className="sticky top-0 z-40 border-b border-bo-hairline bg-bo-bg/70 backdrop-blur-xl">
+          <div className="flex h-[52px] items-center gap-3 px-4 lg:px-7">
             <button
               onClick={() => setMobileOpen(true)}
-              className="flex size-9 items-center justify-center rounded-xl border border-border text-text-secondary lg:hidden"
+              className="flex size-8 items-center justify-center rounded-bo-sm border border-bo-hairline text-bo-secondary transition-colors hover:border-bo-hairline-strong hover:text-bo-text lg:hidden"
               aria-label="Abrir menu"
             >
-              <Menu className="size-4" />
+              <Menu className="size-4" strokeWidth={1.75} />
             </button>
 
-            <p className="hidden text-sm font-semibold text-text-secondary sm:block">
-              {currentItem ? currentItem.label : "Portal do Gerente"}
-            </p>
+            <nav aria-label="Trilha" className="hidden min-w-0 items-center gap-1.5 sm:flex">
+              <span className="text-[13px] text-bo-muted">Gerente</span>
+              {currentItem && (
+                <>
+                  <ChevronRight className="size-3.5 shrink-0 text-bo-muted/60" strokeWidth={1.75} />
+                  <span className="truncate text-[13px] font-medium text-bo-text">
+                    {currentItem.label}
+                  </span>
+                </>
+              )}
+            </nav>
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 lg:px-6">{children}</main>
+        <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-7 lg:px-7 xl:py-9 2xl:max-w-[1600px]">
+          {children}
+        </main>
       </div>
     </div>
   );

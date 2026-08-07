@@ -21,7 +21,7 @@ export default function AdminAuditPage() {
   const [search, setSearch] = useState("");
   const [actionPrefix, setActionPrefix] = useState("all");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "audit", actionPrefix],
     queryFn: () =>
       IdentityAdminApi.searchAudit({
@@ -93,7 +93,7 @@ export default function AdminAuditPage() {
       <FilterBar search={search} onSearch={setSearch} placeholder="Buscar por ação, autor ou entidade...">
         <FilterChips value={actionPrefix} onChange={setActionPrefix} options={ACTION_GROUPS} />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={10} />
     </div>
   );
 }

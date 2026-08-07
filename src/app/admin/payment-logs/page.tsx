@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
+import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, JsonViewer, type TableColumn } from "@/components/admin/ui";
 import { PaymentLogsAdminApi } from "@/lib/admin/payments-api";
 import type { GatewayLogAdminDto } from "@/modules/payments/dto/payments.dto";
 
@@ -29,7 +29,7 @@ function AdminPaymentLogsPageInner() {
     searchParams.get("gatewayCredentialId") ?? undefined
   );
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "payments", "logs", direction, gatewayCredentialId],
     queryFn: () =>
       PaymentLogsAdminApi.list({
@@ -101,7 +101,7 @@ function AdminPaymentLogsPageInner() {
           ]}
         />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={15} onRowClick={(l) => setSelectedId(l.id)} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={15} onRowClick={(l) => setSelectedId(l.id)} />
 
       {selectedId && <LogDrawer log={rows.find((l) => l.id === selectedId) ?? null} onClose={() => setSelectedId(null)} />}
     </div>
@@ -128,23 +128,9 @@ function LogDrawer({ log, onClose }: { log: GatewayLogAdminDto | null; onClose: 
             {log.errorMessage && <DetailRow label="Erro" value={log.errorMessage} />}
           </div>
 
-          {log.requestSummary && (
-            <div>
-              <p className="mb-1.5 text-xs font-semibold text-text-muted">Resumo da requisição (sanitizado)</p>
-              <pre className="max-h-40 overflow-auto rounded-xl border border-border bg-white/[0.02] p-3 text-[11px] text-text-secondary">
-                {JSON.stringify(log.requestSummary, null, 2)}
-              </pre>
-            </div>
-          )}
+          {log.requestSummary && <JsonViewer label="Resumo da requisição (sanitizado)" data={log.requestSummary} />}
 
-          {log.responseSummary && (
-            <div>
-              <p className="mb-1.5 text-xs font-semibold text-text-muted">Resumo da resposta (sanitizado)</p>
-              <pre className="max-h-40 overflow-auto rounded-xl border border-border bg-white/[0.02] p-3 text-[11px] text-text-secondary">
-                {JSON.stringify(log.responseSummary, null, 2)}
-              </pre>
-            </div>
-          )}
+          {log.responseSummary && <JsonViewer label="Resumo da resposta (sanitizado)" data={log.responseSummary} />}
 
           <p className="text-[11px] text-text-muted">
             Credenciais e segredos de webhook nunca são registrados aqui — apenas metadados sanitizados da chamada.

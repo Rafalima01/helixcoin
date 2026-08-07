@@ -74,6 +74,7 @@ export default function AdminNotificationsPage() {
       <PageHeader
         title="Notificações"
         description="Campanhas por push, e-mail, in-app e SMS. Segmentação e disparo serão executados em filas no Backend."
+        mock
       />
 
       <SectionCard

@@ -10,8 +10,10 @@ import {
   FilterBar,
   FilterChips,
   StatusBadge,
+  PriorityHint,
   Drawer,
   DetailRow,
+  DrawerSkeleton,
   type TableColumn,
 } from "@/components/admin/ui";
 import { AffiliateApplicationsAdminApi, ManagersAdminApi, ApiError, type AffiliateDecisionAction } from "@/lib/admin/affiliate-api";
@@ -34,7 +36,7 @@ export default function AdminAffiliatesPage() {
   const [status, setStatus] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "affiliate", "applications", status],
     queryFn: () => AffiliateApplicationsAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
   });
@@ -67,6 +69,16 @@ export default function AdminAffiliatesPage() {
       render: (a) => <span className="text-text-secondary">{a.managerName ?? "—"}</span>,
     },
     {
+      key: "priority",
+      header: "Prioridade",
+      render: (a) =>
+        a.status === "PENDING" || a.status === "DOCUMENTS_REQUESTED" ? (
+          <PriorityHint since={a.requestedAt} />
+        ) : (
+          <span className="text-xs text-text-muted">—</span>
+        ),
+    },
+    {
       key: "requestedAt",
       header: "Solicitado",
       align: "right",
@@ -93,7 +105,7 @@ export default function AdminAffiliatesPage() {
           ]}
         />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} onRowClick={(a) => setSelectedId(a.id)} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={10} onRowClick={(a) => setSelectedId(a.id)} />
 
       {selectedId && <AffiliateDrawer id={selectedId} onClose={() => setSelectedId(null)} />}
     </div>
@@ -149,7 +161,7 @@ function AffiliateDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <Drawer open onClose={onClose} title={affiliate ? "Afiliado" : "Carregando..."}>
       {isLoading || !affiliate ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div className="flex flex-col gap-5">
           <div>

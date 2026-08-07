@@ -109,6 +109,7 @@ export default function AdminSecurityPage() {
       <PageHeader
         title="Segurança"
         description="Antifraude, risco e proteção de contas. Regras de detecção e scoring rodarão no Backend em tempo real."
+        mock
       />
       <KpiGrid kpis={KPIS} />
       <DataTable columns={columns} rows={data ?? []} loading={loading} />

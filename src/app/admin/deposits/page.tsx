@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, type TableColumn } from "@/components/admin/ui";
+import { PageHeader, DataTable, FilterBar, FilterChips, StatusBadge, Drawer, DetailRow, DrawerSkeleton, type TableColumn } from "@/components/admin/ui";
 import { DepositsAdminApi, ApiError, type AdminDepositSimulateOutcome } from "@/lib/admin/payments-api";
 import type { DepositAdminDto } from "@/modules/payments/dto/payments.dto";
 import { formatCurrency } from "@/lib/utils";
@@ -32,7 +32,7 @@ export default function AdminDepositsPage() {
   const [status, setStatus] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "payments", "deposits", status],
     queryFn: () => DepositsAdminApi.list({ status: status === "all" ? undefined : status, page: 1, pageSize: 100 }),
   });
@@ -105,7 +105,7 @@ export default function AdminDepositsPage() {
           ]}
         />
       </FilterBar>
-      <DataTable columns={columns} rows={rows} loading={isLoading} pageSize={10} onRowClick={(d) => setSelectedId(d.id)} />
+      <DataTable columns={columns} rows={rows} loading={isLoading} error={isError} onRetry={refetch} pageSize={10} onRowClick={(d) => setSelectedId(d.id)} />
 
       {selectedId && <DepositDrawer id={selectedId} onClose={() => setSelectedId(null)} />}
     </div>
@@ -145,7 +145,7 @@ function DepositDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <Drawer open onClose={onClose} title={deposit ? "Depósito" : "Carregando..."}>
       {isLoading || !deposit ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div>
           <DetailRow label="ID" value={<code className="text-xs">{deposit.id}</code>} />

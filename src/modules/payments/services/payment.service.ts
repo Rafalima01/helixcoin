@@ -1,6 +1,7 @@
 import { BusinessRuleError, ExternalServiceError, ForbiddenError, NotFoundError } from "@/server/errors";
 import { eventBus } from "@/server/events";
 import { encrypt, decrypt } from "@/server/security/crypto-utils";
+import { CacheService } from "@/server/cache/cache.service";
 import { GatewayTimeoutError } from "@/modules/payments/errors";
 import { WalletService } from "@/modules/wallet/services/wallet.service";
 import type { WalletActor } from "@/modules/wallet/entities/wallet.entity";
@@ -11,7 +12,12 @@ import { ProviderFactory } from "@/modules/payments/factories/provider.factory";
 import { GatewayRouterService } from "@/modules/payments/services/gateway-router.service";
 import { WebhookDispatcherService } from "@/modules/payments/services/webhook-dispatcher.service";
 import { PAYMENT_EVENTS } from "@/modules/payments/events/payments.events";
-import { PAYMENT_IDEMPOTENCY_KEYS, maskPixKey } from "@/modules/payments/constants/payments.constants";
+import {
+  PAYMENT_IDEMPOTENCY_KEYS,
+  maskPixKey,
+  withdrawCreateLockKey,
+  WITHDRAW_CREATE_LOCK_TTL_MS,
+} from "@/modules/payments/constants/payments.constants";
 import type { IDepositRepository } from "@/modules/payments/interfaces/deposit-repository.interface";
 import type { IWithdrawRepository } from "@/modules/payments/interfaces/withdraw-repository.interface";
 import type { IPaymentWebhookRepository } from "@/modules/payments/interfaces/payment-webhook-repository.interface";
@@ -208,7 +214,37 @@ export class PaymentService {
 
   // ------------------------------------------------------------- withdraws
 
+  /**
+   * A6: a double-click, a browser retry, or a network-triggered resubmit
+   * all land here as separate calls — each generates its own fresh
+   * `withdrawId`, so the wallet's own per-withdraw idempotency keys
+   * (`PAYMENT_IDEMPOTENCY_KEYS.withdrawLock`) never collide between them,
+   * and each would otherwise become a REAL second withdrawal dispatched to
+   * the gateway. `CacheService.withLock` (already used elsewhere in this
+   * codebase for exactly this kind of short-lived mutual exclusion) forces
+   * every withdraw-creation attempt for the same user to run one at a time;
+   * a second attempt arriving while the first is still in flight is
+   * rejected immediately instead of creating a second real withdraw.
+   */
   async requestWithdraw(
+    userId: string,
+    amountCents: number,
+    pixKey: string,
+    pixKeyType: string | undefined,
+    actor: WalletActor
+  ): Promise<RequestWithdrawResult> {
+    const result = await CacheService.withLock(
+      withdrawCreateLockKey(userId),
+      WITHDRAW_CREATE_LOCK_TTL_MS,
+      () => this.requestWithdrawLocked(userId, amountCents, pixKey, pixKeyType, actor)
+    );
+    if (result === null) {
+      throw new BusinessRuleError("Já existe uma solicitação de saque em andamento — aguarde alguns segundos e tente novamente.");
+    }
+    return result;
+  }
+
+  private async requestWithdrawLocked(
     userId: string,
     amountCents: number,
     pixKey: string,

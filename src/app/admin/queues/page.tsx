@@ -103,6 +103,7 @@ export default function AdminQueuesPage() {
       <PageHeader
         title="Filas"
         description="Workers assíncronos: webhooks, comissões, notificações e exportações. Métricas em tempo real chegarão via WebSocket."
+        mock
       />
       <DataTable columns={columns} rows={data ?? []} loading={loading} />
     </div>

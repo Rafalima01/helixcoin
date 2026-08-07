@@ -10,6 +10,7 @@ import {
   FilterBar,
   Drawer,
   DetailRow,
+  DrawerSkeleton,
   type TableColumn,
 } from "@/components/admin/ui";
 import { WalletsAdminApi, ApiError } from "@/lib/admin/wallet-api";
@@ -52,7 +53,7 @@ export default function AdminWalletsPage() {
   const [search, setSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "wallets", search],
     queryFn: () => WalletsAdminApi.listWallets({ search, page: 1, pageSize: 100 }),
   });
@@ -111,6 +112,8 @@ export default function AdminWalletsPage() {
         columns={columns}
         rows={rows.map((w) => ({ ...w, id: w.userId }))}
         loading={isLoading}
+        error={isError}
+        onRetry={refetch}
         onRowClick={(w) => setSelectedUserId(w.userId)}
         emptyMessage="Nenhuma carteira encontrada"
       />
@@ -140,7 +143,7 @@ function WalletDrawer({ userId, onClose }: { userId: string; onClose: () => void
   return (
     <Drawer open onClose={onClose} title={wallet ? "Carteira" : "Carregando..."}>
       {isLoading || !wallet ? (
-        <p className="text-sm text-text-muted">Carregando...</p>
+        <DrawerSkeleton />
       ) : (
         <div className="flex flex-col gap-5">
           <div>

@@ -13,3 +13,15 @@ export const MULTIPLIER_EPSILON = 1e-9;
  * for borderline/ambiguous flags).
  */
 export const ANTI_CHEAT_INVALIDATION_POLICY = "refund_bet_only" as const;
+
+/**
+ * Flat allowance (platforms), added on top of the per-interval rate cap, when
+ * MatchEngineService computes its own canonical/authoritative progress value
+ * from a client-reported `platformsPassed` claim (see
+ * `MatchEngineService.computeCanonicalProgress`). Absorbs ordinary
+ * checkpoint-to-checkpoint timing noise (DB round-trip between the previous
+ * write and this read, brief network jitter) without meaningfully affecting
+ * the payout ceiling it exists to enforce — the server never lets a claim
+ * through the clamp based on wall-clock time it didn't actually measure.
+ */
+export const CANONICAL_PROGRESS_GRACE = 2;
