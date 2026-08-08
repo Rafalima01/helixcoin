@@ -25,17 +25,32 @@ import type { GameMode } from "@prisma/client";
  * knobs, tuned three times (dangerChance: 1 means "the depth-scaled danger
  * budget always applies, exactly like before this was configurable").
  *
- * NORMAL/HARD were recalibrated (RTP11) after player feedback that the game
- * felt too easy — players advanced too many platforms too often even with
- * dangerChance already maxed out. The fix isn't a lower payout, it's a
- * harder climb: faster gravity/ball speed (less reaction time), a lower
- * bounce (less hang time to plan the next move), and — the main lever — a
- * higher `maxDangerSegments` ceiling reached sooner (see generator.ts's
- * `dangerBudget`, whose ramp-rate divisor dropped from 9 to 6 rings per step
- * as part of this same pass). DEMO is untouched on purpose: it's the
- * onboarding/no-login trial mode (and the physics profile Contas Demo also
- * inherit via `tags: ["demo"]` — see src/modules/demo-accounts), where
- * staying easy and shareable is the point, not a bug.
+ * DIFICULDADE V2 — the three modes now sit on three clearly separated rungs
+ * of the same ladder the presets below describe (DEMO == "easy", NORMAL ==
+ * "normal", HARD == "hard"), so what the admin picks in the panel and what a
+ * player actually gets are the same thing.
+ *
+ * The previous pass moved gravity/ballSpeed/maxDangerSegments but left the
+ * two levers that dominate perceived difficulty identical across NORMAL and
+ * HARD: `gapWidth` (2 for every mode) and the danger ramp (always opened at
+ * 1 red no matter the mode's ceiling). The result was three modes that felt
+ * the same for their whole opening stretch. What changed here:
+ *
+ *  - `gapWidth`/`segmentsPerPlatform` now form a real angular ladder —
+ *    90 deg (DEMO) -> 60 deg (NORMAL) -> 45 deg (HARD). The opening is the
+ *    single most legible difficulty signal on screen, and it was flat.
+ *  - The danger ramp opens at ~60% of the mode's own ceiling instead of
+ *    always at 1, so a mode's `maxDangerSegments` is visible on its first
+ *    unprotected platform (see generator.ts's dangerBudget).
+ *  - Gravity climbs hard at the top (-17.5 -> -26) while the bounce ratio
+ *    drops (0.56 -> 0.46): the ball cycles a platform in 0.83s on NORMAL vs
+ *    0.64s on HARD, where before it was 0.83s vs 0.74s — a difference too
+ *    small to feel.
+ *
+ * DEMO stays the gentlest of the three on purpose: it's the onboarding /
+ * no-login trial mode (and the physics profile Contas Demo inherit via
+ * `tags: ["demo"]` — see src/modules/demo-accounts), where being welcoming
+ * and shareable is the point.
  */
 
 export type FieldSection = "physics" | "generation";
@@ -67,7 +82,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: -40,
     max: -2,
     step: 0.5,
-    defaults: { DEMO: -15, NORMAL: -17.5, HARD: -21 },
+    defaults: { DEMO: -13, NORMAL: -17.5, HARD: -26 },
   },
   {
     key: "bounceForce",
@@ -79,7 +94,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 0.1,
     max: 1,
     step: 0.01,
-    defaults: { DEMO: 0.62, NORMAL: 0.56, HARD: 0.52 },
+    defaults: { DEMO: 0.66, NORMAL: 0.56, HARD: 0.46 },
   },
   {
     key: "ballSpeed",
@@ -92,7 +107,7 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 4,
     max: 30,
     step: 0.5,
-    defaults: { DEMO: 14.5, NORMAL: 16.5, HARD: 19 },
+    defaults: { DEMO: 13, NORMAL: 16.5, HARD: 18.5 },
   },
   // ---- Estrutura das plataformas ----
   {
@@ -105,31 +120,31 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 0,
     max: 1,
     step: 0.01,
-    defaults: { DEMO: 0.85, NORMAL: 1, HARD: 1 },
+    defaults: { DEMO: 0.45, NORMAL: 0.85, HARD: 1 },
   },
   {
     key: "maxDangerSegments",
     section: "generation",
     label: "Quantidade máxima de segmentos vermelhos por plataforma",
     tooltip:
-      "TETO de vermelhos por plataforma — não a quantidade fixa. A quantidade real sobe 1 a cada 6 plataformas depois das protegidas, até bater neste teto: com teto 4, o máximo só é atingido por volta da 18ª plataforma. Por isso subir este campo aperta o fim da partida (onde estão os multiplicadores altos), não o começo. Os segmentos ao lado da abertura nunca ficam vermelhos, então sempre existe rota. Maior = mais difícil = RTP real menor.",
+      "TETO de vermelhos por plataforma. A primeira plataforma desprotegida já abre com ~60% deste teto (teto 7 → 4 vermelhos), e sobe +1 a cada 4 plataformas até bater no teto. Ou seja: este campo é sentido desde o começo, não só no fim da partida. Os segmentos ao lado da abertura nunca ficam vermelhos, então sempre existe rota. Maior = mais difícil = RTP real menor.",
     kind: "number",
     min: 0,
     max: 8,
     step: 1,
-    defaults: { DEMO: 3, NORMAL: 4, HARD: 5 },
+    defaults: { DEMO: 2, NORMAL: 4, HARD: 7 },
   },
   {
     key: "protectedPlatforms",
     section: "generation",
     label: "Quantidade de plataformas protegidas no início",
     tooltip:
-      "Primeiras N plataformas 100% sem vermelhos. Também é o marco zero da rampa de dificuldade: a contagem de vermelhos só começa a subir a partir daqui, então aumentar este campo adia a partida inteira, não só o começo. Maior = mais fácil = RTP real maior.",
+      "Primeiras N plataformas 100% sem vermelhos. É o marco zero de TODA a curva de dificuldade: a rampa de vermelhos e a entrada das plataformas especiais (gelo, frágil, giratória, piscante) são contadas a partir daqui. 0 = perigo já na primeira plataforma. Maior = mais fácil = RTP real maior.",
     kind: "number",
     min: 0,
     max: 20,
     step: 1,
-    defaults: { DEMO: 5, NORMAL: 4, HARD: 2 },
+    defaults: { DEMO: 8, NORMAL: 4, HARD: 2 },
   },
   {
     key: "totalPlatforms",
@@ -153,23 +168,35 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     min: 4,
     max: 24,
     step: 1,
-    defaults: { DEMO: 12, NORMAL: 12, HARD: 12 },
+    defaults: { DEMO: 12, NORMAL: 12, HARD: 16 },
   },
   {
     key: "gapWidth",
     section: "generation",
     label: "Largura da abertura entre segmentos",
     tooltip:
-      "Quantos segmentos formam a passagem livre por onde a bola desce (2 de 12 = 60°). É a única rota garantida de cada plataforma, e os segmentos vizinhos a ela nunca ficam vermelhos. Maior = passagem mais larga e menos espaço para vermelhos = mais fácil = RTP real maior.",
+      "Quantos segmentos formam a passagem livre por onde a bola desce. O tamanho REAL depende do campo acima: 2 de 12 = 60°, mas 2 de 16 = 45°. Em 1 de 12 (30°) a passagem ainda tem 2,3x o diâmetro da bola — apertado, nunca impossível. É a única rota garantida de cada plataforma, e os segmentos vizinhos a ela nunca ficam vermelhos. Maior = mais fácil = RTP real maior.",
     kind: "number",
     min: 1,
     max: 6,
     step: 1,
-    defaults: { DEMO: 2, NORMAL: 2, HARD: 2 },
+    defaults: { DEMO: 3, NORMAL: 2, HARD: 2 },
   },
 ];
 
-/** Coherent starting points for the mode editors — never random, each one a deliberately tuned bundle. Admin can still fine-tune any field afterward. */
+/**
+ * Coherent starting points for the mode editors — never random, each one a
+ * deliberately tuned bundle. Admin can still fine-tune any field afterward.
+ *
+ * `segmentsPerPlatform` belongs in the bundle because the opening is measured
+ * in SEGMENTS, not degrees: the real angular gap is
+ * `gapWidth x (360 / segmentsPerPlatform)`. With segments pinned at 12 for
+ * every preset, `gapWidth` could only ever express 30-degree steps, which is
+ * why the middle of the ladder used to collapse (normal/hard/very_hard all
+ * sat at 2 segments = 60 degrees, i.e. an identical opening across the whole
+ * top half of the range). Tuning the pair together is what makes a strictly
+ * decreasing 120/90/60/45/30-degree ladder possible.
+ */
 export interface DifficultyPreset {
   key: string;
   label: string;
@@ -181,6 +208,7 @@ export interface DifficultyPreset {
     dangerChance: number;
     maxDangerSegments: number;
     protectedPlatforms: number;
+    segmentsPerPlatform: number;
     gapWidth: number;
   };
 }
@@ -189,71 +217,81 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
   {
     key: "very_easy",
     label: "Muito Fácil",
-    description: "Poucos segmentos vermelhos, aberturas largas, gravidade leve — o jogador aprende rápido e sente facilidade para ganhar.",
+    description:
+      "Abertura de 120° (10x o diâmetro da bola), no máximo 1 vermelho por plataforma e 12 plataformas protegidas. ~1,18s por plataforma — muito tempo para reagir.",
     values: {
       gravity: -10,
       bounceForce: 0.72,
       ballSpeed: 11,
-      dangerChance: 0.12,
+      dangerChance: 0.15,
       maxDangerSegments: 1,
       protectedPlatforms: 12,
+      segmentsPerPlatform: 12,
       gapWidth: 4,
     },
   },
   {
     key: "easy",
     label: "Fácil",
-    description: "Ainda favorece o jogador — poucos segmentos vermelhos e boa quantidade de aberturas, com ganhos frequentes.",
+    description:
+      "Abertura de 90°, até 2 vermelhos e 8 plataformas protegidas. ~1,01s por plataforma. Perfil de onboarding — é o que o modo Demo usa.",
     values: {
-      gravity: -12,
-      bounceForce: 0.68,
-      ballSpeed: 12.5,
-      dangerChance: 0.25,
+      gravity: -13,
+      bounceForce: 0.66,
+      ballSpeed: 13,
+      dangerChance: 0.45,
       maxDangerSegments: 2,
       protectedPlatforms: 8,
+      segmentsPerPlatform: 12,
       gapWidth: 3,
     },
   },
   {
     key: "normal",
     label: "Normal",
-    description: "Dificuldade equilibrada — o padrão da plataforma (recalibrado: exige mais atenção do jogador do que antes, sem deixar de ser justo).",
+    description:
+      "Abertura de 60°, até 4 vermelhos (2 já na primeira plataforma desprotegida) e 4 protegidas. ~0,83s por plataforma. O padrão da plataforma.",
     values: {
       gravity: -17.5,
       bounceForce: 0.56,
       ballSpeed: 16.5,
-      dangerChance: 1,
+      dangerChance: 0.85,
       maxDangerSegments: 4,
       protectedPlatforms: 4,
+      segmentsPerPlatform: 12,
       gapWidth: 2,
     },
   },
   {
     key: "hard",
     label: "Difícil",
-    description: "Mais segmentos vermelhos, gravidade mais intensa e menos plataformas protegidas — exige mais habilidade.",
+    description:
+      "Abertura de 45° (16 segmentos, não 12), até 7 vermelhos começando em 4, só 2 protegidas. ~0,64s por plataforma — 23% menos tempo de reação que o Normal.",
     values: {
-      gravity: -21,
-      bounceForce: 0.52,
-      ballSpeed: 19,
+      gravity: -26,
+      bounceForce: 0.46,
+      ballSpeed: 18.5,
       dangerChance: 1,
-      maxDangerSegments: 5,
+      maxDangerSegments: 7,
       protectedPlatforms: 2,
+      segmentsPerPlatform: 16,
       gapWidth: 2,
     },
   },
   {
-    key: "very_hard",
-    label: "Muito Difícil",
-    description: "Para usar em situações específicas — mais obstáculos e gravidade mais intensa, mas ainda um jogo justo e vencível.",
+    key: "extreme",
+    label: "Extremo",
+    description:
+      "Abertura de 30° — 1 bloco, 2,3x o diâmetro da bola. Zero plataformas protegidas: 4 vermelhos já na primeira. ~0,52s por plataforma. Margem de erro mínima, ainda sempre vencível.",
     values: {
-      gravity: -23,
-      bounceForce: 0.48,
-      ballSpeed: 20.5,
+      gravity: -36,
+      bounceForce: 0.38,
+      ballSpeed: 20,
       dangerChance: 1,
-      maxDangerSegments: 6,
-      protectedPlatforms: 2,
-      gapWidth: 2,
+      maxDangerSegments: 7,
+      protectedPlatforms: 0,
+      segmentsPerPlatform: 12,
+      gapWidth: 1,
     },
   },
 ];

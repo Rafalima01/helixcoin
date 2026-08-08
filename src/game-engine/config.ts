@@ -73,6 +73,25 @@ export const ENGINE_CONFIG = {
   // dangerBudget) — 1 means "always apply it, exactly like before this was
   // configurable"; admin-facing as "Chance de segmentos vermelhos".
   dangerChance: 1,
+  /**
+   * Shape of the danger ramp (see generator.ts's dangerBudget). Deliberately
+   * NOT admin-configurable: these two describe *how* the configured
+   * `maxDangerSegments` is approached, not how dangerous the mode is — that's
+   * what maxDangerSegments itself is for. Exposing them would be two more
+   * sliders competing to express one idea.
+   *
+   * `dangerRampStartRatio` is the fix for the "artificially easy opening"
+   * problem: the ramp used to always start at 1 red regardless of the mode's
+   * ceiling, so a mode configured for 7 reds still looked identical to a mode
+   * configured for 2 during the first ~30 platforms — the ceiling only became
+   * visible long after most matches had already ended. Starting at a fraction
+   * of the ceiling makes `maxDangerSegments` legible from the first
+   * unprotected platform, which is what makes the harder modes read as harder
+   * immediately instead of eventually.
+   */
+  dangerRampStartRatio: 0.6,
+  /** Rings per +1 red on the ramp, counted from `safeDepth`. */
+  dangerRampRings: 4,
 
   // ---- Input ----
   dragSensitivity: 0.011, // radians per pixel
@@ -104,7 +123,22 @@ export const ENGINE_CONFIG = {
   physicsAhead: 5, // rings simulated below the ball
   renderAhead: 16, // rings drawn below the ball
   renderBehind: 2,
-  maxInstances: 288, // instanced mesh capacity per bucket
+  /**
+   * Instanced-mesh capacity per bucket (solid / danger). Must cover the
+   * worst case the admin panel can actually produce, because
+   * tower-renderer.tsx silently STOPS emitting instances past this number
+   * while tower-physics.tsx still builds every collider — over the cap you
+   * get invisible platforms you can still land on (or die to).
+   *
+   * Worst case = render window x max segments per ring
+   *            = (renderBehind + renderAhead + 1) x segmentsPerPlatform.max
+   *            = 19 x 24 = 456.
+   * 480 covers that with headroom. This used to be 288, which was fine only
+   * while every mode was pinned to 12 segments — the moment a mode uses the
+   * registry's upper range (HARD now uses 16) the old value was one config
+   * change away from that desync.
+   */
+  maxInstances: 480,
 
   // ---- Effects ----
   hitstopMs: 90, // freeze-frame on death (physics pause before overlay)
@@ -116,14 +150,27 @@ export const ENGINE_CONFIG = {
     death: 1.0,
   },
 
-  // ---- Special ring distribution (weights ramp with depth) ----
+  /**
+   * Depth at which each special/moving ring type starts appearing, counted as
+   * an OFFSET FROM `safeDepth` — not as an absolute ring index (see
+   * generator.ts's variantDepth). Relative is the right frame because
+   * `safeDepth` is the admin-facing "plataformas protegidas": a mode that
+   * drops the player straight into hazards should also start throwing moving
+   * platforms at them sooner, and a mode with a long protected runway should
+   * not waste that runway introducing ice and blinking rings. Absolute
+   * thresholds made these fixed for every mode, which is why the harder modes
+   * felt like the easy one for their whole opening stretch.
+   *
+   * Calibrated so NORMAL (safeDepth 4) lands on exactly the absolute depths
+   * these had when they were absolute (6/9/11/10/13/16).
+   */
   variants: {
-    fragileFrom: 6,
-    iceFrom: 9,
-    boostFrom: 11,
-    oscillatingFrom: 10,
-    spinningFrom: 13,
-    blinkingFrom: 16,
+    fragileFrom: 2,
+    iceFrom: 5,
+    boostFrom: 7,
+    oscillatingFrom: 6,
+    spinningFrom: 9,
+    blinkingFrom: 12,
   },
 
   // ---- Palette ----

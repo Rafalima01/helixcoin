@@ -11,25 +11,30 @@ import type { RingData, RingMotion, RingVariant, SegmentType } from "@/game-engi
  * time (the ball bounces in place), a route always exists.
  */
 
+/** Absolute depth at which a variant threshold kicks in — CFG.variants stores offsets from the protected opening (see config.ts's `variants` doc comment). */
+function variantDepth(offset: number): number {
+  return CFG.safeDepth + offset;
+}
+
 function pickVariant(rng: () => number, depth: number): RingVariant {
   const v = CFG.variants;
   const roll = rng();
-  if (depth >= v.boostFrom && roll < 0.08) return "boost";
-  if (depth >= v.iceFrom && roll < 0.18) return "ice";
-  if (depth >= v.fragileFrom && roll < 0.3) return "fragile";
+  if (depth >= variantDepth(v.boostFrom) && roll < 0.08) return "boost";
+  if (depth >= variantDepth(v.iceFrom) && roll < 0.18) return "ice";
+  if (depth >= variantDepth(v.fragileFrom) && roll < 0.3) return "fragile";
   return "normal";
 }
 
 function pickMotion(rng: () => number, depth: number): RingMotion {
   const v = CFG.variants;
   const roll = rng();
-  if (depth >= v.blinkingFrom && roll < 0.07) {
+  if (depth >= variantDepth(v.blinkingFrom) && roll < 0.07) {
     return { kind: "blinking", period: 2.2 + rng() * 1.4, duty: 0.62, phase: rng() * 10 };
   }
-  if (depth >= v.spinningFrom && roll < 0.17) {
+  if (depth >= variantDepth(v.spinningFrom) && roll < 0.17) {
     return { kind: "spinning", speed: (rng() < 0.5 ? -1 : 1) * (0.35 + rng() * 0.4) };
   }
-  if (depth >= v.oscillatingFrom && roll < 0.3) {
+  if (depth >= variantDepth(v.oscillatingFrom) && roll < 0.3) {
     return {
       kind: "oscillating",
       amplitude: 0.4 + rng() * 0.45,
@@ -46,11 +51,17 @@ function dangerBudget(rng: () => number, depth: number): number {
   // depth-scaled budget below applies at all for this ring. 1 (the default)
   // means it always does, exactly like before this was configurable.
   if (rng() > CFG.dangerChance) return 0;
-  // RTP11: ramps one step every 6 rings past safeDepth (was 9) — the
-  // curve still starts gentle right after the protected opening, but now
-  // reaches each admin-configured maxDangerSegments cap noticeably sooner,
-  // instead of staying near-minimum for the first ~40 platforms of a run.
-  const base = Math.min(CFG.maxDangerSegments, 1 + Math.floor((depth - CFG.safeDepth) / 6));
+  // The ramp opens at a FRACTION OF the mode's own ceiling rather than always
+  // at 1 (see config.ts's dangerRampStartRatio for why), then climbs to that
+  // ceiling one red every `dangerRampRings` platforms. So a mode configured
+  // for 7 reds already shows ~4 on its first unprotected platform, while a
+  // mode configured for 1 shows 1 — the ceiling is what you feel from the
+  // start, not something the run has to survive long enough to reveal.
+  const rampStart = Math.max(1, Math.round(CFG.maxDangerSegments * CFG.dangerRampStartRatio));
+  const base = Math.min(
+    CFG.maxDangerSegments,
+    rampStart + Math.floor((depth - CFG.safeDepth) / CFG.dangerRampRings)
+  );
   // Biased toward hitting the ramped target (was a 75/25 split) so realized
   // difficulty tracks the curve above more consistently.
   return rng() < 0.85 ? base : Math.max(0, base - 1);

@@ -172,11 +172,25 @@ os valores reais de produção.
 
 ```bash
 # No servidor, dentro da pasta do projeto:
-npm ci                    # instala exatamente as versões do package-lock.json
-npm run db:migrate:deploy # prisma migrate deploy — aplica migrações pendentes
-npm run build             # next build
-npm start                 # next start — escuta na porta 3000 por padrão
+npm ci                       # instala exatamente as versões do package-lock.json
+npm run db:migrate:deploy    # prisma migrate deploy — aplica migrações pendentes
+npm run db:apply:difficulty-v2  # aplica a escada de dificuldade (ver nota abaixo)
+npm run build                # next build
+npm start                    # next start — escuta na porta 3000 por padrão
 ```
+
+> **Por que `db:apply:difficulty-v2` é um passo separado.** Os defaults de
+> dificuldade em `field-registry.ts` só semeiam a PRIMEIRA versão da
+> `GameEconomyConfig`. Qualquer ambiente que já tenha uma versão ativa continua
+> servindo o payload gravado, então subir o código novo sozinho não muda nada
+> para os jogadores. Esse script cria e ativa uma nova versão pelo mesmo
+> caminho `draft -> activate` do painel (fica no histórico e na auditoria).
+>
+> É idempotente: compara a config ativa com o registry e não escreve nada
+> quando já estão iguais, então pode ficar no fluxo de todo deploy sem
+> acumular versões no-op. Mexe apenas em `modes` — `general` (limites de
+> aposta, multiplicador da meta, limite do Modo Hard) e `antiCheat` são
+> preservados.
 
 Para manter o processo rodando (sobrevivendo a fechamento de SSH, reinícios
 etc.), use um gerenciador de processo — PM2 é o mais comum:

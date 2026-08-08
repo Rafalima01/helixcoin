@@ -31,7 +31,15 @@ describe("generateRing — segment types", () => {
     const rings = generateRings("flank-seed", 0, 60);
     for (const ring of rings) {
       const n = ring.segments.length;
-      const holeStart = ring.segments.findIndex((s) => s === "hole");
+      // The opening is carved with `(holeStart + i) % n`, so it can wrap the
+      // array boundary (holes at indices n-1 and 0). Plain `findIndex` returns
+      // 0 for those rings, which makes the "before" neighbour land INSIDE the
+      // hole — the assertion then passes for the wrong reason ("hole" is not
+      // "danger") while never checking the real flanking pad. Anchor on the
+      // hole whose predecessor isn't a hole instead.
+      const holeStart = ring.segments.findIndex(
+        (s, i) => s === "hole" && ring.segments[(i - 1 + n) % n] !== "hole"
+      );
       if (holeStart === -1) continue;
       let holeWidth = 0;
       while (ring.segments[(holeStart + holeWidth) % n] === "hole") holeWidth++;
