@@ -5,6 +5,8 @@ import {
   ANTI_CHEAT_FIELDS,
   GAME_MODES,
   DEFAULT_QUICK_BET_AMOUNTS,
+  GOAL_MULTIPLIER_MIN,
+  GOAL_MULTIPLIER_MAX,
 } from "@/modules/game-config/constants/field-registry";
 import type {
   GeneralConfig,
@@ -20,6 +22,11 @@ export function buildDefaultGeneral(): GeneralConfig {
   return {
     ...numeric,
     quickBetAmounts: [...DEFAULT_QUICK_BET_AMOUNTS],
+    // Not admin-editable anymore (see the GeneralFieldKey note in
+    // field-registry) — kept on the entity so `goalSnapshot` and old config
+    // versions still carry the values they always did.
+    goalMultiplierMin: GOAL_MULTIPLIER_MIN,
+    goalMultiplierMax: GOAL_MULTIPLIER_MAX,
     goalAllowFixed: true,
     goalAllowDynamic: false,
   };

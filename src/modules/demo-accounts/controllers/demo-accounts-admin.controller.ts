@@ -8,6 +8,7 @@ import { demoAccountsContainer } from "@/modules/demo-accounts/container";
 import {
   createDemoAccountSchema,
   addDemoBalanceSchema,
+  setDemoFlagSchema,
 } from "@/modules/demo-accounts/validators/demo-account.validator";
 import { toDemoAccountListItemDto } from "@/modules/demo-accounts/dto/demo-account.dto";
 
@@ -57,5 +58,18 @@ export async function handleDeactivateDemoAccount(req: NextRequest, auth: AuthCo
   await assertPermission(auth);
   const meta = extractRequestMeta(req);
   await demoAccountService.deactivate(userId, { id: auth.userId, role: auth.role! }, meta);
+  return ok({});
+}
+
+/**
+ * Flips an existing player account between demo and real. Separate from
+ * create/deactivate because it targets a user that already exists outside the
+ * demo flow — the service refuses accounts with real financial history.
+ */
+export async function handleSetUserDemoFlag(req: NextRequest, auth: AuthContext, userId: string) {
+  await assertPermission(auth);
+  const body = setDemoFlagSchema.parse(await req.json());
+  const meta = extractRequestMeta(req);
+  await demoAccountService.setDemoFlag(userId, body.isDemo, { id: auth.userId, role: auth.role! }, meta);
   return ok({});
 }

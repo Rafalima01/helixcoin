@@ -167,6 +167,81 @@ describe("CommissionService — multi-level tree walk", () => {
     expect(l2Balance.main).toBe(500); // level 2 still earns despite level 1 being blocked
   });
 
+  describe("anti-fraude do encadeamento", () => {
+    it("auto-indicação não paga nada — o depositante nunca ganha comissão sobre o próprio depósito", async () => {
+      const h = buildAffiliateTestHarness();
+      // Só possível por edição administrativa/importação — o cadastro não
+      // consegue produzir isto, porque a conta nova ainda não tem código.
+      h.userReferrals.setReferrer("player", "player");
+      const self = await h.affiliateService.apply("player", {});
+      await h.affiliateService.decide(self.id, "APPROVE", undefined, { actorId: "admin", actorRole: "ADMIN" });
+      await h.settingsRepo.update({ revShareLevel1Percent: 0.1 });
+
+      await h.commissionService.handleDepositConfirmed({
+        depositId: "dep-self",
+        userId: "player",
+        amountCents: 10000,
+        gatewayCredentialId: "gw-1",
+        status: "PAID",
+      });
+
+      const balance = await h.walletService.getBalance("player");
+      expect(balance.main).toBe(0);
+      expect(balance.locked).toBe(0);
+      const { total } = await h.commissions.listAdmin({ affiliateId: self.id, page: 1, pageSize: 10 });
+      expect(total).toBe(0);
+    });
+
+    it("ciclo A→B→A paga cada um uma única vez e para de girar", async () => {
+      const h = buildAffiliateTestHarness();
+      h.userReferrals.setReferrer("player", "a-user");
+      h.userReferrals.setReferrer("a-user", "b-user");
+      h.userReferrals.setReferrer("b-user", "a-user"); // fecha o ciclo
+
+      const a = await h.affiliateService.apply("a-user", {});
+      await h.affiliateService.decide(a.id, "APPROVE", undefined, { actorId: "admin", actorRole: "ADMIN" });
+      const b = await h.affiliateService.apply("b-user", {});
+      await h.affiliateService.decide(b.id, "APPROVE", undefined, { actorId: "admin", actorRole: "ADMIN" });
+      await h.settingsRepo.update({ revShareLevel1Percent: 0.1, revShareLevel2Percent: 0.05, revShareLevel3Percent: 0.02 });
+
+      await h.commissionService.handleDepositConfirmed({
+        depositId: "dep-cycle",
+        userId: "player",
+        amountCents: 10000,
+        gatewayCredentialId: "gw-1",
+        status: "PAID",
+      });
+
+      // A ganha só o nível 1 (10%) e B só o nível 2 (5%). Sem a guarda, A
+      // apareceria de novo no nível 3 e levaria mais 2%.
+      expect((await h.walletService.getBalance("a-user")).main).toBe(1000);
+      expect((await h.walletService.getBalance("b-user")).main).toBe(500);
+      expect((await h.commissions.listAdmin({ affiliateId: a.id, page: 1, pageSize: 10 })).total).toBe(1);
+    });
+
+    it("o encadeamento para no ciclo, não no limite de níveis — um autolaço no nível 2 não zera o nível 1", async () => {
+      const h = buildAffiliateTestHarness();
+      h.userReferrals.setReferrer("player", "a-user");
+      h.userReferrals.setReferrer("a-user", "a-user"); // A indica a si mesmo
+
+      const a = await h.affiliateService.apply("a-user", {});
+      await h.affiliateService.decide(a.id, "APPROVE", undefined, { actorId: "admin", actorRole: "ADMIN" });
+      await h.settingsRepo.update({ revShareLevel1Percent: 0.1, revShareLevel2Percent: 0.05 });
+
+      await h.commissionService.handleDepositConfirmed({
+        depositId: "dep-selfloop",
+        userId: "player",
+        amountCents: 10000,
+        gatewayCredentialId: "gw-1",
+        status: "PAID",
+      });
+
+      // O nível 1 é legítimo e continua sendo pago; só o segundo salto (que
+      // voltaria para o próprio A) é descartado.
+      expect((await h.walletService.getBalance("a-user")).main).toBe(1000);
+    });
+  });
+
   describe("manager spread model (Refinamento Fase 8)", () => {
     it("a level-1 ancestor who is a Manager (no AffiliateProfile) earns their full ceiling on their own platform link", async () => {
       const h = buildAffiliateTestHarness();

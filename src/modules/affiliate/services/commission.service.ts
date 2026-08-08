@@ -171,13 +171,29 @@ export class CommissionService {
     });
   }
 
-  /** Walks User.referredById up to `maxLevels` hops, returning ancestor userIds in order [level1, level2, level3]. */
+  /**
+   * Walks User.referredById up to `maxLevels` hops, returning ancestor userIds
+   * in order [level1, level2, level3].
+   *
+   * Two anti-fraud guards on the walk itself:
+   *  - The depositor is seeded into `seen`, so a self-referral (A.referredById
+   *    = A) pays nobody. Signup can't produce this — a brand-new account has no
+   *    code of its own to enter — but an admin edit or a data import can, and a
+   *    self-referring row would otherwise pay the depositor a cut of their own
+   *    deposit at every level, which is just a discount disguised as commission.
+   *  - Any userId already visited stops the walk, so a cycle (A→B→A, from the
+   *    same routes) can't pay the same person twice on one deposit or spin the
+   *    loop up to maxLevels. Without this the chain isn't a tree, and the level
+   *    numbers stop meaning anything.
+   */
   private async walkReferredByChain(userId: string, maxLevels: number): Promise<string[]> {
     const chain: string[] = [];
+    const seen = new Set<string>([userId]);
     let currentId = userId;
     for (let i = 0; i < maxLevels; i++) {
       const referredById = await this.userReferrals.findReferredById(currentId);
-      if (!referredById) break;
+      if (!referredById || seen.has(referredById)) break;
+      seen.add(referredById);
       chain.push(referredById);
       currentId = referredById;
     }

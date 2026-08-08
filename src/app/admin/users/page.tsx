@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, ShieldOff, ShieldCheck, Trash2, RotateCcw, MonitorX } from "lucide-react";
+import { UserPlus, ShieldOff, ShieldCheck, Trash2, RotateCcw, MonitorX, Plus, Minus, FlaskConical } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatCurrency } from "@/lib/utils";
 import {
   PageHeader,
   DataTable,
@@ -19,6 +20,7 @@ import {
   type TableColumn,
 } from "@/components/admin/ui";
 import { IdentityAdminApi, ApiError } from "@/lib/admin/identity-api";
+import { WalletsAdminApi, TransactionsAdminApi } from "@/lib/admin/wallet-api";
 import type { UserResponseDto } from "@/modules/identity/dto/user.dto";
 import type { SessionResponseDto } from "@/modules/identity/dto/session.dto";
 import type { AuditLogResponseDto } from "@/modules/identity/dto/audit.dto";
@@ -248,6 +250,7 @@ function UserDrawer({
             onChange={setTab}
             tabs={[
               { key: "perfil", label: "Perfil" },
+              { key: "financeiro", label: "Financeiro" },
               { key: "sessoes", label: "Sessões" },
               { key: "historico", label: "Histórico" },
             ]}
@@ -272,8 +275,19 @@ function UserDrawer({
                 <DetailRow label="Email verificado" value={user.emailVerified ? "Sim" : "Não"} />
                 <DetailRow label="MFA" value={user.mfaEnabled ? "Ativado" : "Desativado"} />
                 <DetailRow label="Conta bloqueada por tentativas" value={user.locked ? "Sim" : "Não"} />
+                <DetailRow
+                  label="Conta Demo"
+                  value={
+                    user.isDemo ? (
+                      <StatusBadge tone="info">Sim</StatusBadge>
+                    ) : (
+                      <span className="text-text-muted">Não</span>
+                    )
+                  }
+                />
                 <DetailRow label="Cadastro" value={formatDate(user.createdAt)} />
                 <DetailRow label="Último login" value={formatDate(user.lastLoginAt)} />
+                <LastIpRow userId={userId} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {user.deletedAt ? (
@@ -309,11 +323,258 @@ function UserDrawer({
             </div>
           )}
 
+          {tab === "financeiro" && <UserFinanceTab userId={userId} isDemo={user.isDemo} />}
           {tab === "sessoes" && <UserSessionsTab userId={userId} />}
           {tab === "historico" && <UserHistoryTab userId={userId} />}
         </div>
       )}
     </Drawer>
+  );
+}
+
+/**
+ * "Último IP" is derived from the most recent session rather than stored on
+ * User: Session already records `ip` per login, so a dedicated User.lastLoginIp
+ * column would be a second, drift-prone copy of the same fact.
+ */
+function LastIpRow({ userId }: { userId: string }) {
+  const { data } = useQuery({
+    queryKey: ["admin", "user-sessions", userId],
+    queryFn: () => IdentityAdminApi.listUserSessions(userId),
+  });
+  const sessions = (data?.data ?? []) as SessionResponseDto[];
+  const latest = [...sessions].sort(
+    (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
+  )[0];
+  return <DetailRow label="Último IP" value={<code className="text-xs">{latest?.ip ?? "—"}</code>} />;
+}
+
+/**
+ * Wallet balances, lifetime totals and the money-moving admin actions.
+ * Balances/transactions come from the same endpoints /admin/wallets already
+ * uses — no new aggregate: the totals are summed from the transaction ledger
+ * so they can never disagree with the Transações screen.
+ */
+/** /admin/transactions caps pageSize at 100, so lifetime totals need real pagination. */
+const TX_PAGE_SIZE = 100;
+/** 5.000 transações. Além disso a soma vira `truncated` em vez de um número errado. */
+const TX_MAX_PAGES = 50;
+
+/**
+ * Every COMPLETED transaction for one user, paginated.
+ *
+ * Asking for a single oversized page (pageSize=500) silently 400s against the
+ * endpoint's max of 100 — and a failed query reads as "zero transactions",
+ * which renders as a page full of R$ 0,00 that looks like real data. So the
+ * pages are walked properly, and if a user somehow has more than TX_MAX_PAGES
+ * worth, `truncated` is returned so the UI can say the totals are partial
+ * instead of quietly under-reporting.
+ */
+async function fetchAllTransactions(userId: string) {
+  const first = await TransactionsAdminApi.listTransactions({ userId, page: 1, pageSize: TX_PAGE_SIZE });
+  const totalPages = first.meta?.totalPages ?? 1;
+  const rows = [...first.data];
+
+  const lastPage = Math.min(totalPages, TX_MAX_PAGES);
+  for (let page = 2; page <= lastPage; page++) {
+    const next = await TransactionsAdminApi.listTransactions({ userId, page, pageSize: TX_PAGE_SIZE });
+    rows.push(...next.data);
+  }
+
+  return { rows, truncated: totalPages > TX_MAX_PAGES };
+}
+
+function UserFinanceTab({ userId, isDemo }: { userId: string; isDemo: boolean }) {
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [confirming, setConfirming] = useState<"add" | "remove" | "demo" | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "wallet", userId],
+    queryFn: () => WalletsAdminApi.getWallet(userId),
+  });
+
+  const { data: txData } = useQuery({
+    queryKey: ["admin", "user-tx-totals", userId],
+    queryFn: () => fetchAllTransactions(userId),
+  });
+
+  const totals = useMemo(() => {
+    const rows = txData?.rows ?? [];
+    // `amount` comes back as a magnitude (a debit is +2500, not -2500), so the
+    // direction lives entirely in `type` — hence summing by type, not by sign.
+    const sum = (types: string[]) =>
+      rows
+        .filter((t) => types.includes(t.type) && t.status === "COMPLETED")
+        .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+    return {
+      deposited: sum(["DEPOSIT"]),
+      withdrawn: sum(["WITHDRAW_APPROVED"]),
+      wagered: sum(["BET"]),
+      won: sum(["PAYOUT"]),
+    };
+  }, [txData]);
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin", "wallet", userId] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "user-tx-totals", userId] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
+    queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+  };
+
+  const adjust = useMutation({
+    mutationFn: (signedCents: number) =>
+      WalletsAdminApi.adjustWallet(userId, {
+        amount: signedCents,
+        account: "MAIN",
+        reason: reason.trim(),
+        observation: `Ajuste manual via perfil do usuário (${signedCents > 0 ? "adição" : "remoção"} de saldo)`,
+      }),
+    onSuccess: () => {
+      toast.success("Saldo ajustado");
+      setAmount("");
+      setReason("");
+      setConfirming(null);
+      invalidate();
+    },
+    // wallet-api declares its OWN ApiError class, so `instanceof ApiError`
+    // (imported from identity-api) would never match here — Error is the
+    // common base both envelope wrappers actually share.
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao ajustar saldo"),
+  });
+
+  const toggleDemo = useMutation({
+    mutationFn: () => IdentityAdminApi.setUserDemoFlag(userId, !isDemo),
+    onSuccess: () => {
+      toast.success(isDemo ? "Conta Demo removida" : "Conta marcada como Demo");
+      setConfirming(null);
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao alterar tipo da conta"),
+  });
+
+  if (isLoading || !data) return <DrawerSkeleton rows={5} />;
+
+  const balances = data.data.balances;
+  const cents = Math.round(Number(amount.replace(",", ".")) * 100);
+  const amountValid = Number.isFinite(cents) && cents > 0;
+  const reasonValid = reason.trim().length >= 3;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <DetailRow label="Saldo principal" value={<span className="tabular-nums">{formatCurrency(balances.main / 100)}</span>} />
+        <DetailRow label="Saldo bônus" value={<span className="tabular-nums">{formatCurrency(balances.bonus / 100)}</span>} />
+        <DetailRow label="Saldo bloqueado" value={<span className="tabular-nums">{formatCurrency(balances.locked / 100)}</span>} />
+        <DetailRow label="Total depositado" value={<span className="tabular-nums">{formatCurrency(totals.deposited / 100)}</span>} />
+        <DetailRow label="Total sacado" value={<span className="tabular-nums">{formatCurrency(totals.withdrawn / 100)}</span>} />
+        <DetailRow label="Total apostado" value={<span className="tabular-nums">{formatCurrency(totals.wagered / 100)}</span>} />
+        <DetailRow label="Total ganho" value={<span className="tabular-nums">{formatCurrency(totals.won / 100)}</span>} />
+        <DetailRow
+          label="Total perdido"
+          value={<span className="tabular-nums">{formatCurrency(Math.max(0, totals.wagered - totals.won) / 100)}</span>}
+        />
+      </div>
+
+      {txData?.truncated && (
+        <p className="rounded-lg border border-warning/40 bg-warning/[0.06] p-2.5 text-xs text-text-secondary">
+          Esta conta tem mais de {TX_PAGE_SIZE * TX_MAX_PAGES} transações — os totais acima cobrem apenas as mais
+          recentes. Use a tela de Transações para o número fechado.
+        </p>
+      )}
+
+      <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+        <p className="text-sm font-semibold">Ajustar saldo</p>
+        <Input
+          aria-label="Valor (R$)"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="Valor (R$)"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <Input
+          aria-label="Motivo"
+          placeholder="Motivo (obrigatório, vai para a auditoria)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+        {confirming === "add" || confirming === "remove" ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/[0.06] p-2.5">
+            <p className="text-xs text-text-secondary">
+              Confirmar {confirming === "add" ? "adição" : "remoção"} de{" "}
+              <strong className="tabular-nums">{formatCurrency(cents / 100)}</strong>
+              {confirming === "remove" && cents > balances.main && (
+                <> — maior que o saldo principal atual, a operação será recusada pelo backend.</>
+              )}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant={confirming === "add" ? "success" : "danger"}
+                size="sm"
+                className="flex-1"
+                loading={adjust.isPending}
+                onClick={() => adjust.mutate(confirming === "add" ? cents : -cents)}
+              >
+                Confirmar
+              </Button>
+              <Button variant="ghost" size="sm" className="border border-border" onClick={() => setConfirming(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="success"
+              size="sm"
+              disabled={!amountValid || !reasonValid}
+              onClick={() => setConfirming("add")}
+            >
+              <Plus className="size-4" /> Adicionar
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={!amountValid || !reasonValid}
+              onClick={() => setConfirming("remove")}
+            >
+              <Minus className="size-4" /> Remover
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+        <p className="text-sm font-semibold">Tipo da conta</p>
+        <p className="text-xs text-text-secondary">
+          Contas Demo ficam isoladas da operação real: não aparecem no ledger nem nos relatórios financeiros. Por
+          isso a conversão só é permitida enquanto a conta não tiver depósito, saque ou aposta — depois disso,
+          mudar o tipo reescreveria números já contabilizados.
+        </p>
+        {confirming === "demo" ? (
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" className="flex-1" loading={toggleDemo.isPending} onClick={() => toggleDemo.mutate()}>
+              Confirmar
+            </Button>
+            <Button variant="ghost" size="sm" className="border border-border" onClick={() => setConfirming(null)}>
+              Cancelar
+            </Button>
+          </div>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => setConfirming("demo")}>
+            <FlaskConical className="size-4" /> {isDemo ? "Remover Conta Demo" : "Transformar em Conta Demo"}
+          </Button>
+        )}
+      </div>
+
+      <p className="text-[11px] text-text-muted">
+        Toda ação aqui grava uma linha imutável em AuditLog (autor, antes/depois, IP) e uma transação rastreável na
+        carteira.
+      </p>
+    </div>
   );
 }
 

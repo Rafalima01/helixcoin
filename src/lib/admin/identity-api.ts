@@ -104,6 +104,19 @@ export const IdentityAdminApi = {
     return request<Record<string, never>>(`/api/admin/users/${id}`, { method: "DELETE" });
   },
 
+  /**
+   * Flips an existing player between demo and real. Refused server-side when
+   * the account already has real financial history — see
+   * DemoAccountService.setDemoFlag for why converting after the fact would
+   * rewrite past reports.
+   */
+  async setUserDemoFlag(id: string, isDemo: boolean) {
+    return request<Record<string, never>>(`/api/admin/users/${id}/demo-flag`, {
+      method: "POST",
+      body: JSON.stringify({ isDemo }),
+    });
+  },
+
   async listUserSessions(id: string) {
     return request<SessionResponseDto[]>(`/api/admin/users/${id}/sessions`);
   },

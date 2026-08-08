@@ -12,3 +12,9 @@ export const addDemoBalanceSchema = z
     amountCents: z.number().int().positive("Informe um valor maior que zero"),
   })
   .strict();
+
+export const setDemoFlagSchema = z
+  .object({
+    isDemo: z.boolean(),
+  })
+  .strict();

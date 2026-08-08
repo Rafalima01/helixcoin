@@ -18,6 +18,8 @@ export interface UserResponseDto {
   status: UserStatus;
   role: Role;
   tags: string[];
+  /** Financially isolated account (excluded from ledger + admin financial aggregates). */
+  isDemo: boolean;
   lastLoginAt: string | null;
   emailVerified: boolean;
   phoneVerified: boolean;
@@ -48,6 +50,7 @@ export function toUserResponseDto(user: UserEntity, now = new Date()): UserRespo
     status: user.status,
     role: user.role,
     tags: user.tags,
+    isDemo: user.isDemo,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     emailVerified: !!user.emailVerifiedAt,
     phoneVerified: !!user.phoneVerifiedAt,

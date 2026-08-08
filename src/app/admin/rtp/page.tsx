@@ -47,7 +47,10 @@ const TABS = [
   { key: "DEMO", label: "Demo" },
   { key: "NORMAL", label: "Normal" },
   { key: "HARD", label: "Hard" },
-  { key: "goals", label: "Metas" },
+  // No "Metas" tab: its four controls (min/max do multiplicador + os dois
+  // toggles de tipo de meta) nunca chegaram a afetar partida nenhuma — a meta
+  // sempre sai de `targetMultiplierDefault`, que fica na aba Geral. Ver a nota
+  // em field-registry.ts (GeneralFieldKey).
   { key: "anticheat", label: "Anti-Cheat" },
   { key: "versions", label: "Versões" },
 ];
@@ -226,7 +229,6 @@ function RtpConfigEditor({
           {currentModeTab && (
             <ModeTab mode={currentModeTab} profile={form.modes[currentModeTab]} onChange={updateMode} />
           )}
-          {tab === "goals" && <GoalsTab form={form} onChange={updateGeneral} />}
           {tab === "anticheat" && <AntiCheatTab antiCheat={form.antiCheat} onChange={updateAntiCheat} />}
           {tab === "versions" && (
             <VersionsTab
@@ -436,59 +438,6 @@ function ModeTab({
         );
       })}
     </>
-  );
-}
-
-function GoalsTab({
-  form,
-  onChange,
-}: {
-  form: FormState;
-  onChange: <K extends keyof GeneralConfig>(key: K, value: GeneralConfig[K]) => void;
-}) {
-  const min = generalField("goalMultiplierMin");
-  const max = generalField("goalMultiplierMax");
-  return (
-    <SectionCard title="Configuração das metas" description="Limites do multiplicador-alvo e tipos de meta permitidos">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <NumberConfigField
-          label={min.label}
-          tooltip={min.tooltip}
-          value={form.general.goalMultiplierMin}
-          defaultValue={min.default}
-          min={min.min}
-          max={min.max}
-          step={min.step}
-          onChange={(v) => onChange("goalMultiplierMin", v)}
-        />
-        <NumberConfigField
-          label={max.label}
-          tooltip={max.tooltip}
-          value={form.general.goalMultiplierMax}
-          defaultValue={max.default}
-          min={max.min}
-          max={max.max}
-          step={max.step}
-          onChange={(v) => onChange("goalMultiplierMax", v)}
-        />
-      </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <BooleanConfigField
-          label="Permitir metas fixas"
-          tooltip="A meta de cada partida usa sempre o multiplicador padrão configurado em Geral."
-          value={form.general.goalAllowFixed}
-          defaultValue={true}
-          onChange={(v) => onChange("goalAllowFixed", v)}
-        />
-        <BooleanConfigField
-          label="Permitir metas dinâmicas"
-          tooltip="A meta pode variar entre o multiplicador mínimo e máximo configurados acima."
-          value={form.general.goalAllowDynamic}
-          defaultValue={false}
-          onChange={(v) => onChange("goalAllowDynamic", v)}
-        />
-      </div>
-    </SectionCard>
   );
 }
 

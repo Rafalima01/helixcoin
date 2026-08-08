@@ -60,7 +60,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "gravity",
     section: "physics",
     label: "Gravidade da bola",
-    tooltip: "Controla se a bola cai mais rápido (número mais negativo) ou mais devagar.",
+    tooltip:
+      "Aceleração da queda. Mais negativo = a bola ganha velocidade mais rápido e o jogador tem menos tempo para girar a torre até a abertura. NÃO altera a altura do quique: a altura é alvo fixo e a velocidade de lançamento é resolvida por v = √(2·g·h), então mexer aqui muda só o ritmo, não o alcance do pulo. Mais negativo = mais difícil = RTP real menor.",
     kind: "number",
     unit: "m/s²",
     min: -40,
@@ -72,7 +73,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "bounceForce",
     section: "physics",
     label: "Altura do quique",
-    tooltip: "Baixo, médio ou alto — quanto a bola sobe depois de bater em uma plataforma.",
+    tooltip:
+      "Altura que a bola sobe após bater, como fração do espaçamento entre plataformas (0,56 ≈ metade de um andar). É altura-alvo: todo quique sobe igual, independente da força do impacto. Mais alto = mais tempo no ar para posicionar a torre = mais fácil = RTP real maior.",
     kind: "number",
     min: 0.1,
     max: 1,
@@ -83,7 +85,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "ballSpeed",
     section: "physics",
     label: "Velocidade da bola",
-    tooltip: "Velocidade de queda da bola — mais lenta ou mais rápida.",
+    tooltip:
+      "TETO de velocidade de queda (não a velocidade constante): a bola acelera pela gravidade até esbarrar neste limite. É a garantia de que o jogador sempre consegue reagir — por isso subir muito este número é o jeito mais rápido de deixar o jogo injusto. Maior = mais difícil = RTP real menor.",
     kind: "number",
     unit: "u/s",
     min: 4,
@@ -96,7 +99,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "dangerChance",
     section: "generation",
     label: "Chance de segmentos vermelhos",
-    tooltip: "Probabilidade (0-1) de uma plataforma receber segmentos perigosos.",
+    tooltip:
+      "Fração das plataformas que recebem QUALQUER segmento vermelho (0 a 1). É uma chave liga/desliga por plataforma: sorteada como não-perigosa, a plataforma fica 100% limpa; sorteada como perigosa, a quantidade de vermelhos vem do campo abaixo. Em 1 (padrão de NORMAL/HARD) toda plataforma depois das protegidas entra na conta. Maior = mais difícil = RTP real menor.",
     kind: "number",
     min: 0,
     max: 1,
@@ -107,7 +111,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "maxDangerSegments",
     section: "generation",
     label: "Quantidade máxima de segmentos vermelhos por plataforma",
-    tooltip: "Teto de segmentos perigosos que uma única plataforma pode ter.",
+    tooltip:
+      "TETO de vermelhos por plataforma — não a quantidade fixa. A quantidade real sobe 1 a cada 6 plataformas depois das protegidas, até bater neste teto: com teto 4, o máximo só é atingido por volta da 18ª plataforma. Por isso subir este campo aperta o fim da partida (onde estão os multiplicadores altos), não o começo. Os segmentos ao lado da abertura nunca ficam vermelhos, então sempre existe rota. Maior = mais difícil = RTP real menor.",
     kind: "number",
     min: 0,
     max: 8,
@@ -118,7 +123,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "protectedPlatforms",
     section: "generation",
     label: "Quantidade de plataformas protegidas no início",
-    tooltip: "Primeiras plataformas geradas sem nenhum obstáculo, para o jogador se ambientar.",
+    tooltip:
+      "Primeiras N plataformas 100% sem vermelhos. Também é o marco zero da rampa de dificuldade: a contagem de vermelhos só começa a subir a partir daqui, então aumentar este campo adia a partida inteira, não só o começo. Maior = mais fácil = RTP real maior.",
     kind: "number",
     min: 0,
     max: 20,
@@ -129,7 +135,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "totalPlatforms",
     section: "generation",
     label: "Quantidade total de plataformas",
-    tooltip: "Número de plataformas geradas na partida.",
+    tooltip:
+      "Quantas plataformas são geradas no PRIMEIRO lote da torre. Não é o fim da partida: quando o jogador se aproxima do fim do lote, a torre é estendida em blocos de 30 indefinidamente. Ou seja, este campo é um ajuste de carregamento inicial — praticamente não muda a dificuldade nem o RTP. Só mexa se a torre estiver demorando a aparecer no primeiro frame.",
     kind: "number",
     min: 10,
     max: 200,
@@ -140,7 +147,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "segmentsPerPlatform",
     section: "generation",
     label: "Quantidade de segmentos por plataforma",
-    tooltip: "Em quantas partes cada plataforma é dividida.",
+    tooltip:
+      "Em quantas fatias o anel é dividido (12 = fatias de 30°). Como a abertura é medida em SEGMENTOS, este campo muda a largura real do buraco em graus: com abertura de 2, subir de 12 para 16 segmentos estreita a passagem de 60° para 45°. Sempre ajuste os dois juntos. Maior = mais difícil = RTP real menor.",
     kind: "number",
     min: 4,
     max: 24,
@@ -151,7 +159,8 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     key: "gapWidth",
     section: "generation",
     label: "Largura da abertura entre segmentos",
-    tooltip: "Quão larga é a passagem livre em cada plataforma.",
+    tooltip:
+      "Quantos segmentos formam a passagem livre por onde a bola desce (2 de 12 = 60°). É a única rota garantida de cada plataforma, e os segmentos vizinhos a ela nunca ficam vermelhos. Maior = passagem mais larga e menos espaço para vermelhos = mais fácil = RTP real maior.",
     kind: "number",
     min: 1,
     max: 6,
@@ -249,13 +258,26 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
   },
 ];
 
+/**
+ * `goalMultiplierMin`/`goalMultiplierMax` (and the "Metas" tab that edited
+ * them, alongside `goalAllowFixed`/`goalAllowDynamic`) were removed from the
+ * admin panel for the same reason as the two anti-cheat fields below: they
+ * were inert. Dynamic goals were never implemented — MatchEngineService.start
+ * sets `targetMultiplier = general.targetMultiplierDefault` unconditionally,
+ * with no branch on the "allow" flags and no clamp to the min/max pair. Four
+ * controls that saved, versioned and audited cleanly while changing nothing
+ * about any match.
+ *
+ * The fields stay on GeneralConfig and in each match's `goalSnapshot`: old
+ * config versions and old matches carry real values for them, and dropping
+ * the keys would rewrite that history. They're just no longer editable —
+ * `buildDefaultGeneral` pins them to fixed constants.
+ */
 export type GeneralFieldKey =
   | "targetMultiplierDefault"
   | "betMin"
   | "betMax"
-  | "hardModeBalanceThreshold"
-  | "goalMultiplierMin"
-  | "goalMultiplierMax";
+  | "hardModeBalanceThreshold";
 
 export interface GeneralFieldDef {
   key: GeneralFieldKey;
@@ -277,7 +299,8 @@ export const GENERAL_FIELDS: GeneralFieldDef[] = [
   {
     key: "targetMultiplierDefault",
     label: "Multiplicador padrão da meta",
-    tooltip: "Meta = Valor Apostado × este multiplicador, quando a meta fixa está em uso.",
+    tooltip:
+      "Meta de TODA partida = valor apostado × este número (aposta de R$10 com multiplicador 5 → meta de R$50). O jogador só pode resgatar depois de atingir a meta, então este é o campo que mais mexe no RTP real de todos: maior = jogador precisa descer mais plataformas antes de poder sacar = menos partidas resgatadas = RTP real menor.",
     min: 1.1,
     max: 100,
     step: 0.1,
@@ -286,7 +309,8 @@ export const GENERAL_FIELDS: GeneralFieldDef[] = [
   {
     key: "betMin",
     label: "Aposta mínima",
-    tooltip: "Valor mínimo de aposta aceito ao iniciar uma partida.",
+    tooltip:
+      "Piso da aposta, validado no servidor ao iniciar a partida (abaixo disso o /start é recusado). Não afeta dificuldade nem RTP — é limite comercial.",
     unit: "centavos",
     min: 100,
     max: 1_000_000,
@@ -296,7 +320,8 @@ export const GENERAL_FIELDS: GeneralFieldDef[] = [
   {
     key: "betMax",
     label: "Aposta máxima",
-    tooltip: "Valor máximo de aposta aceito ao iniciar uma partida.",
+    tooltip:
+      "Teto da aposta, validado no servidor ao iniciar a partida. Não afeta dificuldade nem RTP, mas limita a exposição máxima da casa em uma única partida.",
     unit: "centavos",
     min: 100,
     max: 10_000_000,
@@ -307,32 +332,18 @@ export const GENERAL_FIELDS: GeneralFieldDef[] = [
     key: "hardModeBalanceThreshold",
     label: "Limite de saldo para ativar Modo Hard",
     tooltip:
-      "Saldo Total (saldo atual + total já sacado) a partir do qual o jogador entra automaticamente em Modo Hard. 0 desativa o recurso.",
+      "A partir deste Saldo Total (saldo atual + tudo que o jogador já sacou), as partidas dele passam a usar o perfil HARD em vez do NORMAL. É verificado a cada início de partida, então o jogador pode entrar e sair do Hard conforme o saldo varia. 0 desativa: todo mundo fica no NORMAL. Contas Demo ignoram esta regra (sempre DEMO). Menor = mais jogadores no perfil difícil = RTP real menor.",
     unit: "centavos",
     min: 0,
     max: 100_000_000,
     step: 100,
     default: 0, // disabled by default — everyone stays NORMAL until an admin sets a real threshold
   },
-  {
-    key: "goalMultiplierMin",
-    label: "Multiplicador mínimo da meta",
-    tooltip: "Piso permitido para a meta de uma partida, quando metas dinâmicas estão habilitadas.",
-    min: 1.05,
-    max: 100,
-    step: 0.05,
-    default: 1.2,
-  },
-  {
-    key: "goalMultiplierMax",
-    label: "Multiplicador máximo da meta",
-    tooltip: "Teto permitido para a meta de uma partida, quando metas dinâmicas estão habilitadas.",
-    min: 1.1,
-    max: 200,
-    step: 0.5,
-    default: 50,
-  },
 ];
+
+/** Fixed values for the two goal bounds that are no longer admin-editable — see the GeneralFieldKey note above. */
+export const GOAL_MULTIPLIER_MIN = 1.2;
+export const GOAL_MULTIPLIER_MAX = 50;
 
 /**
  * `maxHorizontalSpeed` and `maxAcceleration` were removed rather than wired
@@ -364,7 +375,8 @@ export const ANTI_CHEAT_FIELDS: AntiCheatFieldDef[] = [
   {
     key: "maxPlatformsPerSecond",
     label: "Máximo de plataformas por segundo",
-    tooltip: "Ritmo máximo plausível de progresso — acima disso o resolve é recusado e a partida é sinalizada.",
+    tooltip:
+      "Ritmo máximo plausível de descida, medido pelo relógio do servidor (plataformas ÷ tempo). Roda em duas frentes: a média da partida inteira e, com 50% de folga para jitter de rede, o intervalo desde o último checkpoint — é o segundo que pega o script que espera o cronômetro e depois reporta um salto. Acima do teto, o resolve é RECUSADO e a partida é sinalizada. Baixar aperta a detecção e aumenta o risco de falso positivo com jogador rápido em conexão ruim.",
     unit: "plataformas/s",
     min: 0.5,
     max: 10,
@@ -374,7 +386,8 @@ export const ANTI_CHEAT_FIELDS: AntiCheatFieldDef[] = [
   {
     key: "minSecondsToGoal",
     label: "Tempo mínimo permitido para atingir a meta",
-    tooltip: "Tempo mínimo, em segundos, entre o início da partida e o alcance da meta.",
+    tooltip:
+      "Piso de tempo real entre o /start e um resgate. Vale só no resgate — derrota e desistência nunca são barradas por tempo. Resgatar antes disso é recusado e sinalizado. Suba com cuidado: um teto alto demais barra o jogador legítimo que atingiu a meta rápido com uma aposta de multiplicador baixo.",
     unit: "s",
     min: 1,
     max: 60,
@@ -384,7 +397,8 @@ export const ANTI_CHEAT_FIELDS: AntiCheatFieldDef[] = [
   {
     key: "minSecondsBeforeCashout",
     label: "Tempo mínimo para resgate",
-    tooltip: "Tempo mínimo, em segundos, entre o início da partida e um resgate (cashout).",
+    tooltip:
+      "Segundo piso de tempo para o resgate, aplicado junto com o de cima — na prática vale o MAIOR dos dois. Existe separado para permitir uma regra frouxa de meta e ainda assim bloquear o resgate instantâneo por replay de requisição. 0 desativa este piso (o de cima continua valendo).",
     unit: "s",
     min: 0,
     max: 30,
@@ -394,7 +408,8 @@ export const ANTI_CHEAT_FIELDS: AntiCheatFieldDef[] = [
   {
     key: "maxVerticalSpeed",
     label: "Máxima velocidade vertical",
-    tooltip: "Velocidade vertical reportada acima da qual a sessão é considerada suspeita.",
+    tooltip:
+      "Teto de velocidade de queda aceita no resolve. ATENÇÃO — diferente dos outros campos desta aba, este valor vem do cliente: pega cliente ingênuo (velocidade adulterada sem esconder o relatório), mas um bot que simplesmente não envia o campo passa por ele, porque campo ausente pula a checagem. Não substitui o teto de plataformas/segundo, que é medido pelo servidor. Deixe acima da velocidade máxima real do modo mais rápido (hoje o campo 'Velocidade da bola' do HARD) para não recusar partida honesta.",
     unit: "u/s",
     min: 5,
     max: 100,

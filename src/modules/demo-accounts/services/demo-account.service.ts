@@ -103,6 +103,80 @@ export class DemoAccountService {
     return { id: user.id, login, password, balanceCents: initialBalanceCents };
   }
 
+  /**
+   * Flips an EXISTING user between demo and real, from the user drawer.
+   *
+   * Guarded by `assertNoRealFinancialHistory` on purpose. `isDemo` is not a
+   * cosmetic label — it excludes the user from the ledger, from the admin
+   * transaction listing and from the financial aggregates (see the isDemo
+   * filters in wallet/ledger prisma repositories). So flipping an account
+   * that already moved money rewrites history retroactively in both
+   * directions: demoting a real player makes his real deposits vanish from
+   * GGR/net profit, and promoting a demo account injects admin-fabricated
+   * balance into those same reports as if it had been deposited. Neither is
+   * recoverable by looking at the row afterwards, so the conversion is
+   * refused instead of being made "undoable".
+   */
+  async setDemoFlag(
+    userId: string,
+    isDemo: boolean,
+    actor: AdminActor,
+    meta: RequestMeta
+  ): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user || user.deletedAt) throw new NotFoundError("Usuário");
+    if (user.isDemo === isDemo) {
+      throw new BusinessRuleError(isDemo ? "Conta já é Demo" : "Conta já é real");
+    }
+    if (user.role !== "USER") {
+      throw new BusinessRuleError("Apenas contas de jogador podem ser marcadas como Demo");
+    }
+
+    await this.assertNoRealFinancialHistory(user.id);
+
+    await this.users.update(user.id, {
+      isDemo,
+      // Kept in lockstep with isDemo — the game engine resolves the DEMO
+      // difficulty profile from this tag, so a converted account must also
+      // switch which physics profile it plays (see create() above).
+      tags: isDemo
+        ? Array.from(new Set([...(user.tags ?? []), "demo"]))
+        : (user.tags ?? []).filter((t) => t !== "demo"),
+    });
+
+    await AuditService.record({
+      actorId: actor.id,
+      actorType: "USER",
+      actorRole: actor.role as Role,
+      action: isDemo ? "admin.user.mark_demo" : "admin.user.unmark_demo",
+      entityType: "User",
+      entityId: user.id,
+      before: { isDemo: user.isDemo, tags: user.tags },
+      after: { isDemo, tags: isDemo ? ["demo"] : [] },
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+  }
+
+  /**
+   * Refuses the conversion when the account already carries real money
+   * movement. Deliberately counts DEPOSIT/WITHDRAW/BET rather than "is the
+   * balance non-zero": an admin `adjust` leaves a balance without being real
+   * money, and a player who deposited and lost it all has a zero balance but
+   * very real history that reports already counted.
+   */
+  private async assertNoRealFinancialHistory(userId: string): Promise<void> {
+    const { items } = await this.wallets.listTransactions({ userId, page: 1, pageSize: 200 });
+    const blocking = items.filter((t) =>
+      ["DEPOSIT", "WITHDRAW", "WITHDRAW_APPROVED", "BET", "PAYOUT"].includes(t.type)
+    );
+    if (blocking.length > 0) {
+      throw new BusinessRuleError(
+        "Esta conta já tem movimentação financeira real (depósito, saque ou aposta) e não pode ter o tipo alterado — a conversão apagaria ou inventaria valores nos relatórios. Use uma conta nova."
+      );
+    }
+  }
+
   async addBalance(
     userId: string,
     amountCents: number,
