@@ -7,6 +7,7 @@ import { PageHeader, DataTable, StatusBadge, type TableColumn } from "@/componen
 import { Button } from "@/components/ui/button";
 import { DemoAccountsAdminApi } from "@/lib/admin/demo-accounts-api";
 import { formatCurrency } from "@/lib/utils";
+import { formatPhone } from "@/lib/phone";
 import { CreateDemoAccountModal } from "@/components/admin/demo-accounts/create-demo-account-modal";
 import { DemoAccountDrawer } from "@/components/admin/demo-accounts/demo-account-drawer";
 import type { DemoAccountListItemDto } from "@/modules/demo-accounts/dto/demo-account.dto";
@@ -35,7 +36,19 @@ export default function AdminDemoAccountsPage() {
   const selectedFresh = selected ? (rows.find((r) => r.id === selected.id) ?? null) : null;
 
   const columns: TableColumn<DemoAccountListItemDto>[] = [
-    { key: "login", header: "Login", render: (r) => <span className="font-mono font-semibold">{r.login}</span> },
+    { key: "fullName", header: "Nome", render: (r) => <span className="font-semibold">{r.fullName}</span> },
+    {
+      key: "phone",
+      header: "Telefone (login)",
+      render: (r) =>
+        r.phone ? (
+          <span className="font-mono">{formatPhone(r.phone)}</span>
+        ) : (
+          <span className="text-text-muted" title="Criada antes do login por telefone — não consegue autenticar até um admin definir um telefone.">
+            Sem telefone
+          </span>
+        ),
+    },
     { key: "password", header: "Senha", render: () => <span className="text-text-muted">••••••••</span> },
     {
       key: "balance",

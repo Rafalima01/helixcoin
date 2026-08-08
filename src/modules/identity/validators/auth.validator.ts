@@ -46,11 +46,10 @@ export const registerSchema = z
 
 export const loginSchema = z
   .object({
-    // Accepts a real email OR a Conta Demo login (e.g. "demo47291", no
-    // "@domain.internal" shown to the admin — see src/modules/demo-accounts).
-    // AuthService.login() branches on the presence of "@" to decide which
-    // repository lookup to use; regular users always type a real email, so
-    // their behavior is unchanged.
+    // Accepts a real email OR a phone number (formatted or digits-only) —
+    // every player, including Contas Demo (see src/modules/demo-accounts),
+    // logs in with phone+senha. AuthService.login() branches on the presence
+    // of "@" to decide which repository lookup to use.
     email: z.string().trim().toLowerCase().min(3, "Informe seu email ou login"),
     password: z.string().min(1, "Informe sua senha"),
     rememberMe: z.boolean().optional().default(false),

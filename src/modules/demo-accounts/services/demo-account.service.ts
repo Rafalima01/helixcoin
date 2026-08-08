@@ -6,7 +6,7 @@ import type { AdminActor } from "@/modules/identity/services/user-management.ser
 import { WalletService } from "@/modules/wallet/services/wallet.service";
 import type { IDemoAccountRepository } from "@/modules/demo-accounts/interfaces/demo-account-repository.interface";
 import type { DemoAccountRow } from "@/modules/demo-accounts/entities/demo-account.entity";
-import { generateDemoLogin, generateDemoPassword, demoEmailFor } from "@/modules/demo-accounts/utils/credentials.util";
+import { generateDemoLogin, generateDemoPassword, generateDemoPhone, demoEmailFor } from "@/modules/demo-accounts/utils/credentials.util";
 import { hashPassword } from "@/server/auth/password";
 import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
 import { generateReferralCode } from "@/modules/identity/utils/referral-code.util";
@@ -15,7 +15,10 @@ import { BusinessRuleError, NotFoundError } from "@/server/errors";
 
 export interface CreateDemoAccountResult {
   id: string;
+  /** Internal identifier only — never a login credential. See `phone` below for that. */
   login: string;
+  /** The login identifier — Contas Demo authenticate exactly like a real player, via phone+senha (see AuthService.login). Digits only. */
+  phone: string;
   password: string;
   balanceCents: number;
 }
@@ -61,11 +64,21 @@ export class DemoAccountService {
       referralCode = generateReferralCode("Demo");
     }
 
+    // The login identifier: same requirement as a real player (phone+senha,
+    // see AuthService.login), so a Conta Demo needs a real, unique User.phone
+    // or it's created unable to authenticate.
+    let phone = generateDemoPhone();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (!(await this.users.findByPhone(phone))) break;
+      phone = generateDemoPhone();
+    }
+
     const user = await this.users.create({
       firstName: "Conta",
       lastName: "Demo",
       username: login,
       email: demoEmailFor(login),
+      phone,
       passwordHash,
       referralCode,
       status: "ACTIVE",
@@ -95,12 +108,12 @@ export class DemoAccountService {
       action: "admin.demo_account.create",
       entityType: "User",
       entityId: user.id,
-      after: { login: user.username, initialBalanceCents },
+      after: { login: user.username, phone, initialBalanceCents },
       ip: meta.ip,
       userAgent: meta.userAgent,
     });
 
-    return { id: user.id, login, password, balanceCents: initialBalanceCents };
+    return { id: user.id, login, phone, password, balanceCents: initialBalanceCents };
   }
 
   /**

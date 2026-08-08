@@ -24,7 +24,9 @@ export class PrismaDemoAccountRepository implements IDemoAccountRepository {
 
     return users.map((u) => ({
       id: u.id,
+      fullName: `${u.firstName} ${u.lastName}`.trim(),
       login: u.username,
+      phone: u.phone,
       status: u.status,
       balanceCents: u.wallet?.balance ?? 0,
       createdAt: u.createdAt,

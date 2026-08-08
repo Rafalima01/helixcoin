@@ -124,24 +124,27 @@ export class AuthService {
 
   async login(input: LoginInput, meta: RequestMeta): Promise<LoginResult> {
     const logger = createChildLogger({ module: "identity.auth" });
-    // Three shapes share this one field: a real email (admin/manager staff,
-    // or a legacy player), a Conta Demo bare login like "demo47291" (see
-    // src/modules/demo-accounts — never the synthetic @domain.internal
-    // email behind it), or a phone number (regular player signup — see
-    // register() above, phone is the login identifier, username/email are
-    // auto-generated and never shown). The player zone's login field masks
-    // digits as "(11) 91234-5678" as the player types, so detection can't
-    // key off the first character — instead, a phone number is the only
-    // shape whose digits-only form is long enough to be one (a demo login's
-    // digit run is only 5 chars, e.g. "demo47291" -> "47291").
+    // Two shapes share this one field: a real email (admin/manager staff, or
+    // a legacy player), or a phone number (every player, including Contas
+    // Demo — see register() above and DemoAccountService.create, phone is
+    // the login identifier, username/email are auto-generated and never
+    // shown). The player zone's login field masks digits as
+    // "(11) 91234-5678" as the player types, so detection can't key off the
+    // first character — instead it's just "has an @ or not".
+    //
+    // There used to be a third shape here: a Conta Demo's bare username
+    // (e.g. "demo47291", no "@domain.internal" behind it) looked up via
+    // findByUsername. That's gone — Contas Demo are provisioned with a real
+    // phone number now (DemoAccountService.create) and authenticate exactly
+    // like any other player. A short, admin-generated, pattern-guessable
+    // username being a live credential was also a real brute-force surface
+    // this removes.
     const identifier = input.email;
     let user: UserEntity | null;
     if (identifier.includes("@")) {
       user = await this.users.findByEmail(identifier);
-    } else if (onlyDigits(identifier).length >= 10) {
-      user = await this.users.findByPhone(onlyDigits(identifier));
     } else {
-      user = await this.users.findByUsername(identifier);
+      user = await this.users.findByPhone(onlyDigits(identifier));
     }
 
     if (!user) {

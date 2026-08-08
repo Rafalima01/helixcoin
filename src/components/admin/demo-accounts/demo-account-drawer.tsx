@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DemoAccountsAdminApi, ApiError } from "@/lib/admin/demo-accounts-api";
 import { formatCurrency } from "@/lib/utils";
+import { formatPhone } from "@/lib/phone";
 import type { DemoAccountListItemDto } from "@/modules/demo-accounts/dto/demo-account.dto";
 
 const STATUS: Record<string, { label: string; tone: "success" | "danger" | "warning" | "neutral" }> = {
@@ -67,7 +68,7 @@ export function DemoAccountDrawer({
   const status = STATUS[account.status] ?? STATUS.PENDING;
 
   return (
-    <Drawer open={!!account} onClose={onClose} title={account.login}>
+    <Drawer open={!!account} onClose={onClose} title={account.fullName}>
       <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <span className="text-sm text-text-secondary">Status</span>
@@ -75,6 +76,10 @@ export function DemoAccountDrawer({
         </div>
 
         <div className="rounded-xl border border-border p-4 flex flex-col gap-2">
+          <DetailRow
+            label="Telefone (login)"
+            value={account.phone ? <span className="font-mono">{formatPhone(account.phone)}</span> : "Sem telefone"}
+          />
           <DetailRow label="Saldo Demo" value={formatCurrency(account.balanceCents / 100)} />
           <DetailRow label="Data de criação" value={formatDateTime(account.createdAt)} />
           <DetailRow label="Último login" value={formatDateTime(account.lastLoginAt)} />

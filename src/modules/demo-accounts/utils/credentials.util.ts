@@ -37,3 +37,17 @@ export function generateDemoPassword(): string {
 export function demoEmailFor(login: string): string {
   return `${login}@demo.helixcoin.internal`;
 }
+
+/**
+ * A synthetic-but-`isValidBrazilianPhone`-valid mobile number for admin-created
+ * demo accounts. Since phone+senha is the login identifier on every zone (see
+ * AuthService.login), a Conta Demo with no phone can never authenticate — this
+ * fills the same role generateDemoLogin() used to play before login stopped
+ * accepting a bare username. Uniqueness is the CALLER's responsibility, same
+ * retry-on-collision pattern as generateDemoLogin/generateReferralCode.
+ */
+export function generateDemoPhone(): string {
+  const ddd = 11 + Math.floor(Math.random() * 89); // 11-99 — the full range isValidBrazilianPhone accepts
+  const rest = Array.from({ length: 8 }, () => Math.floor(Math.random() * 10)).join("");
+  return `${ddd}9${rest}`; // 11 digits, mobile shape: DDD + required "9" + 8 digits
+}

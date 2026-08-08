@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { DemoAccountService } from "@/modules/demo-accounts/services/demo-account.service";
+import { AuthService } from "@/modules/identity/services/auth.service";
 import { InMemoryUserRepository } from "@/modules/identity/repositories/user.in-memory-repository";
 import { InMemoryUserSessionRepository } from "@/modules/identity/repositories/session.in-memory-repository";
 import { InMemoryWalletRepository } from "@/modules/wallet/repositories/wallet.in-memory-repository";
@@ -9,11 +10,22 @@ import type { DemoAccountRow } from "@/modules/demo-accounts/entities/demo-accou
 import { BusinessRuleError, NotFoundError } from "@/server/errors";
 import type { RequestMeta } from "@/modules/identity/services/auth.service";
 import type { AdminActor } from "@/modules/identity/services/user-management.service";
+import { isValidBrazilianPhone, formatPhone } from "@/lib/phone";
 
 vi.mock("@/server/audit", () => ({ AuditService: { record: vi.fn() } }));
 vi.mock("@/server/auth/tokens", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/auth/tokens")>();
-  return { ...actual, revokeFamily: vi.fn(), blacklistFamilyAccessTokens: vi.fn() };
+  return {
+    ...actual,
+    revokeFamily: vi.fn(),
+    blacklistFamilyAccessTokens: vi.fn(),
+    issueTokenPair: vi.fn(async (_userId: string, _role?: unknown, familyId = "fam_demo_login") => ({
+      accessToken: "access.token",
+      refreshToken: "refresh.token",
+      sessionId: "sess_demo_login",
+      familyId,
+    })),
+  };
 });
 
 const meta: RequestMeta = { ip: "127.0.0.1", userAgent: "vitest" };
@@ -49,6 +61,34 @@ describe("DemoAccountService.create", () => {
     expect(stored!.isDemo).toBe(true);
     expect(stored!.tags).toEqual(["demo"]);
     expect(stored!.status).toBe("ACTIVE");
+  });
+
+  it("generates a real, unique phone and persists it on the user — the login identifier, not the internal username", async () => {
+    const { service, users } = buildService();
+    const result = await service.create(10_000, actor, meta);
+
+    expect(result.phone).toMatch(/^\d{11}$/);
+    expect(isValidBrazilianPhone(result.phone)).toBe(true);
+
+    const stored = await users.findById(result.id);
+    expect(stored!.phone).toBe(result.phone);
+  });
+
+  it("never collides two Contas Demo on the same phone", async () => {
+    const { service } = buildService();
+    const first = await service.create(0, actor, meta);
+    const second = await service.create(0, actor, meta);
+    expect(first.phone).not.toBe(second.phone);
+  });
+
+  it("the created Conta Demo can log in immediately with phone+senha, exactly like a real player", async () => {
+    const { service, users, sessions } = buildService();
+    const created = await service.create(10_000, actor, meta);
+
+    const auth = new AuthService(users, sessions);
+    const result = await auth.login({ email: formatPhone(created.phone), password: created.password }, meta);
+
+    expect(result.user.id).toBe(created.id);
   });
 
   it("credits the initial balance via WalletService", async () => {

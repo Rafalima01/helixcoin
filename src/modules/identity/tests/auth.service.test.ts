@@ -202,13 +202,14 @@ describe("AuthService.login", () => {
     expect(result.user.id).toBe(user.id);
   });
 
-  it("logs in a Conta Demo by its bare login (no '@') via username lookup", async () => {
+  it("logs in a Conta Demo by phone number, exactly like a real player (no more username-based login)", async () => {
     const { service, users } = buildService();
     const demoUser = await users.create({
       firstName: "Conta",
       lastName: "Demo",
       username: "demo33333",
       email: "demo33333@demo.helixcoin.internal",
+      phone: "21988887777",
       passwordHash: await hashPassword("Lx92@Pm83"),
       status: "ACTIVE",
       referralCode: "DEMOLOG1",
@@ -216,8 +217,25 @@ describe("AuthService.login", () => {
       tags: ["demo"],
     });
 
-    const result = await service.login({ email: "demo33333", password: "Lx92@Pm83" }, meta);
+    const result = await service.login({ email: "(21) 98888-7777", password: "Lx92@Pm83" }, meta);
     expect(result.user.id).toBe(demoUser.id);
+  });
+
+  it("no longer authenticates by bare username — a Conta Demo without its phone can't log in with its internal username", async () => {
+    const { service, users } = buildService();
+    await users.create({
+      firstName: "Conta",
+      lastName: "Demo",
+      username: "demo33333",
+      email: "demo33333@demo.helixcoin.internal",
+      passwordHash: await hashPassword("Lx92@Pm83"),
+      status: "ACTIVE",
+      referralCode: "DEMOLOG2",
+      isDemo: true,
+      tags: ["demo"],
+    });
+
+    await expect(service.login({ email: "demo33333", password: "Lx92@Pm83" }, meta)).rejects.toThrow(UnauthorizedError);
   });
 });
 

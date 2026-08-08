@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DemoAccountsAdminApi, ApiError } from "@/lib/admin/demo-accounts-api";
 import { formatCurrency } from "@/lib/utils";
+import { formatPhone } from "@/lib/phone";
 import type { DemoAccountCreatedDto } from "@/modules/demo-accounts/dto/demo-account.dto";
 
 const QUICK_AMOUNTS = [50_00, 100_00, 250_00, 500_00, 1000_00];
@@ -17,7 +18,7 @@ export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClo
   const queryClient = useQueryClient();
   const [initialReais, setInitialReais] = useState("100,00");
   const [result, setResult] = useState<DemoAccountCreatedDto | null>(null);
-  const [copiedField, setCopiedField] = useState<"login" | "password" | "all" | null>(null);
+  const [copiedField, setCopiedField] = useState<"phone" | "password" | "all" | null>(null);
 
   const create = useMutation({
     mutationFn: () => DemoAccountsAdminApi.create(reaisToCents(initialReais)),
@@ -35,7 +36,7 @@ export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClo
     onClose();
   };
 
-  const copy = async (field: "login" | "password" | "all", text: string) => {
+  const copy = async (field: "phone" | "password" | "all", text: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedField(field);
     toast.success("Copiado!");
@@ -49,14 +50,19 @@ export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClo
       title={result ? "Conta Demo criada" : "Nova Conta Demo"}
       description={
         result
-          ? "Guarde a senha agora — ela não será exibida novamente."
+          ? "Guarde a senha agora — ela não será exibida novamente. Login é feito com o telefone abaixo + senha, exatamente como uma conta de jogador normal."
           : "Exclusiva para influenciadores, criadores de conteúdo e parceiros. Não conta para estatísticas financeiras."
       }
     >
       {result ? (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-border bg-black/30 p-4 flex flex-col gap-3">
-            <CredentialRow label="Login" value={result.login} onCopy={() => copy("login", result.login)} copied={copiedField === "login"} />
+            <CredentialRow
+              label="Telefone (login)"
+              value={formatPhone(result.phone)}
+              onCopy={() => copy("phone", result.phone)}
+              copied={copiedField === "phone"}
+            />
             <CredentialRow label="Senha" value={result.password} onCopy={() => copy("password", result.password)} copied={copiedField === "password"} />
             <div className="flex items-center justify-between pt-2 border-t border-border">
               <span className="text-sm text-text-secondary">Saldo</span>
@@ -64,8 +70,8 @@ export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClo
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Button variant="secondary" size="sm" onClick={() => copy("login", result.login)}>
-              Copiar Login
+            <Button variant="secondary" size="sm" onClick={() => copy("phone", result.phone)}>
+              Copiar Telefone
             </Button>
             <Button variant="secondary" size="sm" onClick={() => copy("password", result.password)}>
               Copiar Senha
@@ -73,7 +79,12 @@ export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClo
             <Button
               variant="primary"
               size="sm"
-              onClick={() => copy("all", `Login: ${result.login} / Senha: ${result.password} / Saldo: ${formatCurrency(result.balanceCents / 100)}`)}
+              onClick={() =>
+                copy(
+                  "all",
+                  `Telefone: ${formatPhone(result.phone)} / Senha: ${result.password} / Saldo: ${formatCurrency(result.balanceCents / 100)}`
+                )
+              }
             >
               {copiedField === "all" ? <Check className="size-4" /> : <Copy className="size-4" />} Copiar Tudo
             </Button>
