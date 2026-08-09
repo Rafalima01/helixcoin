@@ -38,15 +38,35 @@ export interface DashboardAcquisition {
 export interface DashboardFinancial {
   depositsCents: number;
   withdrawalsCents: number;
+  /** BET − PAYOUT, contas reais apenas (isDemo=false) — receita bruta operacional do jogo, regime de competência (accrual). Não é fluxo de caixa — ver netProfitCents. */
   ggrCents: number;
+  /** ggrCents − bonusCostCents, contas reais apenas. */
   ngrCents: number;
   bonusCostCents: number;
+  /** Comissão REVSHARE_DEPOSIT gerada (LOCKED+AVAILABLE), contas reais apenas — informativo. NÃO reduz netProfitCents (ver doc ali). */
   revshareCostCents: number;
-  /** revshare + any legacy CPA rows still on record — see legacyCpaAgg below. */
+  /** revshare + qualquer linha de CPA legado ainda em registro — ver legacyCpaAgg. Informativo, NÃO reduz netProfitCents. */
   affiliateCostCents: number;
+  /** Comissão MANAGER_SPREAD gerada — informativo, NÃO reduz netProfitCents. */
   managerSpreadCostCents: number;
+  /**
+   * Lucro Líquido Realizado = depositsCents − withdrawalsCents (Deposit
+   * status=PAID − Withdraw status=APPROVED, contas reais apenas). Fluxo de
+   * caixa real — deliberadamente NÃO derivado de ggrCents/ngrCents/comissões:
+   * comissão gerada (LOCKED/AVAILABLE) ainda não é dinheiro que saiu da
+   * plataforma, só sai quando o beneficiário efetivamente saca. Como o saldo
+   * de comissão aprovada e o saldo de jogo vivem na MESMA Wallet.balance (ver
+   * commission.service.ts's approve()), qualquer saque real — de comissão ou
+   * de ganho de jogo — já aparece aqui como um Withdraw.APPROVED, sem
+   * precisar rastrear a origem do saldo sacado.
+   */
   netProfitCents: number;
-  /** netProfitCents / ggrCents — null when ggrCents is 0 (can't divide). */
+  /**
+   * netProfitCents / ggrCents — mistura DELIBERADAMENTE uma métrica de caixa
+   * (netProfitCents) com uma de competência (ggrCents) para dar uma leitura
+   * de "margem realizada sobre a receita bruta apurada". Não é exibido na UI
+   * hoje. Null quando ggrCents é 0 (não dá pra dividir).
+   */
   marginPct: number | null;
 }
 
@@ -211,21 +231,21 @@ export class DashboardSummaryService {
       stuckDeposits,
       stuckWithdrawals,
     ] = await Promise.all([
-      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
-      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: prev.start, lt: prev.end } }, _sum: { amountCents: true } }),
-      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
-      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: prev.start, lt: prev.end } }, _sum: { amountCents: true } }),
+      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: start, lt: end }, user: { isDemo: false } }, _sum: { amountCents: true } }),
+      prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: prev.start, lt: prev.end }, user: { isDemo: false } }, _sum: { amountCents: true } }),
+      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: start, lt: end }, user: { isDemo: false } }, _sum: { amountCents: true } }),
+      prisma.withdraw.aggregate({ where: { status: "APPROVED", processedAt: { gte: prev.start, lt: prev.end }, user: { isDemo: false } }, _sum: { amountCents: true } }),
       prisma.user.count({ where: { role: "USER", createdAt: { gte: start, lt: end } } }),
       prisma.user.count({ where: { role: "USER", createdAt: { gte: prev.start, lt: prev.end } } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: start, lt: end } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: start, lt: end } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: start, lt: end } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end } }, _sum: { amount: true } }),
-      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end } }, _sum: { amount: true } }),
-      prisma.commission.aggregate({ where: { sourceType: "CPA_FTD", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
-      prisma.commission.aggregate({ where: { sourceType: "REVSHARE_DEPOSIT", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
-      prisma.commission.aggregate({ where: { sourceType: "MANAGER_SPREAD", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: start, lt: end }, user: { isDemo: false } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: start, lt: end }, user: { isDemo: false } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: start, lt: end }, user: { isDemo: false } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BET", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end }, user: { isDemo: false } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "PAYOUT", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end }, user: { isDemo: false } }, _sum: { amount: true } }),
+      prisma.walletTransaction.aggregate({ where: { type: "BONUS", status: "COMPLETED", createdAt: { gte: prev.start, lt: prev.end }, user: { isDemo: false } }, _sum: { amount: true } }),
+      prisma.commission.aggregate({ where: { sourceType: "CPA_FTD", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end }, payeeUser: { isDemo: false } }, _sum: { amountCents: true } }),
+      prisma.commission.aggregate({ where: { sourceType: "REVSHARE_DEPOSIT", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end }, payeeUser: { isDemo: false } }, _sum: { amountCents: true } }),
+      prisma.commission.aggregate({ where: { sourceType: "MANAGER_SPREAD", status: { in: [...PAID_COMMISSION_STATUSES] }, createdAt: { gte: start, lt: end }, payeeUser: { isDemo: false } }, _sum: { amountCents: true } }),
       prisma.user.count({ where: { role: "USER", deletedAt: null } }),
       prisma.user.count({ where: { role: "USER", status: "ACTIVE", deletedAt: null } }),
       prisma.match.groupBy({ by: ["userId"], where: { createdAt: { gte: start, lt: end } } }),
@@ -280,7 +300,7 @@ export class DashboardSummaryService {
       hasAffiliates
         ? prisma.deposit.aggregate({ where: { status: "PAID", confirmedAt: { gte: start, lt: end }, user: { referredById: { in: affiliateUserIds } } }, _sum: { amountCents: true } })
         : Promise.resolve({ _sum: { amountCents: 0 } }),
-      prisma.commission.aggregate({ where: { createdAt: { gte: start, lt: end } }, _sum: { amountCents: true } }),
+      prisma.commission.aggregate({ where: { createdAt: { gte: start, lt: end }, payeeUser: { isDemo: false } }, _sum: { amountCents: true } }),
       prisma.$queryRaw<{ day: Date; total: bigint | null }[]>`
         SELECT (date_trunc('day', "confirmedAt" AT TIME ZONE ${APP_TIMEZONE}))::date AS day,
                SUM("amountCents")::bigint AS total
@@ -296,12 +316,14 @@ export class DashboardSummaryService {
         GROUP BY day ORDER BY day
       `,
       prisma.$queryRaw<{ day: Date; type: string; total: bigint | null }[]>`
-        SELECT (date_trunc('day', "createdAt" AT TIME ZONE ${APP_TIMEZONE}))::date AS day,
-               type,
-               SUM(amount)::bigint AS total
-        FROM "WalletTransaction"
-        WHERE type IN ('BET','PAYOUT','BONUS') AND status = 'COMPLETED' AND "createdAt" >= ${start} AND "createdAt" < ${end}
-        GROUP BY day, type ORDER BY day
+        SELECT (date_trunc('day', wt."createdAt" AT TIME ZONE ${APP_TIMEZONE}))::date AS day,
+               wt.type,
+               SUM(wt.amount)::bigint AS total
+        FROM "WalletTransaction" wt
+        JOIN "User" u ON u.id = wt."userId"
+        WHERE wt.type IN ('BET','PAYOUT','BONUS') AND wt.status = 'COMPLETED' AND u."isDemo" = false
+          AND wt."createdAt" >= ${start} AND wt."createdAt" < ${end}
+        GROUP BY day, wt.type ORDER BY day
       `,
       prisma.deposit.groupBy({
         by: ["gatewayCredentialId"],
@@ -332,17 +354,20 @@ export class DashboardSummaryService {
     const ngrCents = ggrCents - bonusCostCents;
     const ngrPrevCents = ggrPrevCents - (bonusPrevAgg._sum.amount ?? 0);
     const revshareCostCents = revshareAgg._sum.amountCents ?? 0;
-    // Legacy CPA rows are still real money already paid out, so they must stay
-    // in the cost side or historical net profit would be overstated. No new
-    // CPA row can be created (percentage-only platform) — for any period after
-    // the CPA removal this term is simply 0.
+    // Comissão gerada (LOCKED+AVAILABLE), informativo — não entra em
+    // netProfitCents (ver doc de DashboardFinancial.affiliateCostCents/netProfitCents).
+    // No new CPA row can be created (percentage-only platform) — for any
+    // period after the CPA removal this term is simply 0.
     const affiliateCostCents = (legacyCpaAgg._sum.amountCents ?? 0) + revshareCostCents;
     const managerSpreadCostCents = managerSpreadAgg._sum.amountCents ?? 0;
-    const netProfitCents = ngrCents - affiliateCostCents - managerSpreadCostCents;
+    const depositsCents = depositsAgg._sum.amountCents ?? 0;
+    const withdrawalsCents = withdrawalsAgg._sum.amountCents ?? 0;
+    // Lucro Líquido Realizado (caixa) — ver doc comment de DashboardFinancial.netProfitCents.
+    const netProfitCents = depositsCents - withdrawalsCents;
 
     const financial: DashboardFinancial = {
-      depositsCents: depositsAgg._sum.amountCents ?? 0,
-      withdrawalsCents: withdrawalsAgg._sum.amountCents ?? 0,
+      depositsCents,
+      withdrawalsCents,
       ggrCents,
       ngrCents,
       bonusCostCents,
