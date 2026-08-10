@@ -4,12 +4,10 @@ vi.mock("@/game-engine/audio", () => ({
   AudioManager: {
     init: vi.fn(),
     impact: vi.fn(),
-    ice: vi.fn(),
     pass: vi.fn(),
     coin: vi.fn(),
     fireOn: vi.fn(),
     smash: vi.fn(),
-    boost: vi.fn(),
     death: vi.fn(),
     cashout: vi.fn(),
     goal: vi.fn(),
@@ -114,10 +112,9 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
 
   it("marks exactly the ring index just passed as broken, and no others", () => {
     const { runtime, ball } = buildRuntime(yForCrossed(0));
-    const cb = buildCallbacks();
     ball.setY(yForCrossed(1));
 
-    stepGameplay(runtime, cb);
+    stepGameplay(runtime);
 
     expect(runtime.broken.has(0)).toBe(true);
     expect(runtime.broken.has(1)).toBe(false);
@@ -126,10 +123,9 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
 
   it("marks every ring index consumed when the ball crosses several in one step", () => {
     const { runtime, ball } = buildRuntime(yForCrossed(0));
-    const cb = buildCallbacks();
     ball.setY(yForCrossed(3));
 
-    stepGameplay(runtime, cb);
+    stepGameplay(runtime);
 
     expect(runtime.broken.has(0)).toBe(true);
     expect(runtime.broken.has(1)).toBe(true);
@@ -139,10 +135,9 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
 
   it("never re-processes an index already counted (no repeated pass on the same depth)", () => {
     const { runtime, ball } = buildRuntime(yForCrossed(0));
-    const cb = buildCallbacks();
     ball.setY(yForCrossed(1));
-    stepGameplay(runtime, cb);
-    stepGameplay(runtime, cb); // ball hasn't moved further
+    stepGameplay(runtime);
+    stepGameplay(runtime); // ball hasn't moved further
 
     expect(useGameStore.getState().platformsPassed).toBe(1);
     expect(runtime.broken.size).toBe(1);
@@ -150,21 +145,19 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
 
   it("plays the coin feedback exactly once per platform consumed", () => {
     const { runtime, ball } = buildRuntime(yForCrossed(0));
-    const cb = buildCallbacks();
     ball.setY(yForCrossed(2));
 
-    stepGameplay(runtime, cb);
+    stepGameplay(runtime);
 
     expect(AudioManager.coin).toHaveBeenCalledTimes(2);
   });
 
   it("bouncing/resting on a ring, even with contact-penetration jitter short of full clearance, never consumes that ring", () => {
     const { runtime, ball } = buildRuntime(yForCrossed(0));
-    const cb = buildCallbacks();
     // Land on ring 1 (consumes ring 0, matching the "landed past it" rule).
     const restY = -1 * CFG.ringSpacing + CFG.ballRadius;
     ball.setY(restY);
-    stepGameplay(runtime, cb);
+    stepGameplay(runtime);
     expect(useGameStore.getState().platformsPassed).toBe(1);
     expect(runtime.broken.has(1)).toBe(false);
 
@@ -177,20 +170,20 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
     // Simulate a bounce's contact penetration: the ball dips below its own
     // resting contact point, but well short of that gap.
     ball.setY(restY - consumeGap * 0.5);
-    stepGameplay(runtime, cb);
+    stepGameplay(runtime);
     expect(useGameStore.getState().platformsPassed).toBe(1);
     expect(runtime.broken.has(1)).toBe(false);
 
     // Only once the ball has cleared the ring's full physical slab does it count.
     ball.setY(restY - consumeGap - 0.05);
-    stepGameplay(runtime, cb);
+    stepGameplay(runtime);
     expect(useGameStore.getState().platformsPassed).toBe(2);
     expect(runtime.broken.has(1)).toBe(true);
   });
 
   it("a consumed ring is invisible (no longer rendered) via the same ringVisible gate physics uses", () => {
     const { runtime } = buildRuntime(yForCrossed(0));
-    const ring = { index: 0, y: 0, baseRotation: 0, segments: [], variant: "normal" as const, motion: { kind: "static" as const } };
+    const ring = { index: 0, y: 0, baseRotation: 0, segments: [], motion: { kind: "static" as const } };
     expect(ringVisible(runtime, ring, 0, 0)).toBe(true);
 
     runtime.broken.add(0);
@@ -219,7 +212,6 @@ describe("systems — handleTouch: red is the only loss zone", () => {
       y: -15,
       baseRotation: 0,
       segments: [],
-      variant: "normal",
       motion: { kind: "static" },
     };
     const cb = buildCallbacks();
@@ -243,7 +235,6 @@ describe("systems — handleTouch: red is the only loss zone", () => {
       y: -15,
       baseRotation: 0,
       segments: [],
-      variant: "normal",
       motion: { kind: "static" },
     };
     const cb = buildCallbacks();
@@ -262,7 +253,6 @@ describe("systems — handleTouch: red is the only loss zone", () => {
       y: -7.5,
       baseRotation: 0,
       segments: [],
-      variant: "normal",
       motion: { kind: "static" },
     };
     runtime.broken.add(5);
@@ -296,7 +286,6 @@ describe("systems — bounce is constant-height, not impact-proportional", () =>
       y: -15,
       baseRotation: 0,
       segments: [],
-      variant: "normal",
       motion: { kind: "static" },
     };
     // The impact speed the ball arrived with — the value the old

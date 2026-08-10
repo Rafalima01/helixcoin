@@ -33,16 +33,14 @@ const PHYSICS_DT = 1 / 60;
 /** Frame-loop host: gameplay bookkeeping + fall-speed clamp. */
 function EngineSystems({
   runtime,
-  callbacks,
   onNeedMoreRings,
 }: {
   runtime: EngineRuntime;
-  callbacks: EngineCallbacks;
   onNeedMoreRings: () => void;
 }) {
   useFrame(() => {
     try {
-      stepGameplay(runtime, callbacks);
+      stepGameplay(runtime);
     } catch (err) {
       if (process.env.NODE_ENV !== "production") console.error("gameplay step:", err);
     }
@@ -278,11 +276,7 @@ export function GameEngine({
           <Suspense fallback={null}>
             <Physics gravity={[0, CFG.gravity, 0]} paused={paused} timeStep={PHYSICS_DT}>
               {/* Must mount before TowerPhysics — see EngineSystems's useBeforePhysicsStep comment. */}
-              <EngineSystems
-                runtime={runtime}
-                callbacks={callbacks}
-                onNeedMoreRings={handleNeedMoreRings}
-              />
+              <EngineSystems runtime={runtime} onNeedMoreRings={handleNeedMoreRings} />
               <Ball runtime={runtime} />
               <TowerPhysics runtime={runtime} windowRings={windowRings} touch={touch} />
             </Physics>

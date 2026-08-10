@@ -1,6 +1,6 @@
 import { createRng } from "@/lib/rng";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
-import type { RingData, RingMotion, RingVariant, SegmentType } from "@/game-engine/types";
+import type { RingData, RingMotion, SegmentType } from "@/game-engine/types";
 
 /**
  * Procedural, seeded tower generation.
@@ -11,18 +11,9 @@ import type { RingData, RingMotion, RingVariant, SegmentType } from "@/game-engi
  * time (the ball bounces in place), a route always exists.
  */
 
-/** Absolute depth at which a variant threshold kicks in — CFG.variants stores offsets from the protected opening (see config.ts's `variants` doc comment). */
+/** Absolute depth at which a motion threshold kicks in — CFG.variants stores offsets from the protected opening (see config.ts's `variants` doc comment). */
 function variantDepth(offset: number): number {
   return CFG.safeDepth + offset;
-}
-
-function pickVariant(rng: () => number, depth: number): RingVariant {
-  const v = CFG.variants;
-  const roll = rng();
-  if (depth >= variantDepth(v.boostFrom) && roll < 0.08) return "boost";
-  if (depth >= variantDepth(v.iceFrom) && roll < 0.18) return "ice";
-  if (depth >= variantDepth(v.fragileFrom) && roll < 0.3) return "fragile";
-  return "normal";
 }
 
 function pickMotion(rng: () => number, depth: number): RingMotion {
@@ -99,15 +90,12 @@ export function generateRing(seed: string, index: number): RingData {
   }
 
   const motion = pickMotion(rng, index);
-  // Motion rings keep a plain surface so behaviors never stack confusingly.
-  const variant: RingVariant = motion.kind === "static" ? pickVariant(rng, index) : "normal";
 
   return {
     index,
     y: -index * CFG.ringSpacing,
     baseRotation: rng() * Math.PI * 2,
     segments,
-    variant,
     motion,
   };
 }

@@ -4,9 +4,6 @@ import type { RapierRigidBody } from "@react-three/rapier";
 /** What occupies one angular segment of a ring. "danger" (red) is the only loss zone — everything else is safe. */
 export type SegmentType = "hole" | "solid" | "danger";
 
-/** Surface behavior applied to a ring's solid segments. */
-export type RingVariant = "normal" | "fragile" | "ice" | "boost";
-
 /** How the ring moves on its own, independent of tower rotation. */
 export type RingMotion =
   | { kind: "static" }
@@ -19,7 +16,6 @@ export interface RingData {
   y: number;
   baseRotation: number;
   segments: SegmentType[];
-  variant: RingVariant;
   motion: RingMotion;
 }
 
@@ -42,14 +38,11 @@ export interface EngineRuntime {
     lastX: number;
     lastT: number;
   };
-  /** Rings with no active collider and hidden from render — smashed (fire/fragile) AND rings the ball has already passed (see stepGameplay). */
+  /** Rings with no active collider and hidden from render — smashed (fire) AND rings the ball has already passed (see stepGameplay). */
   broken: Set<number>;
-  pendingBreaks: { ring: number; at: number }[];
   lastBounceAt: number;
   lastMovedAt: number; // watchdog: last time |vy| was healthy
   lastVy: number; // vertical velocity entering the current physics step (impact speed)
-  boostUntil: number;
-  boostApplied: boolean;
   fireBreaksLeft: number;
   trauma: number;
   dead: boolean;
@@ -63,12 +56,9 @@ export function createRuntime(ballRef: RefObject<RapierRigidBody | null>): Engin
     time: 0,
     rot: { target: 0, current: 0, velPs: 0, dragging: false, lastX: 0, lastT: 0 },
     broken: new Set(),
-    pendingBreaks: [],
     lastBounceAt: -1,
     lastMovedAt: 0,
     lastVy: 0,
-    boostUntil: -1,
-    boostApplied: false,
     fireBreaksLeft: 0,
     trauma: 0,
     dead: false,

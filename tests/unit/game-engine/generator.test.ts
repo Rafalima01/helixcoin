@@ -54,6 +54,6 @@ describe("generateRing — segment types", () => {
     const a = generateRing("determinism-seed", 12);
     const b = generateRing("determinism-seed", 12);
     expect(a.segments).toEqual(b.segments);
-    expect(a.variant).toBe(b.variant);
+    expect(a.motion).toEqual(b.motion);
   });
 });

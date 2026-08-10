@@ -70,8 +70,8 @@ function RingBody({
           <CuboidCollider
             key={k}
             args={[radialHalf, thickHalf, chordHalf]}
-            position={[Math.cos(a) * RING_MID_RADIUS, -thickHalf, Math.sin(a) * RING_MID_RADIUS]}
-            rotation={[0, -a, 0]}
+            position={[Math.cos(a) * RING_MID_RADIUS, -thickHalf, -Math.sin(a) * RING_MID_RADIUS]}
+            rotation={[0, a, 0]}
             restitution={0}
             friction={0.05}
           />
@@ -150,7 +150,7 @@ export function TowerPhysics({
             entry.enabled = visible;
           }
           if (!visible) continue;
-          quatScratch.setFromAxisAngle(Y_AXIS, -rot);
+          quatScratch.setFromAxisAngle(Y_AXIS, rot);
           entry.body.setNextKinematicRotation(quatScratch);
         } catch (err) {
           bodiesRef.current.delete(key);

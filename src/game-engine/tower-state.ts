@@ -4,6 +4,19 @@ import type { EngineRuntime, RingData } from "@/game-engine/types";
 /**
  * Single source of truth for ring orientation. Physics colliders and rendered
  * instances both call these, so what you see is exactly what you collide with.
+ *
+ * Sign convention: both consumers (tower-renderer.tsx, tower-physics.tsx)
+ * apply this value DIRECTLY as a THREE.js Y-axis rotation (no extra negation)
+ * — that is what makes a rightward drag (which increases runtime.rot.target
+ * in game-engine.tsx's onPointerMove) move the tower visually to the right,
+ * given this scene's fixed camera looks from +X toward the origin. An
+ * earlier version negated this value at both call sites, which produced a
+ * self-consistent (visual matches collision) but backwards-from-input
+ * rotation. If you ever need to touch this again: change it here in spirit
+ * only — the actual fix has to stay duplicated at both consumer sites,
+ * because tower-physics.tsx composes its OWN rotation from a parent
+ * kinematic-body rotation plus a per-collider local offset, not a single
+ * combined angle like the renderer.
  */
 
 /** World rotation of a ring at time t (tower rotation + own base + motion). */

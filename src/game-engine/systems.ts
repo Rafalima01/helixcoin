@@ -17,15 +17,6 @@ export interface EngineCallbacks {
   onDeath: (platformsPassed: number) => void;
 }
 
-function ringColor(runtime: EngineRuntime, ringIndex: number): string {
-  const ring = runtime.rings[ringIndex];
-  if (!ring) return CFG.colors.platform;
-  if (ring.variant === "ice") return CFG.colors.ice;
-  if (ring.variant === "boost") return CFG.colors.boost;
-  if (ring.variant === "fragile") return CFG.colors.fragile;
-  return CFG.colors.platform;
-}
-
 /** The ball body, or null if it isn't alive in the physics world right now. */
 export function liveBall(runtime: EngineRuntime) {
   const body = runtime.ballRef.current;
@@ -49,7 +40,7 @@ export function breakRing(
 
   const ring = runtime.rings[ringIndex];
   const p = ballPos(runtime);
-  particleBus.spawnBurst(p.x, ring ? ring.y : p.y, p.z, ringColor(runtime, ringIndex), {
+  particleBus.spawnBurst(p.x, ring ? ring.y : p.y, p.z, CFG.colors.platform, {
     count: 26,
     speed: 3.6,
     upward: 2.4,
@@ -144,19 +135,10 @@ export function handleTouch(
   // minus what this height needs, which is what makes it read as a real ball
   // settling into a rhythm instead of winding up.
   const targetHeight = CFG.bounceHeightRatio * CFG.ringSpacing;
-  let bounce = Math.min(
+  const bounce = Math.min(
     CFG.maxBounceVelocity,
     Math.max(CFG.minBounceVelocity, Math.sqrt(2 * Math.abs(CFG.gravity) * targetHeight))
   );
-
-  if (ring.variant === "ice") {
-    bounce *= CFG.iceBounceFactor;
-    AudioManager.ice();
-  }
-  if (ring.variant === "boost") {
-    runtime.boostUntil = now + CFG.boostDuration;
-    AudioManager.boost();
-  }
 
   body.setLinvel({ x: 0, y: bounce, z: 0 }, true);
   store.registerTouch(Math.abs(runtime.lastVy));
@@ -164,15 +146,11 @@ export function handleTouch(
   runtime.trauma = Math.min(1, runtime.trauma + CFG.trauma.bounce);
 
   const p = ballPos(runtime);
-  particleBus.spawnBurst(p.x, ring.y, p.z, ringColor(runtime, ringIndex), {
+  particleBus.spawnBurst(p.x, ring.y, p.z, CFG.colors.platform, {
     count: 10,
     speed: 2.2,
     upward: 1.4,
   });
-
-  if (ring.variant === "fragile") {
-    runtime.pendingBreaks.push({ ring: ringIndex, at: now + CFG.fragileBreakDelay });
-  }
 }
 
 /**
@@ -205,7 +183,7 @@ export function advanceRotation(runtime: EngineRuntime, dt: number): void {
 }
 
 /** Per-frame gameplay bookkeeping (called from the systems component, after advanceRotation has already run this frame). */
-export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks) {
+export function stepGameplay(runtime: EngineRuntime) {
   const store = useGameStore.getState();
   const now = runtime.time;
 
@@ -246,22 +224,6 @@ export function stepGameplay(runtime: EngineRuntime, cb: EngineCallbacks) {
         AudioManager.fireOn();
         runtime.trauma = Math.min(1, runtime.trauma + CFG.trauma.fireOn);
       }
-    }
-  }
-
-  // ---- Accelerator boost: temporary gravity multiplier ----
-  const boosted = now < runtime.boostUntil;
-  if (boosted !== runtime.boostApplied) {
-    body.setGravityScale(boosted ? CFG.boostGravityFactor : 1, true);
-    runtime.boostApplied = boosted;
-  }
-
-  // ---- Fragile rings shatter shortly after the bounce ----
-  if (runtime.pendingBreaks.length > 0) {
-    const due = runtime.pendingBreaks.filter((b) => b.at <= now);
-    if (due.length > 0) {
-      runtime.pendingBreaks = runtime.pendingBreaks.filter((b) => b.at > now);
-      for (const b of due) breakRing(runtime, cb, b.ring, false);
     }
   }
 

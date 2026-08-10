@@ -6,7 +6,6 @@ export const ENGINE_CONFIG = {
   // ---- Tower geometry ----
   ringSpacing: 1.5, // vertical distance between platforms
   segmentsPerRing: 12, // angular resolution of each ring
-  segmentGapFactor: 0.995, // visual seam between segments — near-1 so solid runs read as one continuous ring; real gaps (holes) are separate segments, unaffected
   ringInnerRadius: 1.05,
   ringOuterRadius: 2.35,
   ringThickness: 0.34,
@@ -47,9 +46,6 @@ export const ENGINE_CONFIG = {
   // pathological gravity/height combination can't produce a 0 or a rocket.
   minBounceVelocity: 3.2,
   maxBounceVelocity: 9,
-  iceBounceFactor: 0.72, // damped bounce on frozen platforms
-  boostGravityFactor: 1.9, // accelerator platforms increase gravity briefly
-  boostDuration: 1.1, // seconds of boosted gravity
   contactCooldown: 0.06, // seconds — debounce duplicate contact events
   stuckVelocityThreshold: 0.15,
   stuckTimeout: 0.35, // seconds of near-zero velocity before the watchdog re-bounces
@@ -58,9 +54,6 @@ export const ENGINE_CONFIG = {
   // ---- Fire mode ----
   fireThreshold: 3, // consecutive pass-throughs to ignite
   fireBreaks: 1, // rings smashed per charge before fire mode ends
-
-  // ---- Special platform rewards ----
-  fragileBreakDelay: 0.12, // seconds after bounce before a fragile ring shatters
 
   // ---- Procedural generation ----
   initialRings: 44,
@@ -123,22 +116,6 @@ export const ENGINE_CONFIG = {
   physicsAhead: 5, // rings simulated below the ball
   renderAhead: 16, // rings drawn below the ball
   renderBehind: 2,
-  /**
-   * Instanced-mesh capacity per bucket (solid / danger). Must cover the
-   * worst case the admin panel can actually produce, because
-   * tower-renderer.tsx silently STOPS emitting instances past this number
-   * while tower-physics.tsx still builds every collider — over the cap you
-   * get invisible platforms you can still land on (or die to).
-   *
-   * Worst case = render window x max segments per ring
-   *            = (renderBehind + renderAhead + 1) x segmentsPerPlatform.max
-   *            = 19 x 24 = 456.
-   * 480 covers that with headroom. This used to be 288, which was fine only
-   * while every mode was pinned to 12 segments — the moment a mode uses the
-   * registry's upper range (HARD now uses 16) the old value was one config
-   * change away from that desync.
-   */
-  maxInstances: 480,
 
   // ---- Effects ----
   hitstopMs: 90, // freeze-frame on death (physics pause before overlay)
@@ -151,39 +128,32 @@ export const ENGINE_CONFIG = {
   },
 
   /**
-   * Depth at which each special/moving ring type starts appearing, counted as
+   * Depth at which each moving-ring motion type starts appearing, counted as
    * an OFFSET FROM `safeDepth` — not as an absolute ring index (see
    * generator.ts's variantDepth). Relative is the right frame because
    * `safeDepth` is the admin-facing "plataformas protegidas": a mode that
    * drops the player straight into hazards should also start throwing moving
    * platforms at them sooner, and a mode with a long protected runway should
-   * not waste that runway introducing ice and blinking rings. Absolute
+   * not waste that runway introducing blinking/spinning rings. Absolute
    * thresholds made these fixed for every mode, which is why the harder modes
    * felt like the easy one for their whole opening stretch.
    *
    * Calibrated so NORMAL (safeDepth 4) lands on exactly the absolute depths
-   * these had when they were absolute (6/9/11/10/13/16).
+   * these had when they were absolute (10/13/16).
    */
   variants: {
-    fragileFrom: 2,
-    iceFrom: 5,
-    boostFrom: 7,
     oscillatingFrom: 6,
     spinningFrom: 9,
     blinkingFrom: 12,
   },
 
   // ---- Palette ----
-  // Minimalist pass: one flat solid color per platform kind, no gradients/
-  // emissive/glow. `platform` is the single normal-segment color (was a
-  // 3-color per-ring cycle). ice/boost/fragile stay visually distinct — see
-  // systems.ts's real gameplay branches on ring.variant — but flattened to
-  // solid tones consistent with the rest of the palette.
+  // Minimalist pass: exactly two functional colors. `platform` is the single
+  // normal-segment color, `danger` the single loss-zone color — no third
+  // color, no color-driven physics (see systems.ts, which no longer branches
+  // on anything but segment type).
   colors: {
     platform: "#60A5FA",
-    fragile: "#B7B3C9",
-    ice: "#7DD3FC",
-    boost: "#FB923C",
     danger: "#FF4D6D",
     // Decorative gold accent only (goal-reached celebration burst) — not a
     // platform special zone. Red is the platform's only special/loss color.

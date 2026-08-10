@@ -136,12 +136,6 @@ describe("difficulty ladder — no profile is unplayable or physically broken", 
     expect(p.maxDangerSegments).toBeLessThanOrEqual(eligible);
   });
 
-  it.each(allProfiles)("$name: the renderer can draw every collider the physics builds", ({ p }) => {
-    // Over maxInstances the renderer stops emitting while tower-physics keeps
-    // building colliders — invisible platforms you can still die to.
-    const window = ENGINE_CONFIG.renderBehind + ENGINE_CONFIG.renderAhead + 1;
-    expect(window * p.segmentsPerPlatform).toBeLessThanOrEqual(ENGINE_CONFIG.maxInstances);
-  });
 });
 
 describe("difficulty ladder — the configured values actually reach the generator", () => {

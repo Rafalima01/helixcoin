@@ -65,10 +65,6 @@ class AudioManagerImpl {
     this.noise(0.05, 0.18, 900);
   }
 
-  ice() {
-    this.tone(520, 0.12, { type: "triangle", gain: 0.22, slideTo: 780 });
-  }
-
   pass(combo: number) {
     this.tone(360 + Math.min(combo, 10) * 55, 0.09, { type: "triangle", gain: 0.24 });
   }
@@ -87,10 +83,6 @@ class AudioManagerImpl {
   smash() {
     this.noise(0.16, 0.42, 2200);
     this.tone(120, 0.12, { type: "square", gain: 0.2, slideTo: 60 });
-  }
-
-  boost() {
-    this.tone(300, 0.18, { type: "sawtooth", gain: 0.2, slideTo: 900 });
   }
 
   death() {

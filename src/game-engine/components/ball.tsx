@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { Trail } from "@react-three/drei";
 import { RigidBody, BallCollider, type RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
@@ -84,11 +85,19 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
         canSleep={false}
       >
         <BallCollider args={[CFG.ballRadius]} restitution={0} friction={0.05} />
-        {/* Minimalist pass: solid color, no Trail ribbon / clearcoat / point light — see game-engine.tsx's audit notes. */}
-        <mesh ref={meshRef}>
-          <sphereGeometry args={[CFG.ballRadius, 20, 20]} />
-          <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
-        </mesh>
+        {/*
+          Trail: purely decorative — wraps the mesh, has no collider of its
+          own, never touches physics. It's a single ribbon mesh (drei
+          recycles one small vertex buffer every frame, not N objects), kept
+          short/fast-fading so it stays cheap: ~1 extra draw call, no
+          allocations per frame.
+        */}
+        <Trail width={1.1} length={2.2} decay={3} color={CFG.colors.ballIdle} attenuation={(w) => w * w}>
+          <mesh ref={meshRef}>
+            <sphereGeometry args={[CFG.ballRadius, 20, 20]} />
+            <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
+          </mesh>
+        </Trail>
       </RigidBody>
 
       {/* Cheap dynamic shadow — a fading disc that tracks the ring below. */}
