@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { ok, parsePagination, buildPaginationMeta } from "@/server/http";
 import type { AuthContext } from "@/server/auth/context";
 import { ForbiddenError } from "@/server/errors";
+import { extractRequestMeta } from "@/server/audit";
 import { identityContainer } from "@/modules/identity/container";
 import { affiliateContainer } from "@/modules/affiliate/container";
 import {
@@ -10,6 +11,8 @@ import {
   decideAffiliateApplicationSchema,
   decideCommissionSchema,
   affiliateSettingsUpdateSchema,
+  updateAffiliateCommissionSchema,
+  createDirectAffiliateSchema,
 } from "@/modules/affiliate/validators/affiliate.validator";
 import {
   toAffiliateProfileAdminDto,
@@ -81,6 +84,41 @@ export async function handleAssignManagerAdmin(req: NextRequest, auth: AuthConte
   await assertPermission(auth, "affiliate.applications.approve");
   const body = (await req.json()) as { managerId: string | null };
   const updated = await affiliateService.assignManager(id, body.managerId);
+  return ok(toAffiliateProfileAdminDto(await affiliateService.getByIdAdmin(updated.id)));
+}
+
+/** GET /api/admin/affiliate/by-user/{userId} — null (never 404) when the user has no AffiliateProfile yet, so the admin Users drawer can offer "Transformar em afiliado" instead of erroring. */
+export async function handleGetAffiliateByUserIdAdmin(_req: NextRequest, auth: AuthContext, userId: string) {
+  await assertPermission(auth, "affiliate.applications.read");
+  const profile = await affiliateService.getByUserIdAdmin(userId);
+  return ok(profile ? toAffiliateProfileAdminDto(profile) : null);
+}
+
+/** POST /api/admin/affiliate/applications — Admin turns a regular user into a direct affiliate (see AffiliateService.adminCreateDirect). Idempotent — returns the existing profile untouched if the user already has one. */
+export async function handleCreateDirectAffiliateAdmin(req: NextRequest, auth: AuthContext) {
+  await assertPermission(auth, "affiliate.applications.approve");
+  const body = createDirectAffiliateSchema.parse(await req.json());
+  const meta = extractRequestMeta(req);
+  const created = await affiliateService.adminCreateDirect(body.userId, {
+    actorId: auth.userId,
+    actorRole: auth.role!,
+    ip: meta.ip,
+    userAgent: meta.userAgent,
+  });
+  return ok(toAffiliateProfileAdminDto(await affiliateService.getByIdAdmin(created.id)));
+}
+
+/** PATCH /api/admin/affiliate/applications/{id}/commission — sets the affiliate's individual revShareOverridePercent. Works identically for a direct affiliate (no ceiling) or a managed one (capped at the manager's ceiling) — see AffiliateService.updateCommission. */
+export async function handleUpdateCommissionAdmin(req: NextRequest, auth: AuthContext, id: string) {
+  await assertPermission(auth, "affiliate.applications.approve");
+  const body = updateAffiliateCommissionSchema.parse(await req.json());
+  const meta = extractRequestMeta(req);
+  const updated = await affiliateService.updateCommission(id, body.percent, {
+    actorId: auth.userId,
+    actorRole: auth.role!,
+    ip: meta.ip,
+    userAgent: meta.userAgent,
+  });
   return ok(toAffiliateProfileAdminDto(await affiliateService.getByIdAdmin(updated.id)));
 }
 

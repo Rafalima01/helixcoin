@@ -49,6 +49,12 @@ export class InMemoryAffiliateRepository implements IAffiliateRepository {
     return { ...row, userName: "", userEmail: "", userPhone: null, managerName: null };
   }
 
+  async findByUserIdAdmin(userId: string): Promise<AffiliateProfileAdminRow | null> {
+    const row = [...this.rows.values()].find((r) => r.userId === userId);
+    if (!row) return null;
+    return { ...row, userName: "", userEmail: "", userPhone: null, managerName: null };
+  }
+
   async update(id: string, input: UpdateAffiliateProfileInput): Promise<AffiliateProfile> {
     const existing = this.rows.get(id);
     if (!existing) throw new Error(`AffiliateProfile ${id} not found`);

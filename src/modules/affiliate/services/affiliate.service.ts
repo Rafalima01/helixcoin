@@ -141,6 +141,43 @@ export class AffiliateService {
     return profile;
   }
 
+  /** Null (not NotFoundError) when the user has no AffiliateProfile yet — lets the admin Users drawer distinguish "show existing" from "offer Transformar em afiliado" without a try/catch. */
+  async getByUserIdAdmin(userId: string): Promise<AffiliateProfileAdminRow | null> {
+    return this.affiliates.findByUserIdAdmin(userId);
+  }
+
+  /**
+   * Admin-triggered equivalent of autoEnroll() (see that method's doc
+   * comment) for a User an Admin found via Gestão de Usuários — same
+   * creation path (status APPROVED, managerId null i.e. "Direto",
+   * revShareOverridePercent null i.e. uses AffiliateSettings' 5% default),
+   * just with an actor and an audit trail, since this is a deliberate admin
+   * action rather than a silent signup side effect. Idempotent: a user who
+   * already has a profile (direct or managed) is returned untouched, never
+   * duplicated — mirrors autoEnroll()'s own guard.
+   */
+  async adminCreateDirect(userId: string, actor: DecisionActor): Promise<AffiliateProfile> {
+    const existing = await this.affiliates.findByUserId(userId);
+    if (existing) return existing;
+
+    const created = await this.autoEnroll(userId);
+
+    await AuditService.record({
+      actorId: actor.actorId,
+      actorType: "ADMIN",
+      actorRole: actor.actorRole,
+      action: "affiliate.admin_create",
+      entityType: "AffiliateProfile",
+      entityId: created.id,
+      before: null,
+      after: { userId, status: created.status, managerId: created.managerId },
+      ip: actor.ip ?? null,
+      userAgent: actor.userAgent ?? null,
+    });
+
+    return created;
+  }
+
   async listAdmin(filter: AffiliateProfileListFilter) {
     return this.affiliates.listAdmin(filter);
   }

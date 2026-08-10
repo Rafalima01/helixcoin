@@ -78,6 +78,23 @@ export const AffiliateApplicationsAdminApi = {
       body: JSON.stringify({ managerId }),
     });
   },
+  /** Null (not a 404) when the user has no AffiliateProfile yet. */
+  async getByUserId(userId: string) {
+    return request<AffiliateProfileAdminDto | null>(`/api/admin/affiliate/by-user/${userId}`);
+  },
+  /** "Transformar em afiliado" — creates a direct (no manager) AffiliateProfile at the platform's default 5%. Idempotent: returns the existing profile if the user already has one. */
+  async createDirect(userId: string) {
+    return request<AffiliateProfileAdminDto>("/api/admin/affiliate/applications", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    });
+  },
+  async updateCommission(id: string, percent: number) {
+    return request<AffiliateProfileAdminDto>(`/api/admin/affiliate/applications/${id}/commission`, {
+      method: "PATCH",
+      body: JSON.stringify({ percent }),
+    });
+  },
 };
 
 export interface AffiliateCommissionListParams {

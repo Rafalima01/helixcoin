@@ -46,6 +46,18 @@ export const decideAffiliateApplicationSchema = z
   });
 export type DecideAffiliateApplicationInput = z.infer<typeof decideAffiliateApplicationSchema>;
 
+/** PATCH /api/admin/affiliate/applications/{id}/commission — same 0-100 bound as manager.validator.ts's commissionPercent (percentage-only platform, see AffiliateService.updateCommission). */
+export const updateAffiliateCommissionSchema = z.object({
+  percent: z.number().min(0).max(100),
+});
+export type UpdateAffiliateCommissionInput = z.infer<typeof updateAffiliateCommissionSchema>;
+
+/** POST /api/admin/affiliate/applications — Admin finds a regular user (by id) and turns them into a direct affiliate (no manager). See AffiliateService.adminCreateDirect. */
+export const createDirectAffiliateSchema = z.object({
+  userId: z.string().trim().min(1, "userId obrigatório"),
+});
+export type CreateDirectAffiliateInput = z.infer<typeof createDirectAffiliateSchema>;
+
 export const decideCommissionSchema = z
   .object({
     action: z.enum(["APPROVE", "REJECT"]),

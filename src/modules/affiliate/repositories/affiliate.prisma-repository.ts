@@ -81,6 +81,11 @@ export class PrismaAffiliateRepository implements IAffiliateRepository {
     return row ? toAdminRow(row) : null;
   }
 
+  async findByUserIdAdmin(userId: string): Promise<AffiliateProfileAdminRow | null> {
+    const row = await prisma.affiliateProfile.findUnique({ where: { userId }, include: adminInclude });
+    return row ? toAdminRow(row) : null;
+  }
+
   async update(id: string, input: UpdateAffiliateProfileInput): Promise<AffiliateProfile> {
     const row = await prisma.affiliateProfile.update({
       where: { id },

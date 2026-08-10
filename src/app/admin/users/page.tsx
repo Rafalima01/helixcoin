@@ -21,6 +21,8 @@ import {
 } from "@/components/admin/ui";
 import { IdentityAdminApi, ApiError } from "@/lib/admin/identity-api";
 import { WalletsAdminApi, TransactionsAdminApi } from "@/lib/admin/wallet-api";
+import { AffiliateApplicationsAdminApi } from "@/lib/admin/affiliate-api";
+import type { AffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
 import type { UserResponseDto } from "@/modules/identity/dto/user.dto";
 import type { SessionResponseDto } from "@/modules/identity/dto/session.dto";
 import type { AuditLogResponseDto } from "@/modules/identity/dto/audit.dto";
@@ -251,6 +253,7 @@ function UserDrawer({
             tabs={[
               { key: "perfil", label: "Perfil" },
               { key: "financeiro", label: "Financeiro" },
+              { key: "afiliado", label: "Afiliado" },
               { key: "sessoes", label: "Sessões" },
               { key: "historico", label: "Histórico" },
             ]}
@@ -324,6 +327,7 @@ function UserDrawer({
           )}
 
           {tab === "financeiro" && <UserFinanceTab userId={userId} isDemo={user.isDemo} />}
+          {tab === "afiliado" && <UserAffiliateTab userId={userId} />}
           {tab === "sessoes" && <UserSessionsTab userId={userId} />}
           {tab === "historico" && <UserHistoryTab userId={userId} />}
         </div>
@@ -574,6 +578,174 @@ function UserFinanceTab({ userId, isDemo }: { userId: string; isDemo: boolean })
         Toda ação aqui grava uma linha imutável em AuditLog (autor, antes/depois, IP) e uma transação rastreável na
         carteira.
       </p>
+    </div>
+  );
+}
+
+const AFFILIATE_STATUS_LABEL: Record<string, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
+  PENDING: { label: "Pendente", tone: "warning" },
+  APPROVED: { label: "Aprovado", tone: "success" },
+  REJECTED: { label: "Recusado", tone: "danger" },
+  BLOCKED: { label: "Bloqueado", tone: "danger" },
+  DOCUMENTS_REQUESTED: { label: "Documentos pendentes", tone: "info" },
+};
+
+/**
+ * Every player already gets an AffiliateProfile automatically at signup
+ * (AffiliateService.autoEnroll) — so this is null here only for accounts
+ * created before that existed and that never opened the "Indique" tab
+ * (which self-heals it). "Transformar em afiliado" is the admin-triggered
+ * equivalent of that same self-heal, via AffiliateService.adminCreateDirect
+ * — always creates a DIRECT affiliate (no manager), never a duplicate.
+ */
+function UserAffiliateTab({ userId }: { userId: string }) {
+  const queryClient = useQueryClient();
+  const [confirmingCreate, setConfirmingCreate] = useState(false);
+  const [editingCommission, setEditingCommission] = useState(false);
+  const [commissionInput, setCommissionInput] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "user-affiliate", userId],
+    queryFn: () => AffiliateApplicationsAdminApi.getByUserId(userId),
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["admin", "user-affiliate", userId] });
+
+  const createDirect = useMutation({
+    mutationFn: () => AffiliateApplicationsAdminApi.createDirect(userId),
+    onSuccess: () => {
+      toast.success("Usuário transformado em Afiliado Direto");
+      setConfirmingCreate(false);
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao transformar em afiliado"),
+  });
+
+  const updateCommission = useMutation({
+    mutationFn: (input: { affiliateId: string; percent: number }) =>
+      AffiliateApplicationsAdminApi.updateCommission(input.affiliateId, input.percent),
+    onSuccess: () => {
+      toast.success("Comissão atualizada");
+      setEditingCommission(false);
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Falha ao atualizar comissão"),
+  });
+
+  if (isLoading) return <DrawerSkeleton rows={3} />;
+
+  const affiliate: AffiliateProfileAdminDto | null = data?.data ?? null;
+
+  if (!affiliate) {
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
+        <p className="text-sm text-text-secondary">Este usuário ainda não é afiliado.</p>
+        {confirmingCreate ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/[0.06] p-2.5">
+            <p className="text-xs text-text-secondary">
+              O usuário será transformado em <strong>Afiliado Direto</strong> (sem gerente), com comissão inicial de{" "}
+              <strong>5%</strong>.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                className="flex-1"
+                loading={createDirect.isPending}
+                onClick={() => createDirect.mutate()}
+              >
+                Confirmar
+              </Button>
+              <Button variant="ghost" size="sm" className="border border-border" onClick={() => setConfirmingCreate(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => setConfirmingCreate(true)}>
+            <UserPlus className="size-4" /> Transformar em afiliado
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <DetailRow
+          label="Tipo"
+          value={
+            affiliate.managerName ? (
+              <StatusBadge tone="info">Afiliado Gerenciado</StatusBadge>
+            ) : (
+              <StatusBadge tone="neutral">Afiliado Direto</StatusBadge>
+            )
+          }
+        />
+        <DetailRow
+          label="Status"
+          value={
+            <StatusBadge tone={AFFILIATE_STATUS_LABEL[affiliate.status]?.tone ?? "neutral"}>
+              {AFFILIATE_STATUS_LABEL[affiliate.status]?.label ?? affiliate.status}
+            </StatusBadge>
+          }
+        />
+        <DetailRow label="Gerente" value={affiliate.managerName ?? "Nenhum / Direto"} />
+        <DetailRow label="Aprovado em" value={formatDate(affiliate.approvedAt)} />
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+        <p className="text-sm font-semibold">Comissão</p>
+        {editingCommission ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={commissionInput}
+                onChange={(e) => setCommissionInput(e.target.value)}
+                className="flex-1 rounded-xl border border-border bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-purple/60 tabular-nums"
+                autoFocus
+              />
+              <span className="text-sm text-text-muted">%</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                className="flex-1"
+                loading={updateCommission.isPending}
+                disabled={commissionInput.trim() === "" || Number.isNaN(Number(commissionInput))}
+                onClick={() => updateCommission.mutate({ affiliateId: affiliate.id, percent: Number(commissionInput) })}
+              >
+                Confirmar
+              </Button>
+              <Button variant="ghost" size="sm" className="border border-border" onClick={() => setEditingCommission(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-semibold tabular-nums">
+              {affiliate.commissionPercent !== null ? `${affiliate.commissionPercent}%` : "5% (padrão)"}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setCommissionInput(String(affiliate.commissionPercent ?? 5));
+                setEditingCommission(true);
+              }}
+            >
+              Editar comissão
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

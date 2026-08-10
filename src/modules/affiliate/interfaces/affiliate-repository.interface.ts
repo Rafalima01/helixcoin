@@ -37,6 +37,8 @@ export interface IAffiliateRepository {
   findByUserId(userId: string): Promise<AffiliateProfile | null>;
   /** Same join as listAdmin's rows, for a single id — admin/manager detail drawers. */
   findByIdAdmin(id: string): Promise<AffiliateProfileAdminRow | null>;
+  /** Same join as findByIdAdmin, keyed by userId — backs the "does this User already have an AffiliateProfile" lookup from the admin Users drawer (see AffiliateService.getByUserIdAdmin). */
+  findByUserIdAdmin(userId: string): Promise<AffiliateProfileAdminRow | null>;
   update(id: string, input: UpdateAffiliateProfileInput): Promise<AffiliateProfile>;
   listAdmin(filter: AffiliateProfileListFilter): Promise<{ items: AffiliateProfileAdminRow[]; total: number }>;
   /** "Meu Link" (/r/{code}) hit-count, mirrors ManagerProfile.incrementPlatformLinkClicks — bumped by /r/[code]/route.ts for an APPROVED affiliate. */

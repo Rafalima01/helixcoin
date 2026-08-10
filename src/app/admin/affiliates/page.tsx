@@ -64,9 +64,19 @@ export default function AdminAffiliatesPage() {
       ),
     },
     {
+      key: "type",
+      header: "Tipo",
+      render: (a) =>
+        a.managerName ? (
+          <StatusBadge tone="info">Gerenciado</StatusBadge>
+        ) : (
+          <StatusBadge tone="neutral">Direto</StatusBadge>
+        ),
+    },
+    {
       key: "manager",
       header: "Gerente",
-      render: (a) => <span className="text-text-secondary">{a.managerName ?? "—"}</span>,
+      render: (a) => <span className="text-text-secondary">{a.managerName ?? "Nenhum / Direto"}</span>,
     },
     {
       key: "priority",
@@ -117,6 +127,8 @@ function AffiliateDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const [deciding, setDeciding] = useState<AffiliateDecisionAction | null>(null);
   const [reason, setReason] = useState("");
   const [managerId, setManagerId] = useState("");
+  const [editingCommission, setEditingCommission] = useState(false);
+  const [commissionInput, setCommissionInput] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "affiliate", "application", id],
@@ -155,6 +167,16 @@ function AffiliateDrawer({ id, onClose }: { id: string; onClose: () => void }) {
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao atribuir gerente"),
   });
 
+  const updateCommission = useMutation({
+    mutationFn: (percent: number) => AffiliateApplicationsAdminApi.updateCommission(id, percent),
+    onSuccess: () => {
+      toast.success("Comissão atualizada");
+      setEditingCommission(false);
+      invalidate();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao atualizar comissão"),
+  });
+
   const needsReason = deciding === "REJECT" || deciding === "BLOCK" || deciding === "REQUEST_DOCUMENTS";
   const canDecide = affiliate && (affiliate.status !== "APPROVED" || deciding === "BLOCK");
 
@@ -169,11 +191,73 @@ function AffiliateDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             <DetailRow label="Status" value={<StatusBadge tone={STATUS[affiliate.status]?.tone ?? "neutral"}>{STATUS[affiliate.status]?.label ?? affiliate.status}</StatusBadge>} />
             <DetailRow label="Nome" value={affiliate.userName} />
             <DetailRow label="Email" value={affiliate.userEmail} />
-            <DetailRow label="Gerente" value={affiliate.managerName ?? "—"} />
+            <DetailRow
+              label="Tipo"
+              value={
+                affiliate.managerName ? (
+                  <StatusBadge tone="info">Afiliado Gerenciado</StatusBadge>
+                ) : (
+                  <StatusBadge tone="neutral">Afiliado Direto</StatusBadge>
+                )
+              }
+            />
+            <DetailRow label="Gerente" value={affiliate.managerName ?? "Nenhum / Direto"} />
             <DetailRow label="Solicitado em" value={formatDate(affiliate.requestedAt)} />
             <DetailRow label="Aprovado em" value={formatDate(affiliate.approvedAt)} />
             {affiliate.rejectionReason && <DetailRow label="Motivo da recusa" value={affiliate.rejectionReason} />}
             {affiliate.blockedReason && <DetailRow label="Motivo do bloqueio" value={affiliate.blockedReason} />}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-text-secondary">Comissão</label>
+            {editingCommission ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    value={commissionInput}
+                    onChange={(e) => setCommissionInput(e.target.value)}
+                    className="flex-1 rounded-xl border border-border bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-purple/60 tabular-nums"
+                    autoFocus
+                  />
+                  <span className="text-sm text-text-muted">%</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="flex-1"
+                    loading={updateCommission.isPending}
+                    disabled={commissionInput.trim() === "" || Number.isNaN(Number(commissionInput))}
+                    onClick={() => updateCommission.mutate(Number(commissionInput))}
+                  >
+                    Confirmar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="border border-border" onClick={() => setEditingCommission(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-lg font-semibold tabular-nums">
+                  {affiliate.commissionPercent !== null ? `${affiliate.commissionPercent}%` : "5% (padrão)"}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setCommissionInput(String(affiliate.commissionPercent ?? 5));
+                    setEditingCommission(true);
+                  }}
+                >
+                  Editar comissão
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">
