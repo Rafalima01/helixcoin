@@ -57,7 +57,16 @@ function buildRunGeometry(ring: RingData, kind: "solid" | "danger"): THREE.Buffe
   const inner = CFG.ringInnerRadius;
   const outer = CFG.ringOuterRadius;
   const shapes = runs.map(({ start, len }) => {
-    const a0 = start * segmentAngle;
+    // tower-physics.tsx's CuboidCollider for segment k sits CENTERED at
+    // world angle k*segmentAngle (position uses `a = k*segmentAngle`
+    // directly, not the segment's leading edge) — the -0.5 below is what
+    // makes segment k's visual span [( k-0.5)*segmentAngle, (k+0.5)*segmentAngle],
+    // i.e. centered on that same angle, so the rendered wedge and its
+    // collider always agree on where segment k actually is. Without this
+    // offset the whole run is shifted by half a segment relative to
+    // physics — the ball can visually clear a hole while a shifted
+    // "solid"/"danger" collider is still there (or vice-versa).
+    const a0 = (start - 0.5) * segmentAngle;
     const a1 = a0 + len * segmentAngle;
     const shape = new THREE.Shape();
     shape.absarc(0, 0, outer, a0, a1, false);
