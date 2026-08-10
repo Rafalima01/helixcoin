@@ -6,7 +6,7 @@ import type { AdminActor } from "@/modules/identity/services/user-management.ser
 import { WalletService } from "@/modules/wallet/services/wallet.service";
 import type { IDemoAccountRepository } from "@/modules/demo-accounts/interfaces/demo-account-repository.interface";
 import type { DemoAccountRow } from "@/modules/demo-accounts/entities/demo-account.entity";
-import { generateDemoLogin, generateDemoPassword, generateDemoPhone, demoEmailFor } from "@/modules/demo-accounts/utils/credentials.util";
+import { generateDemoLogin, DEMO_ACCOUNT_DEFAULT_PASSWORD, generateDemoPhone, demoEmailFor } from "@/modules/demo-accounts/utils/credentials.util";
 import { hashPassword } from "@/server/auth/password";
 import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
 import { generateReferralCode } from "@/modules/identity/utils/referral-code.util";
@@ -55,7 +55,10 @@ export class DemoAccountService {
       login = generateDemoLogin();
     }
 
-    const password = generateDemoPassword();
+    // Fixed, intentional — never randomly generated. See
+    // DEMO_ACCOUNT_DEFAULT_PASSWORD's doc comment for why reusing this
+    // plaintext across accounts is safe (login is keyed by phone first).
+    const password = DEMO_ACCOUNT_DEFAULT_PASSWORD;
     const passwordHash = await hashPassword(password);
 
     let referralCode = generateReferralCode("Demo");

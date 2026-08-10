@@ -11,6 +11,8 @@ import { BusinessRuleError, NotFoundError } from "@/server/errors";
 import type { RequestMeta } from "@/modules/identity/services/auth.service";
 import type { AdminActor } from "@/modules/identity/services/user-management.service";
 import { isValidBrazilianPhone, formatPhone } from "@/lib/phone";
+import { DEMO_ACCOUNT_DEFAULT_PASSWORD } from "@/modules/demo-accounts/utils/credentials.util";
+import { UnauthorizedError } from "@/server/errors";
 
 vi.mock("@/server/audit", () => ({ AuditService: { record: vi.fn() } }));
 vi.mock("@/server/auth/tokens", async (importOriginal) => {
@@ -49,18 +51,38 @@ function buildService() {
 describe("DemoAccountService.create", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("generates a unique login/password pair and flags isDemo + tags:['demo']", async () => {
+  it("generates a unique login and flags isDemo + tags:['demo']", async () => {
     const { service, users } = buildService();
     const result = await service.create(10_000, actor, meta);
 
     expect(result.login).toMatch(/^demo\d{5}$/);
-    expect(result.password).toHaveLength(9);
     expect(result.balanceCents).toBe(10_000);
 
     const stored = await users.findById(result.id);
     expect(stored!.isDemo).toBe(true);
     expect(stored!.tags).toEqual(["demo"]);
     expect(stored!.status).toBe("ACTIVE");
+  });
+
+  it("SENHA PADRÃO — every new Conta Demo receives the fixed demo@123 password, never a random one", async () => {
+    const { service } = buildService();
+    const first = await service.create(0, actor, meta);
+    const second = await service.create(0, actor, meta);
+    const third = await service.create(0, actor, meta);
+
+    expect(first.password).toBe("demo@123");
+    expect(second.password).toBe("demo@123");
+    expect(third.password).toBe("demo@123");
+    expect(DEMO_ACCOUNT_DEFAULT_PASSWORD).toBe("demo@123");
+  });
+
+  it("SENHA PADRÃO — the password is stored hashed, never as plaintext", async () => {
+    const { service, users } = buildService();
+    const result = await service.create(0, actor, meta);
+
+    const stored = await users.findById(result.id);
+    expect(stored!.passwordHash).not.toBe("demo@123");
+    expect(stored!.passwordHash.startsWith("$2")).toBe(true); // bcrypt hash format
   });
 
   it("generates a real, unique phone and persists it on the user — the login identifier, not the internal username", async () => {
@@ -89,6 +111,73 @@ describe("DemoAccountService.create", () => {
     const result = await auth.login({ email: formatPhone(created.phone), password: created.password }, meta);
 
     expect(result.user.id).toBe(created.id);
+  });
+
+  it("SEGURANÇA — sharing demo@123 across every Conta Demo never grants cross-account access: phone A + demo@123 only ever logs into A", async () => {
+    const { service, users, sessions } = buildService();
+    const accountA = await service.create(0, actor, meta);
+    const accountB = await service.create(0, actor, meta);
+    expect(accountA.phone).not.toBe(accountB.phone);
+
+    const auth = new AuthService(users, sessions);
+    const loginA = await auth.login({ email: formatPhone(accountA.phone), password: DEMO_ACCOUNT_DEFAULT_PASSWORD }, meta);
+    const loginB = await auth.login({ email: formatPhone(accountB.phone), password: DEMO_ACCOUNT_DEFAULT_PASSWORD }, meta);
+
+    expect(loginA.user.id).toBe(accountA.id);
+    expect(loginB.user.id).toBe(accountB.id);
+    expect(loginA.user.id).not.toBe(loginB.user.id);
+  });
+
+  it("SEGURANÇA — demo@123 alone, with no phone/identifier, cannot authenticate (login always requires número + senha)", async () => {
+    const { service, users, sessions } = buildService();
+    await service.create(0, actor, meta);
+
+    const auth = new AuthService(users, sessions);
+    // No such identifier "demo@123" exists as a phone or email — login must
+    // still resolve a specific user by identifier first, so this rejects
+    // exactly like any bogus login, never falling back to "match by password".
+    await expect(auth.login({ email: "demo@123", password: DEMO_ACCOUNT_DEFAULT_PASSWORD }, meta)).rejects.toThrow(
+      UnauthorizedError
+    );
+  });
+
+  it("SEGURANÇA — real player accounts keep their own distinct password, untouched by the demo default", async () => {
+    const { service, users, sessions } = buildService();
+    const demo = await service.create(0, actor, meta);
+
+    const realPasswordHash = await (await import("@/server/auth/password")).hashPassword("MinhaSenhaReal!23");
+    const real = await users.create({
+      firstName: "Jogador",
+      lastName: "Real",
+      username: "jogador_real",
+      email: "jogador.real@test.com",
+      phone: "11988887777",
+      passwordHash: realPasswordHash,
+      referralCode: "REALPLR1",
+      status: "ACTIVE",
+    });
+
+    const auth = new AuthService(users, sessions);
+    // The real account's own password still works.
+    const loginReal = await auth.login({ email: formatPhone("11988887777"), password: "MinhaSenhaReal!23" }, meta);
+    expect(loginReal.user.id).toBe(real.id);
+    // The demo default password does NOT work against the real account.
+    await expect(
+      auth.login({ email: formatPhone("11988887777"), password: DEMO_ACCOUNT_DEFAULT_PASSWORD }, meta)
+    ).rejects.toThrow(UnauthorizedError);
+    // And the demo account is unaffected — still logs in with its own (fixed) password.
+    const loginDemo = await auth.login({ email: formatPhone(demo.phone), password: DEMO_ACCOUNT_DEFAULT_PASSWORD }, meta);
+    expect(loginDemo.user.id).toBe(demo.id);
+  });
+
+  it("the internal username (e.g. demoXXXXX) is never a valid login credential — only phone+senha works", async () => {
+    const { service, users, sessions } = buildService();
+    const created = await service.create(0, actor, meta);
+
+    const auth = new AuthService(users, sessions);
+    await expect(
+      auth.login({ email: created.login, password: DEMO_ACCOUNT_DEFAULT_PASSWORD }, meta)
+    ).rejects.toThrow(UnauthorizedError);
   });
 
   it("credits the initial balance via WalletService", async () => {
