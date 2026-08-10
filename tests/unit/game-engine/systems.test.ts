@@ -190,7 +190,7 @@ describe("systems — platform consumption (ring passed -> broken)", () => {
 
   it("a consumed ring is invisible (no longer rendered) via the same ringVisible gate physics uses", () => {
     const { runtime } = buildRuntime(yForCrossed(0));
-    const ring = { index: 0, y: 0, baseRotation: 0, segments: [], variant: "normal" as const, motion: { kind: "static" as const }, colorIndex: 0 };
+    const ring = { index: 0, y: 0, baseRotation: 0, segments: [], variant: "normal" as const, motion: { kind: "static" as const } };
     expect(ringVisible(runtime, ring, 0, 0)).toBe(true);
 
     runtime.broken.add(0);
@@ -221,7 +221,6 @@ describe("systems — handleTouch: red is the only loss zone", () => {
       segments: [],
       variant: "normal",
       motion: { kind: "static" },
-      colorIndex: 0,
     };
     const cb = buildCallbacks();
 
@@ -246,7 +245,6 @@ describe("systems — handleTouch: red is the only loss zone", () => {
       segments: [],
       variant: "normal",
       motion: { kind: "static" },
-      colorIndex: 0,
     };
     const cb = buildCallbacks();
 
@@ -266,7 +264,6 @@ describe("systems — handleTouch: red is the only loss zone", () => {
       segments: [],
       variant: "normal",
       motion: { kind: "static" },
-      colorIndex: 0,
     };
     runtime.broken.add(5);
     const cb = buildCallbacks();
@@ -301,7 +298,6 @@ describe("systems — bounce is constant-height, not impact-proportional", () =>
       segments: [],
       variant: "normal",
       motion: { kind: "static" },
-      colorIndex: 0,
     };
     // The impact speed the ball arrived with — the value the old
     // impact-proportional formula multiplied by bounceRestitution.

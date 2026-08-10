@@ -19,11 +19,11 @@ export interface EngineCallbacks {
 
 function ringColor(runtime: EngineRuntime, ringIndex: number): string {
   const ring = runtime.rings[ringIndex];
-  if (!ring) return CFG.colors.palette[0];
+  if (!ring) return CFG.colors.platform;
   if (ring.variant === "ice") return CFG.colors.ice;
   if (ring.variant === "boost") return CFG.colors.boost;
   if (ring.variant === "fragile") return CFG.colors.fragile;
-  return CFG.colors.palette[ring.colorIndex];
+  return CFG.colors.platform;
 }
 
 /** The ball body, or null if it isn't alive in the physics world right now. */

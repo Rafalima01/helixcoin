@@ -21,7 +21,6 @@ export interface RingData {
   segments: SegmentType[];
   variant: RingVariant;
   motion: RingMotion;
-  colorIndex: number;
 }
 
 /** Groups of colliders inside one ring body, identified by behavior on touch. */

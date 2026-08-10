@@ -109,7 +109,6 @@ export function generateRing(seed: string, index: number): RingData {
     segments,
     variant,
     motion,
-    colorIndex: index % CFG.colors.palette.length,
   };
 }
 

@@ -6,7 +6,7 @@ export const ENGINE_CONFIG = {
   // ---- Tower geometry ----
   ringSpacing: 1.5, // vertical distance between platforms
   segmentsPerRing: 12, // angular resolution of each ring
-  segmentGapFactor: 0.94, // visual seam between segments
+  segmentGapFactor: 0.995, // visual seam between segments — near-1 so solid runs read as one continuous ring; real gaps (holes) are separate segments, unaffected
   ringInnerRadius: 1.05,
   ringOuterRadius: 2.35,
   ringThickness: 0.34,
@@ -174,8 +174,13 @@ export const ENGINE_CONFIG = {
   },
 
   // ---- Palette ----
+  // Minimalist pass: one flat solid color per platform kind, no gradients/
+  // emissive/glow. `platform` is the single normal-segment color (was a
+  // 3-color per-ring cycle). ice/boost/fragile stay visually distinct — see
+  // systems.ts's real gameplay branches on ring.variant — but flattened to
+  // solid tones consistent with the rest of the palette.
   colors: {
-    palette: ["#8B5CF6", "#FF4FAE", "#16F2A5"],
+    platform: "#60A5FA",
     fragile: "#B7B3C9",
     ice: "#7DD3FC",
     boost: "#FB923C",
@@ -185,8 +190,6 @@ export const ENGINE_CONFIG = {
     reward: "#FFD166",
     ballIdle: "#FFFFFF",
     ballFire: "#FFB86B",
-    trailIdle: "#8B5CF6",
-    trailFire: "#FF8A3D",
   },
 } as const;
 

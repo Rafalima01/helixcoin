@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, type RootState } from "@react-three/fiber";
 import { Physics, useBeforePhysicsStep } from "@react-three/rapier";
-import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import type * as THREE from "three";
 import type { RapierRigidBody } from "@react-three/rapier";
 import { activeEngineConfig as CFG, setActiveEngineConfig } from "@/game-engine/config";
@@ -26,7 +25,6 @@ import { Ball } from "@/game-engine/components/ball";
 import { TowerRenderer } from "@/game-engine/components/tower-renderer";
 import { TowerPhysics } from "@/game-engine/components/tower-physics";
 import { CameraRig } from "@/game-engine/components/camera-rig";
-import { Particles } from "@/game-engine/components/particles";
 import { useGameStore } from "@/store/game-store";
 
 /** Must match the fixed `timeStep` passed to `<Physics>` below — shared so the two never drift apart. */
@@ -266,10 +264,16 @@ export function GameEngine({
               unrelated flat tone. */}
           <fog attach="fog" args={["#1793F2", 9, 24]} />
 
-          <ambientLight intensity={0.55} color="#a78bfa" />
-          <directionalLight position={[4, 8, 4]} intensity={1.2} color="#ffffff" />
-          <pointLight position={[-4, -2, 3]} intensity={8} color="#FF4FAE" distance={10} />
-          <pointLight position={[3, -6, -2]} intensity={6} color="#16F2A5" distance={10} />
+          {/* Minimalist pass: one ambient + one directional light — just enough
+              for MeshLambertMaterial to read as solid 3D shapes, not flat cutouts.
+              Removed: 2 colored point lights + the ball's own dynamic point light
+              (pure decoration, now moot since nothing uses specular/PBR), Bloom +
+              Vignette post-processing (an extra full-scene render pass, the single
+              most expensive cosmetic effect in the old pipeline), and the particle
+              system (see components/particles.tsx — still importable, just no
+              longer mounted here). */}
+          <ambientLight intensity={0.7} color="#ffffff" />
+          <directionalLight position={[4, 8, 4]} intensity={0.9} color="#ffffff" />
 
           <Suspense fallback={null}>
             <Physics gravity={[0, CFG.gravity, 0]} paused={paused} timeStep={PHYSICS_DT}>
@@ -285,13 +289,7 @@ export function GameEngine({
           </Suspense>
 
           <TowerRenderer runtime={runtime} />
-          <Particles />
           <CameraRig runtime={runtime} />
-
-          <EffectComposer multisampling={0}>
-            <Bloom intensity={0.65} luminanceThreshold={0.25} luminanceSmoothing={0.4} mipmapBlur />
-            <Vignette eskil={false} offset={0.15} darkness={0.9} />
-          </EffectComposer>
         </Canvas>
       )}
 

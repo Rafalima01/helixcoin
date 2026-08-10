@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Trail } from "@react-three/drei";
 import { RigidBody, BallCollider, type RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
@@ -22,8 +21,7 @@ const fireColor = new THREE.Color(CFG.colors.ballFire);
 export function Ball({ runtime }: { runtime: EngineRuntime }) {
   const bodyRef = useRef<RapierRigidBody>(null);
   const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshPhysicalMaterial>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
+  const matRef = useRef<THREE.MeshLambertMaterial>(null);
   const shadowRef = useRef<THREE.Mesh>(null);
   const fireLerp = useRef(0);
 
@@ -33,18 +31,13 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
     const mesh = meshRef.current;
     if (!body || !mesh || !body.isValid()) return;
 
-    // Fire mode visual blend (color + emissive + light).
+    // Fire mode visual: solid color swap only — no emissive/light, kept as a
+    // simple flat color lerp for player feedback.
     const fire = useGameStore.getState().fireMode;
     fireLerp.current += ((fire ? 1 : 0) - fireLerp.current) * Math.min(1, dt * 8);
     const t = fireLerp.current;
     if (matRef.current) {
       matRef.current.color.lerpColors(idleColor, fireColor, t);
-      matRef.current.emissive.lerpColors(idleColor, fireColor, t);
-      matRef.current.emissiveIntensity = 0.25 + t * 1.6;
-    }
-    if (lightRef.current) {
-      lightRef.current.intensity = 2 + t * 14;
-      lightRef.current.color.lerpColors(idleColor, fireColor, Math.min(1, t * 1.5));
     }
 
     // Dynamic blob shadow projected on the next platform below.
@@ -91,28 +84,11 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
         canSleep={false}
       >
         <BallCollider args={[CFG.ballRadius]} restitution={0} friction={0.05} />
-        <Trail
-          width={1.9}
-          length={5}
-          decay={2.2}
-          color={CFG.colors.trailIdle}
-          attenuation={(w) => w * w}
-        >
-          <mesh ref={meshRef} castShadow>
-            <sphereGeometry args={[CFG.ballRadius, 32, 32]} />
-            <meshPhysicalMaterial
-              ref={matRef}
-              color={CFG.colors.ballIdle}
-              emissive={CFG.colors.ballIdle}
-              emissiveIntensity={0.25}
-              metalness={0.35}
-              roughness={0.18}
-              clearcoat={1}
-              clearcoatRoughness={0.12}
-            />
-          </mesh>
-        </Trail>
-        <pointLight ref={lightRef} intensity={2} distance={4.5} color="#ffffff" />
+        {/* Minimalist pass: solid color, no Trail ribbon / clearcoat / point light — see game-engine.tsx's audit notes. */}
+        <mesh ref={meshRef}>
+          <sphereGeometry args={[CFG.ballRadius, 20, 20]} />
+          <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
+        </mesh>
       </RigidBody>
 
       {/* Cheap dynamic shadow — a fading disc that tracks the ring below. */}

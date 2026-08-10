@@ -18,10 +18,7 @@ function createSegmentGeometry(scaleY = 1): THREE.BufferGeometry {
   shape.absarc(0, 0, inner, half, -half, true);
   const geo = new THREE.ExtrudeGeometry(shape, {
     depth: CFG.ringThickness * scaleY,
-    bevelEnabled: true,
-    bevelThickness: 0.02,
-    bevelSize: 0.02,
-    bevelSegments: 1,
+    bevelEnabled: false,
     curveSegments: 6,
   });
   // Extrude grows along +Z; rotate so the platform lies in XZ, top face at y=0.
@@ -32,7 +29,7 @@ function createSegmentGeometry(scaleY = 1): THREE.BufferGeometry {
 
 const dummy = new THREE.Object3D();
 const colorScratch = new THREE.Color();
-const paletteColors = CFG.colors.palette.map((c) => new THREE.Color(c));
+const platformColor = new THREE.Color(CFG.colors.platform);
 const variantColors = {
   fragile: new THREE.Color(CFG.colors.fragile),
   ice: new THREE.Color(CFG.colors.ice),
@@ -47,21 +44,13 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
   const baseGeo = useMemo(() => createSegmentGeometry(), []);
   const dangerGeo = useMemo(() => createSegmentGeometry(1.12), []);
 
-  const baseMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ metalness: 0.35, roughness: 0.42 }),
-    []
-  );
-  const dangerMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: CFG.colors.danger,
-        emissive: CFG.colors.danger,
-        emissiveIntensity: 0.85,
-        metalness: 0.2,
-        roughness: 0.35,
-      }),
-    []
-  );
+  // Minimalist pass: flat MeshLambertMaterial (diffuse-only, no PBR/specular/
+  // metalness/roughness compute) instead of MeshStandardMaterial — much
+  // cheaper per-pixel, still takes a hint of shading from the scene's single
+  // directional light so the tower doesn't read as a completely flat 2D
+  // cutout. Danger platforms are solid red now — no emissive/glow.
+  const baseMat = useMemo(() => new THREE.MeshLambertMaterial({ color: "#ffffff" }), []);
+  const dangerMat = useMemo(() => new THREE.MeshLambertMaterial({ color: CFG.colors.danger }), []);
 
   useEffect(() => {
     return () => {
@@ -113,7 +102,7 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
         } else if (nBase < CFG.maxInstances) {
           base.setMatrixAt(nBase, dummy.matrix);
           if (ring.variant === "normal") {
-            colorScratch.copy(paletteColors[ring.colorIndex]);
+            colorScratch.copy(platformColor);
           } else {
             colorScratch.copy(variantColors[ring.variant]);
           }
@@ -148,13 +137,7 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
 
       <mesh ref={columnRef}>
         <cylinderGeometry args={[CFG.columnRadius, CFG.columnRadius, 64, 24]} />
-        <meshStandardMaterial
-          color="#1A1228"
-          emissive="#8B5CF6"
-          emissiveIntensity={0.08}
-          metalness={0.6}
-          roughness={0.35}
-        />
+        <meshLambertMaterial color="#1A1228" />
       </mesh>
     </group>
   );
