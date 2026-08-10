@@ -1,11 +1,11 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, type RootState } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { Physics, useBeforePhysicsStep } from "@react-three/rapier";
-import type * as THREE from "three";
 import type { RapierRigidBody } from "@react-three/rapier";
 import { activeEngineConfig as CFG, setActiveEngineConfig } from "@/game-engine/config";
+import { activeQualitySettings as QUALITY, initQuality } from "@/game-engine/quality";
 import {
   createRuntime,
   type EngineRuntime,
@@ -18,6 +18,7 @@ import {
   advanceRotation,
   clampFallSpeed,
   handleTouch,
+  pruneOldRings,
   stepGameplay,
   type EngineCallbacks,
 } from "@/game-engine/systems";
@@ -26,6 +27,11 @@ import { TowerRenderer } from "@/game-engine/components/tower-renderer";
 import { TowerPhysics } from "@/game-engine/components/tower-physics";
 import { CameraRig } from "@/game-engine/components/camera-rig";
 import { Particles } from "@/game-engine/components/particles";
+import {
+  DevTelemetryOverlay,
+  TelemetryProbe,
+  useTelemetrySnapshot,
+} from "@/game-engine/components/dev-telemetry";
 import { useGameStore } from "@/store/game-store";
 
 /** Must match the fixed `timeStep` passed to `<Physics>` below — shared so the two never drift apart. */
@@ -44,6 +50,11 @@ function EngineSystems({
       stepGameplay(runtime);
     } catch (err) {
       if (process.env.NODE_ENV !== "production") console.error("gameplay step:", err);
+    }
+    try {
+      pruneOldRings(runtime);
+    } catch (err) {
+      if (process.env.NODE_ENV !== "production") console.error("ring pruning:", err);
     }
     const passes = useGameStore.getState().platformsPassed;
     if (passes > runtime.rings.length - CFG.extendWhenRemaining) {
@@ -92,6 +103,18 @@ export function GameEngine({
   // match's own params.
   setActiveEngineConfig(engineParams);
 
+  // Same "call every render, cheap/idempotent" pattern as setActiveEngineConfig
+  // above — see quality.ts's initQuality doc comment: only the FIRST call this
+  // browser session actually detects/samples anything; every later match
+  // mount just re-confirms the already-active tier. `qualityVersion` exists
+  // purely to force one re-render if the async frame-time sample (fired once,
+  // ~2.5s into the first match) refines the tier after this component's
+  // first paint — dpr/antialias/renderAhead/etc. are read fresh from the
+  // `QUALITY` live binding below, not from React state.
+  const [, setQualityVersion] = useState(0);
+  initQuality(() => setQualityVersion((v) => v + 1));
+  const telemetry = useTelemetrySnapshot();
+
   const [rings, setRings] = useState<RingData[]>(() => generateRings(seed, 0, CFG.initialRings));
   const [physicsVersion, setPhysicsVersion] = useState(0);
   const ballRef = useRef<RapierRigidBody | null>(null);
@@ -135,7 +158,9 @@ export function GameEngine({
     const last = Math.min(rings.length - 1, passes + CFG.physicsAhead);
     const out: RingData[] = [];
     for (let i = first; i <= last; i++) {
-      if (!runtime.broken.has(i)) out.push(rings[i]);
+      if (runtime.broken.has(i)) continue;
+      const ring = rings[i];
+      if (ring) out.push(ring);
     }
     return out;
   }, [rings, passes, physicsVersion, runtime]);
@@ -187,22 +212,19 @@ export function GameEngine({
     runtime.rot.dragging = false;
   };
 
-  // ---- Defensive resize mirroring (embedding contexts) ----
+  // ---- Mount gate: wait for the container's first real (non-zero) layout
+  // size before mounting <Canvas> ----
+  //
+  // Perf audit Prioridade 10: this used to ALSO manually mirror `gl.setSize`
+  // and the camera's aspect ratio on every observed resize — fully
+  // redundant with the Canvas's own `resize={{scroll:false, debounce:0}}`
+  // prop below, which already drives R3F's built-in ResizeObserver-based
+  // sizing of the canvas + camera. Two mechanisms doing the identical job
+  // meant real double work on every orientation change/resize (exactly the
+  // moment a tablet is likely to be mid-rotation). Only the "gate the first
+  // mount" part earns its keep — R3F's own resize handling does the rest.
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-  const glRef = useRef<RootState["gl"] | null>(null);
-  const cameraRef = useRef<RootState["camera"] | null>(null);
-
-  const applySize = useCallback((width: number, height: number) => {
-    const gl = glRef.current;
-    const camera = cameraRef.current;
-    if (!gl || !camera || width <= 0 || height <= 0) return;
-    gl.setSize(width, height, true);
-    if ("aspect" in camera) {
-      (camera as THREE.PerspectiveCamera).aspect = width / height;
-      camera.updateProjectionMatrix();
-    }
-  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -211,18 +233,13 @@ export function GameEngine({
       const rect = el.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         setSize({ width: rect.width, height: rect.height });
-        applySize(rect.width, rect.height);
       }
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [applySize]);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div
@@ -241,19 +258,22 @@ export function GameEngine({
     >
       {size && (
         <Canvas
-          dpr={[1, 1.75]}
-          gl={{ antialias: true, powerPreference: "high-performance", alpha: true }}
+          // Perf audit Prioridade 3/7/8: dpr and antialias come from the
+          // active quality tier (src/game-engine/quality.ts) instead of a
+          // fixed [1, 1.75]/true for every device. `dpr` is read reactively
+          // by R3F on every re-render of this component (Canvas watches the
+          // prop), so a mid-session tier refinement applies live; `gl.antialias`
+          // is a WebGL-context-creation-time flag and can only take effect
+          // from the NEXT match's fresh context onward (this Canvas fully
+          // remounts per match — see play-screen.tsx's key={seed}).
+          dpr={QUALITY.dpr}
+          gl={{ antialias: QUALITY.antialias, powerPreference: "high-performance", alpha: true }}
           camera={{
             fov: CFG.cameraFov,
             position: [CFG.cameraDistance, CFG.ballSpawnY + CFG.cameraOffsetY, 0],
           }}
           resize={{ scroll: false, debounce: 0 }}
           style={{ width: "100%", height: "100%", display: "block" }}
-          onCreated={(state) => {
-            glRef.current = state.gl;
-            cameraRef.current = state.camera;
-            applySize(size.width, size.height);
-          }}
         >
           {/* No <color attach="background">: the WebGL context clears to transparent
               (gl alpha:true above) so the CSS background-image on the container div
@@ -288,8 +308,13 @@ export function GameEngine({
           <TowerRenderer runtime={runtime} />
           <Particles />
           <CameraRig runtime={runtime} />
+          {process.env.NODE_ENV !== "production" && (
+            <TelemetryProbe runtime={runtime} onSample={telemetry.onSample} />
+          )}
         </Canvas>
       )}
+
+      {process.env.NODE_ENV !== "production" && <DevTelemetryOverlay snapshot={telemetry.snapshot} />}
 
       {/* Fire mode heat vignette */}
       <div

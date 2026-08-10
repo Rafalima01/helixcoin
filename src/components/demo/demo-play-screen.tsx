@@ -64,7 +64,7 @@ export function DemoPlayScreen({ firstDepositBonusPercent }: { firstDepositBonus
   if (!seed) return null; // starts synchronously, no server round-trip to wait on
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" data-scope="game">
       <GameEngine key={seed} seed={seed} onDeath={handleDeath} />
       <GameHud onCashout={handleCashout} cashoutLoading={false} />
       {result && (

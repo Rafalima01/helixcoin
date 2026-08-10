@@ -112,10 +112,14 @@ export const ENGINE_CONFIG = {
   shakeMagnitude: 0.34,
 
   // ---- Windows (performance) ----
+  // Physics window ONLY — how many rings are simulated. Fixed regardless of
+  // quality tier (perf audit Prioridade 4: render distance is a visual-only
+  // lever, simulated physics never shrinks with device weakness). The
+  // render-only equivalent (how many rings are DRAWN) now lives in
+  // src/game-engine/quality.ts's per-tier renderAhead/renderBehind — see
+  // tower-renderer.tsx.
   physicsBehind: 1, // rings kept alive above the ball
   physicsAhead: 5, // rings simulated below the ball
-  renderAhead: 16, // rings drawn below the ball
-  renderBehind: 2,
 
   // ---- Effects ----
   hitstopMs: 90, // freeze-frame on death (physics pause before overlay)

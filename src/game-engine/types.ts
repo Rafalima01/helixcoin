@@ -28,7 +28,18 @@ export type TouchKind = "solid" | "danger";
  */
 export interface EngineRuntime {
   ballRef: RefObject<RapierRigidBody | null>;
-  rings: RingData[];
+  /**
+   * Sparse on purpose: entries far enough behind the ball get freed by
+   * pruneOldRings() (systems.ts) via `delete rings[i]`, which leaves a hole
+   * (`undefined`) at that index WITHOUT shrinking `.length` or shifting any
+   * other index — every consumer indexes this array by absolute ring
+   * number (`rings[ringIndex]`), so index positions must never move. Every
+   * consumer already null-checks before use (see the perf audit's
+   * Prioridade 6 consumer sweep) for exactly this reason.
+   */
+  rings: (RingData | undefined)[];
+  /** Highest ring index pruneOldRings() has already freed through — lets it resume instead of rescanning from 0 every call. -1 = nothing pruned yet. */
+  prunedThrough: number;
   time: number;
   rot: {
     target: number;
@@ -53,6 +64,7 @@ export function createRuntime(ballRef: RefObject<RapierRigidBody | null>): Engin
   return {
     ballRef,
     rings: [],
+    prunedThrough: -1,
     time: 0,
     rot: { target: 0, current: 0, velPs: 0, dragging: false, lastX: 0, lastT: 0 },
     broken: new Set(),

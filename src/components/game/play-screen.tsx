@@ -165,7 +165,7 @@ export function PlayScreen() {
   }
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden" data-scope="game">
       <GameEngine key={seed} seed={seed} engineParams={engineParams} onDeath={handleDeath} />
       <GameHud
         onCashout={handleCashout}

@@ -13,7 +13,7 @@ export function DefeatOverlay({ onTryAgain }: { onTryAgain: () => void }) {
   const lost = centsToReais(betAmountCents);
 
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/85 p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

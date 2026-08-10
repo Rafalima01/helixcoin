@@ -261,6 +261,35 @@ export function stepGameplay(runtime: EngineRuntime) {
   }
 }
 
+/**
+ * How far behind `platformsPassed` a ring index must fall before it's safe
+ * to free. Every real consumer of `runtime.rings[i]`/`runtime.broken` only
+ * ever looks within CFG.physicsBehind (1) or CFG.renderBehind (<=2, tier-
+ * dependent) rings above the ball — this margin is a deliberately generous
+ * multiple of that, so pruning can never race a legitimate read. Perf audit
+ * Prioridade 6.
+ */
+const PRUNE_MARGIN = 30;
+
+/**
+ * Frees RingData objects (and their `broken` bookkeeping) for rings the ball
+ * has fallen far enough past that nothing will ever read them again —
+ * without shifting any index (see EngineRuntime.rings' doc comment). Cheap:
+ * `prunedThrough` means each ring index is only ever visited once across
+ * the whole match, not rescanned every frame.
+ */
+export function pruneOldRings(runtime: EngineRuntime): void {
+  const passes = useGameStore.getState().platformsPassed;
+  const target = passes - PRUNE_MARGIN;
+  if (target <= runtime.prunedThrough + 1) return;
+  const upTo = Math.min(target, runtime.rings.length);
+  for (let i = runtime.prunedThrough + 1; i < upTo; i++) {
+    delete runtime.rings[i];
+    runtime.broken.delete(i);
+  }
+  runtime.prunedThrough = upTo - 1;
+}
+
 /** Physics-step hook body: hard cap on fall speed + impact-speed sampling. */
 export function clampFallSpeed(runtime: EngineRuntime) {
   const body = liveBall(runtime);

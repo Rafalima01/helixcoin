@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { activeEngineConfig as CFG, getSegmentAngle } from "@/game-engine/config";
+import { activeQualitySettings as QUALITY } from "@/game-engine/quality";
 import type { EngineRuntime, RingData, SegmentType } from "@/game-engine/types";
 import { ringRotation, ringVisible } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
@@ -83,6 +84,12 @@ function buildRunGeometry(ring: RingData, kind: "solid" | "danger"): THREE.Buffe
   // Extrude grows along +Z; rotate so the platform lies in XZ, top face at y=0.
   geo.rotateX(-Math.PI / 2);
   geo.translate(0, -CFG.ringThickness * scaleY, 0);
+  // Perf audit Prioridade 5: this merged multi-shape geometry needs an
+  // explicit, correct bounding sphere before frustum culling can be trusted
+  // (RingMesh below re-enables it) — computed once here, right after the
+  // geometry's final transform, not left to whatever default a consumer
+  // might assume.
+  geo.computeBoundingSphere();
   return geo;
 }
 
@@ -119,7 +126,13 @@ function RingMesh({
   });
 
   if (!geometry) return null;
-  return <mesh ref={meshRef} geometry={geometry} material={material} position={[0, ring.y, 0]} frustumCulled={false} />;
+  // frustumCulled intentionally left at its Three.js default (true) — the
+  // geometry now carries a correct, explicitly computed bounding sphere
+  // (buildRunGeometry above), so off-screen rings/segments outside the
+  // camera frustum are skipped for free. Verified in the browser across
+  // portrait/landscape and while the tower rotates that no ring inside the
+  // render window ever disappears prematurely (see perf-audit report).
+  return <mesh ref={meshRef} geometry={geometry} material={material} position={[0, ring.y, 0]} />;
 }
 
 export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
@@ -148,8 +161,12 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
     if (columnRef.current) columnRef.current.position.y = ballY;
   });
 
-  const first = Math.max(0, passes - CFG.renderBehind);
-  const last = Math.min(runtime.rings.length - 1, passes + CFG.renderAhead);
+  // Purely a visual lookahead window (Prioridade 4 do audit de performance) —
+  // deliberately NOT CFG.physicsAhead/physicsBehind, which stay fixed and
+  // untouched by quality tier: how many rings are simulated never changes,
+  // only how many are drawn for the player to see coming.
+  const first = Math.max(0, passes - QUALITY.renderBehind);
+  const last = Math.min(runtime.rings.length - 1, passes + QUALITY.renderAhead);
   const windowRings: RingData[] = [];
   for (let i = first; i <= last; i++) {
     const ring = runtime.rings[i];
@@ -166,7 +183,7 @@ export function TowerRenderer({ runtime }: { runtime: EngineRuntime }) {
       ))}
 
       <mesh ref={columnRef}>
-        <cylinderGeometry args={[CFG.columnRadius, CFG.columnRadius, 64, 24]} />
+        <cylinderGeometry args={[CFG.columnRadius, CFG.columnRadius, 64, QUALITY.columnRadialSegments]} />
         <meshLambertMaterial color="#1A1228" />
       </mesh>
     </group>

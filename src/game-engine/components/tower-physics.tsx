@@ -26,33 +26,72 @@ interface ColliderGeometry {
 }
 
 /**
- * One kinematic RigidBody per behavior group (solid / danger) per ring.
- * Bodies live only inside a small window around the ball; rotation is written
- * every physics step from the exact same math the renderer uses.
+ * One kinematic RigidBody per RING (not per behavior group). Perf audit
+ * Prioridade 2: a ring with both solid and danger segments used to get TWO
+ * separate RigidBody instances, each independently computing and applying
+ * the exact same `ringRotation(runtime, ring, t)` value every physics
+ * sub-step (rotation depends only on `ring`, never on segment kind) — a
+ * provably redundant WASM call, not an approximation of one. Consolidating
+ * to one body per ring removes that duplication and cuts the number of
+ * kinematic bodies (and therefore setNextKinematicRotation calls) by up to
+ * ~1/3 on rings that carry both kinds, with ZERO change to any collider:
+ * every CuboidCollider below has the exact same args/position/rotation/
+ * restitution/friction as before, computed by the exact same per-segment
+ * formula — only the parent body changed. Touch-kind detection moves from
+ * "which body fired onCollisionEnter" to "which individual collider fired
+ * it" (each CuboidCollider carries its own onCollisionEnter — supported
+ * directly by @react-three/rapier's ColliderOptions), so solid vs danger
+ * are still told apart exactly as before, just per-collider instead of
+ * per-body.
+ *
+ * Segment-level merging (representing a whole contiguous run as ONE bigger
+ * collider, mirroring the renderer's merged-run geometry) was investigated
+ * and deliberately NOT done: a flat box wide enough to span several segments
+ * would either cut into the true wedge or miss its true edges (a straight
+ * chord doesn't follow a wide arc — the same class of bug already found and
+ * fixed once in tower-renderer.tsx), and a per-run TrimeshCollider/
+ * ConvexHullCollider carries a real, undocumented risk of subtly different
+ * contact/bounce response versus the well-tested CuboidCollider-per-segment
+ * shape this game's collision behavior has already been validated against.
+ * Bodies (not collider shapes) is the safe reduction available here.
  */
 function RingBody({
   ring,
-  kind,
   geometry,
   register,
   touch,
 }: {
   ring: RingData;
-  kind: TouchKind;
   geometry: ColliderGeometry;
   register: (key: string, entry: BodyEntry | null) => void;
   touch: (ringIndex: number, kind: TouchKind) => void;
 }) {
-  const key = `${ring.index}:${kind}`;
-  const segments: number[] = [];
+  const solidSegments: number[] = [];
+  const dangerSegments: number[] = [];
   for (let k = 0; k < ring.segments.length; k++) {
     const type = ring.segments[k];
-    if (kind === "solid" && type === "solid") segments.push(k);
-    else if (kind === "danger" && type === "danger") segments.push(k);
+    if (type === "solid") solidSegments.push(k);
+    else if (type === "danger") dangerSegments.push(k);
   }
-  if (segments.length === 0) return null;
+  if (solidSegments.length === 0 && dangerSegments.length === 0) return null;
 
   const { radialHalf, thickHalf, chordHalf, segmentAngle } = geometry;
+
+  const renderColliders = (segments: number[], kind: TouchKind) =>
+    segments.map((k) => {
+      const a = k * segmentAngle;
+      return (
+        <CuboidCollider
+          key={`${kind}:${k}`}
+          args={[radialHalf, thickHalf, chordHalf]}
+          position={[Math.cos(a) * RING_MID_RADIUS, -thickHalf, -Math.sin(a) * RING_MID_RADIUS]}
+          rotation={[0, a, 0]}
+          restitution={0}
+          friction={0.05}
+          onCollisionEnter={() => touch(ring.index, kind)}
+        />
+      );
+    });
 
   return (
     <RigidBody
@@ -60,23 +99,11 @@ function RingBody({
       position={[0, ring.y, 0]}
       colliders={false}
       ref={(body) => {
-        register(key, body ? { body, ring, enabled: true } : null);
+        register(String(ring.index), body ? { body, ring, enabled: true } : null);
       }}
-      onCollisionEnter={() => touch(ring.index, kind)}
     >
-      {segments.map((k) => {
-        const a = k * segmentAngle;
-        return (
-          <CuboidCollider
-            key={k}
-            args={[radialHalf, thickHalf, chordHalf]}
-            position={[Math.cos(a) * RING_MID_RADIUS, -thickHalf, -Math.sin(a) * RING_MID_RADIUS]}
-            rotation={[0, a, 0]}
-            restitution={0}
-            friction={0.05}
-          />
-        );
-      })}
+      {renderColliders(solidSegments, "solid")}
+      {renderColliders(dangerSegments, "danger")}
     </RigidBody>
   );
 }
@@ -166,10 +193,7 @@ export function TowerPhysics({
     <>
       {windowRings.map((ring) =>
         runtime.broken.has(ring.index) ? null : (
-          <group key={ring.index}>
-            <RingBody ring={ring} kind="solid" geometry={geometry} register={register} touch={touch} />
-            <RingBody ring={ring} kind="danger" geometry={geometry} register={register} touch={touch} />
-          </group>
+          <RingBody key={ring.index} ring={ring} geometry={geometry} register={register} touch={touch} />
         )
       )}
     </>

@@ -6,6 +6,7 @@ import { Html } from "@react-three/drei";
 import { RigidBody, BallCollider, type RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
+import { activeQualitySettings as QUALITY } from "@/game-engine/quality";
 import type { EngineRuntime } from "@/game-engine/types";
 import { ringVisible } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
@@ -119,9 +120,10 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
         ccd
         canSleep={false}
       >
+        {/* Physics radius is fixed regardless of tier — only the visual mesh below (sphereGeometry segments) scales down on low-end tiers. */}
         <BallCollider args={[CFG.ballRadius]} restitution={0} friction={0.05} />
         <mesh ref={meshRef}>
-          <sphereGeometry args={[CFG.ballRadius, 20, 20]} />
+          <sphereGeometry args={[CFG.ballRadius, QUALITY.ballSegments, QUALITY.ballSegments]} />
           <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
         </mesh>
 
