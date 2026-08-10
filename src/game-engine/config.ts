@@ -160,6 +160,10 @@ export const ENGINE_CONFIG = {
     reward: "#FFD166",
     ballIdle: "#FFFFFF",
     ballFire: "#FFB86B",
+    // Soft light-grey — the ball's falling smoke trail (ball.tsx), reuses
+    // components/particles.tsx's pool. Deliberately not pure white so it
+    // reads as smoke, not a glow.
+    trailSmoke: "#D7DEE6",
   },
 } as const;
 

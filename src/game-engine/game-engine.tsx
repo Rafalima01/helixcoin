@@ -25,6 +25,7 @@ import { Ball } from "@/game-engine/components/ball";
 import { TowerRenderer } from "@/game-engine/components/tower-renderer";
 import { TowerPhysics } from "@/game-engine/components/tower-physics";
 import { CameraRig } from "@/game-engine/components/camera-rig";
+import { Particles } from "@/game-engine/components/particles";
 import { useGameStore } from "@/store/game-store";
 
 /** Must match the fixed `timeStep` passed to `<Physics>` below — shared so the two never drift apart. */
@@ -267,9 +268,11 @@ export function GameEngine({
               Removed: 2 colored point lights + the ball's own dynamic point light
               (pure decoration, now moot since nothing uses specular/PBR), Bloom +
               Vignette post-processing (an extra full-scene render pass, the single
-              most expensive cosmetic effect in the old pipeline), and the particle
-              system (see components/particles.tsx — still importable, just no
-              longer mounted here). */}
+              most expensive cosmetic effect in the old pipeline). The particle
+              pool (components/particles.tsx) IS mounted below — reused for the
+              ball's smoke trail (ball.tsx) as well as the pre-existing bounce/
+              death/goal bursts (systems.ts), one shared InstancedMesh for all of
+              them. */}
           <ambientLight intensity={0.7} color="#ffffff" />
           <directionalLight position={[4, 8, 4]} intensity={0.9} color="#ffffff" />
 
@@ -283,6 +286,7 @@ export function GameEngine({
           </Suspense>
 
           <TowerRenderer runtime={runtime} />
+          <Particles />
           <CameraRig runtime={runtime} />
         </Canvas>
       )}

@@ -2,13 +2,17 @@
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Trail } from "@react-three/drei";
+import { Html } from "@react-three/drei";
 import { RigidBody, BallCollider, type RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
 import type { EngineRuntime } from "@/game-engine/types";
 import { ringVisible } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
+import { particleBus } from "@/game-engine/components/particles";
+import { currentValueReais } from "@/lib/multiplier";
+import { formatCurrency } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 
 const idleColor = new THREE.Color(CFG.colors.ballIdle);
 const fireColor = new THREE.Color(CFG.colors.ballFire);
@@ -25,6 +29,12 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
   const matRef = useRef<THREE.MeshLambertMaterial>(null);
   const shadowRef = useRef<THREE.Mesh>(null);
   const fireLerp = useRef(0);
+  const smokeTimer = useRef(0);
+
+  const status = useGameStore((s) => s.status);
+  const multiplier = useGameStore((s) => s.multiplier);
+  const betAmountCents = useGameStore((s) => s.betAmountCents);
+  const currentValue = currentValueReais(betAmountCents, multiplier);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 1 / 30);
@@ -39,6 +49,31 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
     const t = fireLerp.current;
     if (matRef.current) {
       matRef.current.color.lerpColors(idleColor, fireColor, t);
+    }
+
+    // Smoke trail: a couple of tiny, quick-fading puffs per second while the
+    // ball is actually falling — reuses the shared particle pool
+    // (components/particles.tsx) that already backs the bounce/death/goal
+    // bursts instead of a dedicated system. Throttled by a timer (not one
+    // spawn per frame) to keep this to a handful of instances at any time,
+    // regardless of frame rate.
+    const vy = body.linvel().y;
+    if (useGameStore.getState().status === "playing" && vy < -0.5) {
+      smokeTimer.current += dt;
+      if (smokeTimer.current >= 0.09) {
+        smokeTimer.current = 0;
+        const pos = body.translation();
+        particleBus.spawnBurst(pos.x, pos.y, pos.z, CFG.colors.trailSmoke, {
+          count: 1,
+          speed: 0.08,
+          upward: 0.05,
+          size: 0.05,
+          ttl: 0.3,
+          gravity: 0,
+        });
+      }
+    } else {
+      smokeTimer.current = 0;
     }
 
     // Dynamic blob shadow projected on the next platform below.
@@ -85,19 +120,44 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
         canSleep={false}
       >
         <BallCollider args={[CFG.ballRadius]} restitution={0} friction={0.05} />
+        <mesh ref={meshRef}>
+          <sphereGeometry args={[CFG.ballRadius, 20, 20]} />
+          <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
+        </mesh>
+
         {/*
-          Trail: purely decorative — wraps the mesh, has no collider of its
-          own, never touches physics. It's a single ribbon mesh (drei
-          recycles one small vertex buffer every frame, not N objects), kept
-          short/fast-fading so it stays cheap: ~1 extra draw call, no
-          allocations per frame.
+          Gain indicator: pure visual overlay, purely reads store state that's
+          already computed elsewhere (game-store.ts's multiplier + betAmountCents,
+          same formula game-hud.tsx uses via currentValueReais — no independent
+          calculation). <Html> projects this DOM node from the ball's world
+          position every frame (non-transform mode keeps the text crisp and
+          cheap, no WebGL text geometry). Parented under the RigidBody so it
+          tracks the ball's synced transform automatically, no manual position
+          updates needed.
         */}
-        <Trail width={1.1} length={2.2} decay={3} color={CFG.colors.ballIdle} attenuation={(w) => w * w}>
-          <mesh ref={meshRef}>
-            <sphereGeometry args={[CFG.ballRadius, 20, 20]} />
-            <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
-          </mesh>
-        </Trail>
+        {status === "playing" && (
+          <Html
+            position={[0, 0.42, -0.3]}
+            center
+            occlude={false}
+            style={{ pointerEvents: "none" }}
+          >
+            <div className="flex select-none flex-col items-center leading-none">
+              <span
+                className="text-[11px] font-bold text-green"
+                style={{ textShadow: "0 1px 3px rgba(0,0,0,0.65)" }}
+              >
+                $
+              </span>
+              <span
+                className="text-[12px] font-extrabold tabular-nums text-green"
+                style={{ textShadow: "0 1px 3px rgba(0,0,0,0.65)" }}
+              >
+                <AnimatedNumber value={currentValue} format={(v) => formatCurrency(v)} duration={0.25} />
+              </span>
+            </div>
+          </Html>
+        )}
       </RigidBody>
 
       {/* Cheap dynamic shadow — a fading disc that tracks the ring below. */}

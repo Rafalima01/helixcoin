@@ -48,3 +48,8 @@ export function roundToCents(reais: number) {
 export function centsToReais(cents: number) {
   return cents / 100;
 }
+
+/** Current "valor atual" (reais) for a match in progress — bet × live multiplier. Single source of truth: game-hud.tsx and the in-canvas gain indicator (game-engine/components/ball.tsx) both call this instead of each re-deriving the same product. */
+export function currentValueReais(betAmountCents: number, multiplier: number) {
+  return centsToReais(betAmountCents) * multiplier;
+}

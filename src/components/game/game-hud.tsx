@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { RewardPopups } from "@/components/game/reward-popups";
 import { useGameStore } from "@/store/game-store";
-import { centsToReais } from "@/lib/multiplier";
+import { centsToReais, currentValueReais } from "@/lib/multiplier";
 import { formatCurrency, formatMultiplier, cn } from "@/lib/utils";
 
 /**
@@ -31,7 +31,7 @@ export function GameHud({
   const goalReached = useGameStore((s) => s.goalReached);
 
   const betReais = centsToReais(betAmountCents);
-  const currentValue = betReais * multiplier;
+  const currentValue = currentValueReais(betAmountCents, multiplier);
   const goalValue =
     goalAmountCents > 0 ? centsToReais(goalAmountCents) : betReais * targetMultiplier;
   const progress =
