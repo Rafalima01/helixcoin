@@ -10,13 +10,13 @@ import { nearestPreset } from "@/modules/game-config/utils/difficulty-preset.uti
 
 const MODE_LABEL: Record<GameMode, string> = { DEMO: "Demo", NORMAL: "Normal", HARD: "Hard" };
 
-/** Matches the 5-tier legend requested for the preview: 🟢 Muito Fácil/Fácil, 🟡 Normal, 🟠 Difícil, 🔴 Muito Difícil. */
+/** Matches the 5-tier legend requested for the preview: 🟢 Muito Fácil/Fácil, 🟡 Normal, 🟠 Difícil, 🔴 Extremo. Keys must mirror DIFFICULTY_PRESETS' `key`s exactly — a mismatch here means `stats.display` resolves to undefined and crashes the render (see the "extreme" preset, previously "very_hard", which triggered exactly that). */
 const PRESET_DISPLAY: Record<string, { emoji: string; tone: "success" | "warning" | "danger" }> = {
   very_easy: { emoji: "🟢", tone: "success" },
   easy: { emoji: "🟢", tone: "success" },
   normal: { emoji: "🟡", tone: "warning" },
   hard: { emoji: "🟠", tone: "warning" },
-  very_hard: { emoji: "🔴", tone: "danger" },
+  extreme: { emoji: "🔴", tone: "danger" },
 };
 
 /**
