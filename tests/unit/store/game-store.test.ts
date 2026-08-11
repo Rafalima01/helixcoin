@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { useGameStore } from "@/store/game-store";
+import { useGameStore, REWARD_POPUP_INCREMENT_CENTS } from "@/store/game-store";
 import { getMultiplierForPlatforms } from "@/lib/multiplier";
 
 const BET_CENTS = 1000; // R$10,00
@@ -18,15 +18,38 @@ describe("useGameStore.registerPass — reward feedback", () => {
     expect(useGameStore.getState().rewardEvents).toHaveLength(2);
   });
 
-  it("derives the reward amount exclusively from the existing multiplier curve (no new financial rule)", () => {
+  it("GANHO INCREMENTAL — a single platform advance queues exactly +R$0,50 (REWARD_POPUP_INCREMENT_CENTS), never a multiplier-derived amount", () => {
+    useGameStore.getState().registerPass(1);
+    const { rewardEvents } = useGameStore.getState();
+
+    expect(REWARD_POPUP_INCREMENT_CENTS).toBe(50);
+    expect(rewardEvents[0].amountCents).toBe(50);
+  });
+
+  it("GANHO INCREMENTAL — every subsequent advance also queues a fixed +R$0,50, never the growing multiplier-curve delta (R$0,27/R$0,21/R$1,37 style variation)", () => {
+    for (let i = 0; i < 8; i++) useGameStore.getState().registerPass(1);
+    const { rewardEvents } = useGameStore.getState();
+
+    expect(rewardEvents).toHaveLength(8);
+    for (const event of rewardEvents) {
+      expect(event.amountCents).toBe(REWARD_POPUP_INCREMENT_CENTS);
+    }
+    // Sanity check that the multiplier curve genuinely is non-linear here —
+    // otherwise this test wouldn't actually distinguish "fixed" from "curve
+    // happens to be flat for these 8 platforms".
+    const curveIsNonLinear =
+      getMultiplierForPlatforms(2) - getMultiplierForPlatforms(1) !==
+      getMultiplierForPlatforms(8) - getMultiplierForPlatforms(7);
+    expect(curveIsNonLinear).toBe(true);
+  });
+
+  it("GANHO DO MOMENTO vs ACUMULADO — the fixed R$0,50 popup never equals the accumulated bet×multiplier value it used to show", () => {
     useGameStore.getState().registerPass(1);
     const { rewardEvents, multiplier } = useGameStore.getState();
 
-    const expectedMultiplierDelta = getMultiplierForPlatforms(1) - getMultiplierForPlatforms(0);
-    const expectedAmountCents = Math.round(BET_CENTS * expectedMultiplierDelta);
-
-    expect(multiplier).toBeCloseTo(getMultiplierForPlatforms(1));
-    expect(rewardEvents[0].amountCents).toBe(expectedAmountCents);
+    const accumulatedCents = Math.round(BET_CENTS * multiplier);
+    expect(rewardEvents[0].amountCents).toBe(50);
+    expect(rewardEvents[0].amountCents).not.toBe(accumulatedCents);
   });
 
   it("never touches payoutCents — reward popups are display-only", () => {

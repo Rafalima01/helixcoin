@@ -1,19 +1,20 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { RigidBody, BallCollider, type RapierRigidBody } from "@react-three/rapier";
+import { AnimatePresence, motion } from "framer-motion";
 import * as THREE from "three";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
 import { activeQualitySettings as QUALITY } from "@/game-engine/quality";
 import type { EngineRuntime } from "@/game-engine/types";
 import { ringVisible } from "@/game-engine/tower-state";
-import { useGameStore } from "@/store/game-store";
+import { useGameStore, type RewardEvent } from "@/store/game-store";
 import { particleBus } from "@/game-engine/components/particles";
-import { currentValueReais } from "@/lib/multiplier";
+import { centsToReais } from "@/lib/multiplier";
 import { formatCurrency } from "@/lib/utils";
-import { AnimatedNumber } from "@/components/ui/animated-number";
+import { REWARD_POPUP_DURATION_MS } from "@/components/game/reward-popups";
 
 const idleColor = new THREE.Color(CFG.colors.ballIdle);
 const fireColor = new THREE.Color(CFG.colors.ballFire);
@@ -33,9 +34,26 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
   const smokeTimer = useRef(0);
 
   const status = useGameStore((s) => s.status);
-  const multiplier = useGameStore((s) => s.multiplier);
-  const betAmountCents = useGameStore((s) => s.betAmountCents);
-  const currentValue = currentValueReais(betAmountCents, multiplier);
+  const rewardEvents = useGameStore((s) => s.rewardEvents);
+
+  // Ball-side gain indicator: shows the fixed "+R$0,50" increment briefly
+  // whenever a new reward event is queued (see game-store.ts's registerPass),
+  // then disappears — never a persistent/accumulated readout. Reuses the
+  // exact reward event objects and animation duration (REWARD_POPUP_DURATION_MS)
+  // that reward-popups.tsx's HUD-top popups already use, instead of a second
+  // gain-feedback system; it just doesn't call dismissReward itself (that
+  // queue is owned/drained by RewardPopups) — this is purely a local,
+  // independent "did the latest event change" readout.
+  const [activePop, setActivePop] = useState<RewardEvent | null>(null);
+  const lastSeenRewardId = useRef(0);
+  useEffect(() => {
+    const latest = rewardEvents[rewardEvents.length - 1];
+    if (!latest || latest.id === lastSeenRewardId.current) return;
+    lastSeenRewardId.current = latest.id;
+    setActivePop(latest);
+    const t = window.setTimeout(() => setActivePop(null), REWARD_POPUP_DURATION_MS);
+    return () => window.clearTimeout(t);
+  }, [rewardEvents]);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 1 / 30);
@@ -128,14 +146,14 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
         </mesh>
 
         {/*
-          Gain indicator: pure visual overlay, purely reads store state that's
-          already computed elsewhere (game-store.ts's multiplier + betAmountCents,
-          same formula game-hud.tsx uses via currentValueReais — no independent
-          calculation). <Html> projects this DOM node from the ball's world
-          position every frame (non-transform mode keeps the text crisp and
-          cheap, no WebGL text geometry). Parented under the RigidBody so it
-          tracks the ball's synced transform automatically, no manual position
-          updates needed.
+          Gain indicator: no persistent readout — just the ball itself most of
+          the time. Only renders a transient "+R$0,50" when a new reward event
+          fires (see the effect above), reusing reward-popups.tsx's own
+          animation shape/duration. <Html> projects this DOM node from the
+          ball's world position every frame (non-transform mode keeps the
+          text crisp and cheap, no WebGL text geometry). Parented under the
+          RigidBody so it tracks the ball's synced transform automatically,
+          no manual position updates needed.
         */}
         {status === "playing" && (
           <Html
@@ -144,20 +162,21 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
             occlude={false}
             style={{ pointerEvents: "none" }}
           >
-            <div className="flex select-none flex-col items-center leading-none">
-              <span
-                className="text-[11px] font-bold text-green"
-                style={{ textShadow: "0 1px 3px rgba(0,0,0,0.65)" }}
-              >
-                $
-              </span>
-              <span
-                className="text-[12px] font-extrabold tabular-nums text-green"
-                style={{ textShadow: "0 1px 3px rgba(0,0,0,0.65)" }}
-              >
-                <AnimatedNumber value={currentValue} format={(v) => formatCurrency(v)} duration={0.25} />
-              </span>
-            </div>
+            <AnimatePresence>
+              {activePop && (
+                <motion.span
+                  key={activePop.id}
+                  initial={{ opacity: 0, y: 6, scale: 0.7 }}
+                  animate={{ opacity: 1, y: -14, scale: 1 }}
+                  exit={{ opacity: 0, y: -26, scale: 0.85 }}
+                  transition={{ duration: REWARD_POPUP_DURATION_MS / 1000, ease: "easeOut" }}
+                  className="select-none whitespace-nowrap text-[12px] font-extrabold tabular-nums text-green"
+                  style={{ textShadow: "0 1px 3px rgba(0,0,0,0.65)" }}
+                >
+                  +{formatCurrency(centsToReais(activePop.amountCents))}
+                </motion.span>
+              )}
+            </AnimatePresence>
           </Html>
         )}
       </RigidBody>

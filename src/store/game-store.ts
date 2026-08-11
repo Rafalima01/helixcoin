@@ -3,7 +3,7 @@ import { getMultiplierForPlatforms } from "@/lib/multiplier";
 
 export type GameStatus = "idle" | "playing" | "resolving" | "won" | "lost";
 
-/** One "🪙 +R$X" popup trigger — `amountCents` is purely a display derivation of the existing multiplier curve, never a new financial rule (see registerPass). */
+/** One "+R$X" popup trigger — `amountCents` is always the fixed REWARD_POPUP_INCREMENT_CENTS below, never derived from the multiplier/payout curve (see registerPass). Purely a display increment; the real resolvable value stays `payoutCents`/`multiplier`, untouched by this. */
 export interface RewardEvent {
   id: number;
   amountCents: number;
@@ -14,6 +14,18 @@ function nextRewardId(): number {
   rewardIdSeq += 1;
   return rewardIdSeq;
 }
+
+/**
+ * Fixed, purely cosmetic per-pass reward increment for the "+R$X" popups
+ * (HUD-top RewardPopups and the ball-side gain indicator both read from the
+ * same rewardEvents queue this feeds). NEVER used in the real payout/RTP
+ * calculation — that stays exclusively `multiplier` × `betAmountCents`
+ * (see currentValueReais in @/lib/multiplier) and, at resolve time, the
+ * server-computed `payoutCents`. Exists only so every platform advance
+ * shows the same "+R$0,50" feedback regardless of how much the underlying
+ * multiplier actually grew at that point.
+ */
+export const REWARD_POPUP_INCREMENT_CENTS = 50;
 
 interface GameState {
   status: GameStatus;
@@ -49,7 +61,7 @@ interface GameState {
     targetMultiplier: number,
     goalAmountCents: number
   ) => void;
-  /** Credit `count` platform passes and queue a reward popup for the multiplier gained. */
+  /** Credit `count` platform passes and queue a fixed-amount reward popup (REWARD_POPUP_INCREMENT_CENTS per pass) — cosmetic only, never derived from the multiplier. */
   registerPass: (count?: number) => void;
   /** Ball touched a platform — combo resets. `impactSpeed` (if known) feeds the anti-cheat telemetry peak. */
   registerTouch: (impactSpeed?: number) => void;
@@ -104,24 +116,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     }),
 
   registerPass: (count = 1) => {
-    const { platformsPassed: prev, combo, maxCombo, targetMultiplier, goalReached, betAmountCents, rewardEvents } =
-      get();
+    const { platformsPassed: prev, combo, maxCombo, targetMultiplier, goalReached, rewardEvents } = get();
     const platformsPassed = prev + count;
     const multiplier = getMultiplierForPlatforms(platformsPassed);
     const nextCombo = combo + count;
-    // Recompensa incremental exibida no popup de moeda — puramente uma
-    // leitura antes/depois da MESMA curva de multiplicador já usada pelo
-    // HUD/payout (src/lib/multiplier.ts). Nenhuma fórmula financeira nova.
-    const prevMultiplier = getMultiplierForPlatforms(prev);
-    const amountCents = Math.round(betAmountCents * (multiplier - prevMultiplier));
+    // Recompensa incremental exibida no popup — sempre o mesmo valor fixo
+    // (REWARD_POPUP_INCREMENT_CENTS), nunca derivada do multiplicador. O
+    // valor financeiro real da partida continua sendo multiplier ×
+    // betAmountCents (currentValueReais) / payoutCents no resolve — este
+    // popup nunca alimenta nem lê esse cálculo.
+    const amountCents = REWARD_POPUP_INCREMENT_CENTS * count;
     set({
       platformsPassed,
       multiplier,
       combo: nextCombo,
       maxCombo: Math.max(maxCombo, nextCombo),
       goalReached: goalReached || (targetMultiplier > 1 && multiplier >= targetMultiplier - 1e-9),
-      rewardEvents:
-        amountCents > 0 ? [...rewardEvents, { id: nextRewardId(), amountCents }] : rewardEvents,
+      rewardEvents: [...rewardEvents, { id: nextRewardId(), amountCents }],
     });
   },
 

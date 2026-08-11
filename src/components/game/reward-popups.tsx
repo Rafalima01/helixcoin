@@ -6,8 +6,8 @@ import { useGameStore } from "@/store/game-store";
 import { centsToReais } from "@/lib/multiplier";
 import { formatCurrency } from "@/lib/utils";
 
-/** Matches the animation's own transition duration — see RewardPopup's `transition`. */
-const REWARD_POPUP_DURATION_MS = 900;
+/** Matches the animation's own transition duration — see RewardPopup's `transition`. Exported so other gain-feedback UI (e.g. the ball-side indicator in game-engine/components/ball.tsx) can time its own popup off the exact same lifecycle instead of duplicating a magic number. */
+export const REWARD_POPUP_DURATION_MS = 900;
 
 function RewardPopup({ amountCents, onDone }: { amountCents: number; onDone: () => void }) {
   useEffect(() => {
@@ -32,7 +32,7 @@ function RewardPopup({ amountCents, onDone }: { amountCents: number; onDone: () 
   );
 }
 
-/** Short, discreet "🪙 +R$X" feedback — one popup per platform consumed, mounted inside GameHud so both real and demo matches get it for free. Never touches Wallet/Ledger/payout: the value is display-only (see game-store.ts's registerPass). */
+/** Short, discreet "🪙 +R$0,50" feedback — one popup per platform consumed, mounted inside GameHud so both real and demo matches get it for free. Fixed amount (REWARD_POPUP_INCREMENT_CENTS), never the accumulated/multiplier-derived value. Never touches Wallet/Ledger/payout: the value is display-only (see game-store.ts's registerPass). */
 export function RewardPopups() {
   const rewardEvents = useGameStore((s) => s.rewardEvents);
   const dismissReward = useGameStore((s) => s.dismissReward);
