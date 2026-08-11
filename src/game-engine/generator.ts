@@ -36,6 +36,87 @@ function pickMotion(rng: () => number, depth: number): RingMotion {
   return { kind: "static" };
 }
 
+/** Shortest segment-count distance between two positions on a ring of `n` segments, wrapping either direction. */
+function circularDistance(a: number, b: number, n: number): number {
+  const diff = Math.abs(a - b) % n;
+  return Math.min(diff, n - diff);
+}
+
+/**
+ * Minimum required circular distance (in segments) between a new ring's
+ * opening and each of its `holeSeparationLookback` predecessors — the
+ * harder a mode is (narrower `gapWidth` relative to `n`), the more of a
+ * rotation it demands between consecutive openings, exactly the "quanto
+ * maior a dificuldade, maior a variação angular exigida" requirement.
+ * Capped at n/3 so the excluded arc can never approach the whole ring —
+ * a rule this strict would make some seeds unsolvable-feeling by luck
+ * rather than by skill, which is the "padrão artificial" this must avoid.
+ */
+function minHoleSeparation(n: number, gapWidth: number): number {
+  const raw = Math.ceil(n / (2 * gapWidth));
+  return Math.min(Math.max(raw, 2), Math.floor(n / 3));
+}
+
+/**
+ * Deterministic, memoized, pure function of (seed, index, n) — safe to call
+ * standalone for any index (as generateRing already is, e.g. in tests)
+ * without first generating the rings above it: it recurses on its own
+ * lookback window using this SAME function, so it always agrees with what
+ * generateRing(seed, index-1)/(index-2)/... will itself place. Memoized
+ * because that recursion would otherwise revisit the same lower indices
+ * from multiple callers; the cache is keyed by (seed, index) and never
+ * invalidated because the mapping is pure — entries for old match seeds
+ * just sit unused afterward, a session's realistic total is a few thousand
+ * numbers, not worth evicting.
+ *
+ * Never uses CFG.holeWidthSegments/segmentsPerRing/holeSeparationLookback
+ * as free-floating globals inside the recursion — reads them once via the
+ * `n`/`gapWidth`/`lookback` params so a mid-batch config change (there
+ * isn't one mid-match today, but nothing here should assume that) can't
+ * make a memoized entry disagree with a fresh one for the same key.
+ */
+const holeStartCache = new Map<string, number>();
+
+function resolveHoleStart(seed: string, index: number, n: number, gapWidth: number, lookback: number): number {
+  const cacheKey = `${seed}#${index}#${n}#${gapWidth}`;
+  const cached = holeStartCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const rng = createRng(`${seed}#hole:${index}`);
+  let result: number;
+
+  if (index <= 0) {
+    result = Math.floor(rng() * n);
+  } else {
+    const back = Math.min(index, lookback);
+    const forbidden: number[] = [];
+    for (let i = 1; i <= back; i++) {
+      forbidden.push(resolveHoleStart(seed, index - i, n, gapWidth, lookback));
+    }
+    const minSep = minHoleSeparation(n, gapWidth);
+    const farEnough = (candidate: number) => forbidden.every((f) => circularDistance(candidate, f, n) >= minSep);
+
+    result = -1;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const candidate = Math.floor(rng() * n);
+      if (farEnough(candidate)) {
+        result = candidate;
+        break;
+      }
+    }
+    if (result === -1) {
+      // Deterministic fallback that always satisfies the constraint on any
+      // ring wide enough to hold it (minHoleSeparation is capped at n/3,
+      // so half the ring away from the most recent opening clears every
+      // forbidden zone by construction) — never a loop, never a failure.
+      result = (forbidden[0] + Math.floor(n / 2)) % n;
+    }
+  }
+
+  holeStartCache.set(cacheKey, result);
+  return result;
+}
+
 function dangerBudget(rng: () => number, depth: number): number {
   if (depth < CFG.safeDepth) return 0;
   // Admin-facing "Chance de segmentos vermelhos" — gates whether the
@@ -64,8 +145,11 @@ export function generateRing(seed: string, index: number): RingData {
 
   const segments: SegmentType[] = Array.from({ length: n }, () => "solid");
 
-  // Carve the guaranteed opening.
-  const holeStart = Math.floor(rng() * n);
+  // Carve the guaranteed opening — position resolved with anti-alignment
+  // against the preceding rings (see resolveHoleStart) instead of a bare
+  // draw, so consecutive platforms never carve a "safe column" straight
+  // down the tower.
+  const holeStart = resolveHoleStart(seed, index, n, CFG.holeWidthSegments, CFG.holeSeparationLookback);
   for (let i = 0; i < CFG.holeWidthSegments; i++) {
     segments[(holeStart + i) % n] = "hole";
   }

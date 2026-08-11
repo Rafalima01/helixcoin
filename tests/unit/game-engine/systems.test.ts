@@ -19,7 +19,7 @@ vi.mock("@/game-engine/components/particles", () => ({
 }));
 
 import { AudioManager } from "@/game-engine/audio";
-import { activeEngineConfig as CFG } from "@/game-engine/config";
+import { activeEngineConfig as CFG, setActiveEngineConfig } from "@/game-engine/config";
 import { createRuntime, type EngineRuntime } from "@/game-engine/types";
 import { advanceRotation, handleTouch, stepGameplay, type EngineCallbacks } from "@/game-engine/systems";
 import { ringVisible } from "@/game-engine/tower-state";
@@ -100,6 +100,62 @@ describe("systems — advanceRotation", () => {
 
     expect(runtime.rot.target).toBeGreaterThan(0);
     expect(runtime.rot.velPs).toBeLessThan(2);
+  });
+
+  it("is FPS-independent: the same real time produces essentially the same rotation at 30 FPS and at 60 FPS", () => {
+    // advanceRotation scales every update by dt (real elapsed time), never
+    // by call count — so simulating 1 second as 30 calls of dt=1/30 or as 60
+    // calls of dt=1/60 must land within numerical-integration tolerance of
+    // each other. A frame-rate-COUPLED bug (e.g. advancing by a fixed amount
+    // per call regardless of dt) would instead show roughly a 2x gap here,
+    // since 60 FPS calls advanceRotation twice as often as 30 FPS.
+    const thirty = buildRuntime(0);
+    thirty.runtime.rot.velPs = 2;
+    thirty.runtime.rot.dragging = false;
+    for (let i = 0; i < 30; i++) advanceRotation(thirty.runtime, 1 / 30);
+
+    const sixty = buildRuntime(0);
+    sixty.runtime.rot.velPs = 2;
+    sixty.runtime.rot.dragging = false;
+    for (let i = 0; i < 60; i++) advanceRotation(sixty.runtime, 1 / 60);
+
+    expect(thirty.runtime.time).toBeCloseTo(1, 10);
+    expect(sixty.runtime.time).toBeCloseTo(1, 10);
+
+    const ratio = sixty.runtime.rot.current / thirty.runtime.rot.current;
+    expect(ratio).toBeGreaterThan(0.95);
+    expect(ratio).toBeLessThan(1.05);
+  });
+
+  it("rotationSpeed raises the per-step rotation ceiling — same huge target gap, faster mode closes more of it in one tick", () => {
+    // With current far from target, the exponential chase would jump nearly
+    // the whole gap in one step; advanceRotation clamps that to
+    // CFG.maxFlingSpeed * CFG.rotationSpeed * 1.5 * dt (systems.ts:184), so a
+    // higher rotationSpeed must let runtime.rot.current advance further in
+    // the SAME step under the SAME conditions.
+    setActiveEngineConfig({ rotationSpeed: 2 });
+    let fastCurrent: number;
+    try {
+      const fast = buildRuntime(0);
+      fast.runtime.rot.target = 100;
+      advanceRotation(fast.runtime, 1 / 60);
+      fastCurrent = fast.runtime.rot.current;
+    } finally {
+      setActiveEngineConfig(null);
+    }
+
+    setActiveEngineConfig({ rotationSpeed: 1 });
+    let normalCurrent: number;
+    try {
+      const normal = buildRuntime(0);
+      normal.runtime.rot.target = 100;
+      advanceRotation(normal.runtime, 1 / 60);
+      normalCurrent = normal.runtime.rot.current;
+    } finally {
+      setActiveEngineConfig(null);
+    }
+
+    expect(fastCurrent).toBeGreaterThan(normalCurrent);
   });
 });
 

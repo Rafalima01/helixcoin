@@ -85,6 +85,18 @@ export const ENGINE_CONFIG = {
   dangerRampStartRatio: 0.6,
   /** Rings per +1 red on the ramp, counted from `safeDepth`. */
   dangerRampRings: 4,
+  /**
+   * How many of the immediately preceding rings a new ring's opening must
+   * keep its distance from (see generator.ts's resolveHoleStart) — the fix
+   * for openings landing in a near-identical angular slot several platforms
+   * in a row, which let a player ride a "safe column" straight down without
+   * ever really rotating the tower. Deliberately NOT admin-configurable,
+   * same reasoning as dangerRampStartRatio/dangerRampRings just above: this
+   * describes *how* the anti-alignment rule looks back, not how hard a mode
+   * is — `holeWidthSegments`/`segmentsPerRing` (both already per-mode) are
+   * what actually scale the REQUIRED separation, see minHoleSeparation.
+   */
+  holeSeparationLookback: 2,
 
   // ---- Input ----
   dragSensitivity: 0.011, // radians per pixel
@@ -92,6 +104,20 @@ export const ENGINE_CONFIG = {
   rotationSmoothing: 16, // how fast current rotation chases the target
   maxDragDelta: 0.5, // radians per pointer event — tames synthetic/jumpy inputs
   maxFlingSpeed: 7, // rad/s cap; extreme kinematic speeds can panic the solver
+  /**
+   * Per-mode multiplier over how fast the tower responds to rotation input —
+   * applied to BOTH the drag-to-angle conversion (game-engine.tsx's
+   * onPointerMove, so a given finger movement turns the tower more/less) and
+   * the fling-momentum cap (same file, plus the mirrored cap in
+   * systems.ts's advanceRotation) — never a per-frame increment, so it stays
+   * exactly as FPS-independent as the delta-time-driven system it scales.
+   * 1 = the original, unscaled feel (NORMAL's value, unchanged from before
+   * this field existed). Kept as ONE lever rather than exposing
+   * dragSensitivity/maxFlingSpeed themselves, which is what the Fase 4
+   * simplification pass deliberately removed from admin control — see this
+   * file's `applyEngineOverrides` doc comment.
+   */
+  rotationSpeed: 1,
 
   // ---- Camera ----
   // Helix Jump framing: the camera sits on the ball's radial axis (tower
@@ -237,5 +263,6 @@ function applyEngineOverrides(
     initialRings: num(o.totalPlatforms, base.initialRings),
     segmentsPerRing: num(o.segmentsPerPlatform, base.segmentsPerRing),
     holeWidthSegments: num(o.gapWidth, base.holeWidthSegments),
+    rotationSpeed: num(o.rotationSpeed, base.rotationSpeed),
   } as EngineConfig;
 }

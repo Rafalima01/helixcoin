@@ -109,6 +109,18 @@ export const MODE_FIELDS: ModeFieldDef[] = [
     step: 0.5,
     defaults: { DEMO: 13, NORMAL: 16.5, HARD: 18.5 },
   },
+  {
+    key: "rotationSpeed",
+    section: "physics",
+    label: "Velocidade de rotação da torre",
+    tooltip:
+      "Multiplicador sobre a resposta da torre ao arrasto: 1 = padrão (o mesmo de sempre). Afeta tanto quanto a torre gira por um dado movimento de arrasto quanto o teto de velocidade do giro por inércia (fling) após soltar — nunca por frame, sempre por tempo real decorrido, então não varia com o FPS do aparelho. Maior = torre responde mais rápido = mais difícil de mirar a abertura = RTP real menor.",
+    kind: "number",
+    min: 0.5,
+    max: 2,
+    step: 0.05,
+    defaults: { DEMO: 0.95, NORMAL: 1, HARD: 1.1 },
+  },
   // ---- Estrutura das plataformas ----
   {
     key: "dangerChance",
@@ -205,6 +217,7 @@ export interface DifficultyPreset {
     gravity: number;
     bounceForce: number;
     ballSpeed: number;
+    rotationSpeed: number;
     dangerChance: number;
     maxDangerSegments: number;
     protectedPlatforms: number;
@@ -223,6 +236,7 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
       gravity: -10,
       bounceForce: 0.72,
       ballSpeed: 11,
+      rotationSpeed: 0.85,
       dangerChance: 0.15,
       maxDangerSegments: 1,
       protectedPlatforms: 12,
@@ -239,6 +253,7 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
       gravity: -13,
       bounceForce: 0.66,
       ballSpeed: 13,
+      rotationSpeed: 0.95,
       dangerChance: 0.45,
       maxDangerSegments: 2,
       protectedPlatforms: 8,
@@ -255,6 +270,7 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
       gravity: -17.5,
       bounceForce: 0.56,
       ballSpeed: 16.5,
+      rotationSpeed: 1,
       dangerChance: 0.85,
       maxDangerSegments: 4,
       protectedPlatforms: 4,
@@ -271,6 +287,7 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
       gravity: -26,
       bounceForce: 0.46,
       ballSpeed: 18.5,
+      rotationSpeed: 1.1,
       dangerChance: 1,
       maxDangerSegments: 7,
       protectedPlatforms: 2,
@@ -287,6 +304,7 @@ export const DIFFICULTY_PRESETS: DifficultyPreset[] = [
       gravity: -36,
       bounceForce: 0.38,
       ballSpeed: 20,
+      rotationSpeed: 1.2,
       dangerChance: 1,
       maxDangerSegments: 7,
       protectedPlatforms: 0,

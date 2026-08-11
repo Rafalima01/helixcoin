@@ -28,7 +28,7 @@ const COLLISION_BAND = ENGINE_CONFIG.ringThickness + 2 * ENGINE_CONFIG.ballRadiu
 /** Matches tower-physics.tsx's CuboidCollider chordHalf (the 1.08 seam overlap included). */
 const CHORD_OVERLAP = 1.08;
 
-type Profile = { gravity: number; bounceForce: number; ballSpeed: number; dangerChance: number; maxDangerSegments: number; protectedPlatforms: number; segmentsPerPlatform: number; gapWidth: number };
+type Profile = { gravity: number; bounceForce: number; ballSpeed: number; dangerChance: number; maxDangerSegments: number; protectedPlatforms: number; segmentsPerPlatform: number; gapWidth: number; rotationSpeed: number };
 
 /** Free tangential width of the opening, in ball diameters — what the player must thread. */
 function gapInBallDiameters(p: Profile): number {
@@ -95,6 +95,19 @@ describe("difficulty ladder — every rung is a real, monotonic step", () => {
       expect(cur.maxDangerSegments).toBeGreaterThanOrEqual(prev.maxDangerSegments);
       expect(cur.dangerChance).toBeGreaterThanOrEqual(prev.dangerChance);
       expect(cur.protectedPlatforms).toBeLessThanOrEqual(prev.protectedPlatforms);
+    }
+  });
+
+  it("rotationSpeed climbs strictly from Muito Fácil to Extremo, with no absurd jump between rungs", () => {
+    const speeds = presets.map(({ p }) => p.rotationSpeed);
+    for (let i = 1; i < speeds.length; i++) {
+      expect(speeds[i]).toBeGreaterThan(speeds[i - 1]);
+    }
+    // Perceptible end to end, but never a multiple-of feel between neighbours
+    // (Muito Fácil not boring, Extremo not "impossible" relative to Difícil).
+    expect(speeds[speeds.length - 1] / speeds[0]).toBeGreaterThan(1.2);
+    for (let i = 1; i < speeds.length; i++) {
+      expect(speeds[i] / speeds[i - 1]).toBeLessThan(1.25);
     }
   });
 

@@ -196,15 +196,22 @@ export function GameEngine({
     const nowMs = performance.now();
     const dx = e.clientX - r.lastX;
     const dtMs = Math.max(8, nowMs - r.lastT);
-    const delta = Math.max(-CFG.maxDragDelta, Math.min(CFG.maxDragDelta, dx * CFG.dragSensitivity));
+    // CFG.rotationSpeed is the single per-difficulty multiplier over how
+    // fast the tower responds to input (see config.ts's doc comment) —
+    // applied here to the drag-to-angle conversion, and to the fling cap
+    // below so the momentum ceiling scales with it too. Still entirely
+    // dt-driven (dtMs is a real elapsed-time measurement, not a frame
+    // count), so this stays exactly as FPS-independent as before.
+    const delta = Math.max(
+      -CFG.maxDragDelta,
+      Math.min(CFG.maxDragDelta, dx * CFG.dragSensitivity * CFG.rotationSpeed)
+    );
     r.target += delta;
     // Smoothed fling velocity in rad/s for momentum after release, capped so
     // the kinematic tower never spins at solver-breaking speeds.
     const instant = delta / (dtMs / 1000);
-    r.velPs = Math.max(
-      -CFG.maxFlingSpeed,
-      Math.min(CFG.maxFlingSpeed, r.velPs * 0.7 + instant * 0.3)
-    );
+    const flingCap = CFG.maxFlingSpeed * CFG.rotationSpeed;
+    r.velPs = Math.max(-flingCap, Math.min(flingCap, r.velPs * 0.7 + instant * 0.3));
     r.lastX = e.clientX;
     r.lastT = nowMs;
   };

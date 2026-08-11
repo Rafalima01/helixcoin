@@ -178,7 +178,10 @@ export function advanceRotation(runtime: EngineRuntime, dt: number): void {
     r.velPs *= Math.exp(-CFG.flingDamping * dt);
   }
   const chase = (r.target - r.current) * (1 - Math.exp(-CFG.rotationSmoothing * dt));
-  const maxStep = CFG.maxFlingSpeed * 1.5 * dt;
+  // Mirrors the fling cap scaling in game-engine.tsx's onPointerMove — same
+  // CFG.rotationSpeed multiplier, so the kinematic step ceiling never falls
+  // below what a harder mode's fling cap can actually produce.
+  const maxStep = CFG.maxFlingSpeed * CFG.rotationSpeed * 1.5 * dt;
   r.current += Math.max(-maxStep, Math.min(maxStep, chase));
 }
 
