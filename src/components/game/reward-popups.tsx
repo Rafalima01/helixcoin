@@ -6,8 +6,8 @@ import { useGameStore } from "@/store/game-store";
 import { centsToReais } from "@/lib/multiplier";
 import { formatCurrency } from "@/lib/utils";
 
-/** Matches the animation's own transition duration — see RewardPopup's `transition`. Exported so other gain-feedback UI (e.g. the ball-side indicator in game-engine/components/ball.tsx) can time its own popup off the exact same lifecycle instead of duplicating a magic number. */
-export const REWARD_POPUP_DURATION_MS = 900;
+/** Matches the animation's own transition duration — see RewardPopup's `transition`. */
+const REWARD_POPUP_DURATION_MS = 900;
 
 function RewardPopup({ amountCents, onDone }: { amountCents: number; onDone: () => void }) {
   useEffect(() => {
