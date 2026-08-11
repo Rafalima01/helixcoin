@@ -9,19 +9,28 @@ import type {
   GameEconomyConfig,
   GameEconomyConfigSummary,
 } from "@/modules/game-config/entities/game-economy-config.entity";
+import { withRegistryDefaults } from "@/modules/game-config/utils/config-defaults.util";
 import { NotFoundError } from "@/server/errors";
 
 function toEntity(row: PrismaGameEconomyConfig): GameEconomyConfig {
+  // Json columns have no compile-time shape in Prisma — the field-registry
+  // (validated at write time, in the service layer) is the real contract.
+  // withRegistryDefaults backfills any key a field was added for AFTER this
+  // row was saved, so an old row never fails activation just because a
+  // newer field is missing from it — see that function's doc comment.
+  const { general, modes, antiCheat } = withRegistryDefaults({
+    general: row.general as unknown as GameEconomyConfig["general"],
+    modes: row.modes as unknown as GameEconomyConfig["modes"],
+    antiCheat: row.antiCheat as unknown as GameEconomyConfig["antiCheat"],
+  });
   return {
     id: row.id,
     version: row.version,
     status: row.status,
     description: row.description,
-    // Json columns have no compile-time shape in Prisma — the field-registry
-    // (validated at write time, in the service layer) is the real contract.
-    general: row.general as unknown as GameEconomyConfig["general"],
-    modes: row.modes as unknown as GameEconomyConfig["modes"],
-    antiCheat: row.antiCheat as unknown as GameEconomyConfig["antiCheat"],
+    general,
+    modes,
+    antiCheat,
     createdById: row.createdById,
     createdAt: row.createdAt,
     activatedAt: row.activatedAt,
