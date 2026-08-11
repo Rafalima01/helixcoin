@@ -7,7 +7,6 @@ import * as THREE from "three";
 import { activeEngineConfig as CFG } from "@/game-engine/config";
 import { activeQualitySettings as QUALITY } from "@/game-engine/quality";
 import type { EngineRuntime } from "@/game-engine/types";
-import { ringVisible } from "@/game-engine/tower-state";
 import { useGameStore } from "@/store/game-store";
 import { particleBus } from "@/game-engine/components/particles";
 
@@ -24,7 +23,6 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
   const bodyRef = useRef<RapierRigidBody>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshLambertMaterial>(null);
-  const shadowRef = useRef<THREE.Mesh>(null);
   const fireLerp = useRef(0);
   const smokeTimer = useRef(0);
 
@@ -67,63 +65,27 @@ export function Ball({ runtime }: { runtime: EngineRuntime }) {
     } else {
       smokeTimer.current = 0;
     }
-
-    // Dynamic blob shadow projected on the next platform below.
-    const shadow = shadowRef.current;
-    if (shadow) {
-      const y = body.translation().y;
-      let idx = Math.max(0, Math.ceil(-y / CFG.ringSpacing));
-      let found = false;
-      for (let i = idx; i < idx + 5 && i < runtime.rings.length; i++) {
-        const ring = runtime.rings[i];
-        if (!ring) break;
-        if (ringVisible(runtime, ring, runtime.time, y)) {
-          idx = i;
-          found = true;
-          break;
-        }
-      }
-      if (found) {
-        const ringY = -idx * CFG.ringSpacing;
-        const dist = Math.max(0, y - ringY);
-        shadow.visible = dist < CFG.ringSpacing * 2.5;
-        shadow.position.set(CFG.ballOrbitRadius, ringY + 0.012, 0);
-        const spread = 1 + dist * 0.35;
-        shadow.scale.setScalar(spread);
-        (shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.4 - dist * 0.09);
-      } else {
-        shadow.visible = false;
-      }
-    }
   });
 
   return (
-    <>
-      <RigidBody
-        ref={(body) => {
-          bodyRef.current = body;
-          runtime.ballRef.current = body;
-        }}
-        colliders={false}
-        position={[CFG.ballOrbitRadius, CFG.ballSpawnY, 0]}
-        enabledTranslations={[false, true, false]}
-        enabledRotations={[false, false, false]}
-        ccd
-        canSleep={false}
-      >
-        {/* Physics radius is fixed regardless of tier — only the visual mesh below (sphereGeometry segments) scales down on low-end tiers. */}
-        <BallCollider args={[CFG.ballRadius]} restitution={0} friction={0.05} />
-        <mesh ref={meshRef}>
-          <sphereGeometry args={[CFG.ballRadius, QUALITY.ballSegments, QUALITY.ballSegments]} />
-          <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
-        </mesh>
-      </RigidBody>
-
-      {/* Cheap dynamic shadow — a fading disc that tracks the ring below. */}
-      <mesh ref={shadowRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
-        <circleGeometry args={[CFG.ballRadius * 1.5, 20]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.4} depthWrite={false} />
+    <RigidBody
+      ref={(body) => {
+        bodyRef.current = body;
+        runtime.ballRef.current = body;
+      }}
+      colliders={false}
+      position={[CFG.ballOrbitRadius, CFG.ballSpawnY, 0]}
+      enabledTranslations={[false, true, false]}
+      enabledRotations={[false, false, false]}
+      ccd
+      canSleep={false}
+    >
+      {/* Physics radius is fixed regardless of tier — only the visual mesh below (sphereGeometry segments) scales down on low-end tiers. */}
+      <BallCollider args={[CFG.ballRadius]} restitution={0} friction={0.05} />
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[CFG.ballRadius, QUALITY.ballSegments, QUALITY.ballSegments]} />
+        <meshLambertMaterial ref={matRef} color={CFG.colors.ballIdle} />
       </mesh>
-    </>
+    </RigidBody>
   );
 }
