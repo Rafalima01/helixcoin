@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/admin/ui";
 import { ListRow, ListRowAvatar } from "@/components/backoffice/list-row";
+import { NotificationMessage } from "@/components/notifications/notification-message";
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
+
+const NOTIFICATION_DATE_FORMAT: Intl.DateTimeFormatOptions = { dateStyle: "short", timeStyle: "short" };
 
 export function ManagerNotificationsScreen() {
   const { data, isLoading } = useNotifications();
@@ -53,8 +56,9 @@ export function ManagerNotificationsScreen() {
                 </ListRowAvatar>
               }
               title={n.title}
-              subtitle={n.message}
-              meta={new Date(n.createdAt).toLocaleString("pt-BR")}
+              subtitle={<NotificationMessage text={n.message} />}
+              subtitleWrap
+              meta={new Date(n.createdAt).toLocaleString("pt-BR", NOTIFICATION_DATE_FORMAT)}
               trailing={!n.read ? <span className="size-2 shrink-0 rounded-full bg-pink" /> : undefined}
             />
           ))}

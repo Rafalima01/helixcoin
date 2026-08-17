@@ -15,6 +15,7 @@ export function ListRow({
   title,
   titleClassName,
   subtitle,
+  subtitleWrap,
   meta,
   trailing,
   footer,
@@ -28,6 +29,8 @@ export function ListRow({
   /** Escape hatch for rows whose "title" isn't a name (e.g. a currency amount) — merged over the default via twMerge. */
   titleClassName?: string;
   subtitle?: ReactNode;
+  /** Lets the subtitle wrap across multiple lines instead of the default single-line ellipsis — for rows where the full text matters (e.g. a notification body) rather than a compact label. */
+  subtitleWrap?: boolean;
   meta?: ReactNode;
   trailing?: ReactNode;
   /** Extra content below the row, inside the same card — e.g. the stats grid under a network row. */
@@ -55,8 +58,17 @@ export function ListRow({
           <div className={cn("flex items-center gap-2 flex-wrap text-sm font-semibold truncate", titleClassName)}>
             {title}
           </div>
-          {subtitle && <div className="text-xs text-text-secondary truncate">{subtitle}</div>}
-          {meta && <div className="text-[11px] text-text-muted mt-0.5">{meta}</div>}
+          {subtitle && (
+            <div
+              className={cn(
+                "text-xs text-text-secondary",
+                subtitleWrap ? "mt-1 whitespace-pre-line break-words leading-relaxed" : "truncate"
+              )}
+            >
+              {subtitle}
+            </div>
+          )}
+          {meta && <div className={cn("text-[11px] text-text-muted", subtitleWrap ? "mt-1.5" : "mt-0.5")}>{meta}</div>}
         </div>
         {trailing && <div className="flex items-center gap-2 shrink-0">{trailing}</div>}
       </div>

@@ -11,6 +11,7 @@ import { PageHeader, DataTable, StatusBadge, Drawer, DetailRow, FilterChips, typ
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { NotificationPreferencesApi, ApiError } from "@/lib/notifications-api";
 import { NotificationsAdminApi, type PushNotificationLogDto } from "@/lib/admin/notifications-api";
+import { NotificationMessage } from "@/components/notifications/notification-message";
 
 const CATEGORY_LABEL: Record<string, string> = {
   DEPOSIT_CONFIRMED: "Novo depósito confirmado",
@@ -33,7 +34,7 @@ const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "n
 };
 
 function formatDate(iso: string | null) {
-  return iso ? new Date(iso).toLocaleString("pt-BR") : "—";
+  return iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
 }
 
 export default function AdminPushNotificationsPage() {
@@ -69,7 +70,11 @@ export default function AdminPushNotificationsPage() {
       render: (l) => <span className="text-text-secondary">{CATEGORY_LABEL[l.category] ?? l.category}</span>,
     },
     { key: "title", header: "Título", render: (l) => <span className="font-semibold">{l.title}</span> },
-    { key: "body", header: "Mensagem", render: (l) => <span className="text-xs text-text-muted line-clamp-2">{l.body}</span> },
+    {
+      key: "body",
+      header: "Mensagem",
+      render: (l) => <NotificationMessage text={l.body} className="text-xs text-text-muted line-clamp-2 whitespace-pre-line" />,
+    },
     {
       key: "createdAt",
       header: "Data/Hora",
@@ -182,7 +187,7 @@ function HistoryDrawer({ log, onClose }: { log: PushNotificationLogDto | null; o
           <DetailRow label="Status" value={<StatusBadge tone={STATUS_TONE[log.status] ?? "neutral"}>{log.status}</StatusBadge>} />
           <DetailRow label="Categoria" value={CATEGORY_LABEL[log.category] ?? log.category} />
           <DetailRow label="Título" value={log.title} />
-          <DetailRow label="Mensagem" value={<span className="whitespace-pre-line">{log.body}</span>} />
+          <DetailRow label="Mensagem" value={<NotificationMessage text={log.body} className="whitespace-pre-line leading-relaxed" />} />
           {log.deepLink && <DetailRow label="Deep link" value={<code className="text-xs break-all">{log.deepLink}</code>} />}
           <DetailRow label="Criado em" value={formatDate(log.createdAt)} />
           <DetailRow label="Enviado em" value={formatDate(log.sentAt)} />

@@ -1,6 +1,7 @@
 import { NotFoundError, BusinessRuleError } from "@/server/errors";
 import { eventBus } from "@/server/events";
 import { NotificationService, NOTIFICATION_TYPES } from "@/server/notifications";
+import { formatCurrency } from "@/lib/utils";
 import { WalletService } from "@/modules/wallet/services/wallet.service";
 import type { WalletActor } from "@/modules/wallet/entities/wallet.entity";
 import { PAYMENT_EVENTS, type DepositEventPayload } from "@/modules/payments/events/payments.events";
@@ -314,7 +315,7 @@ export class CommissionService {
       userId: commission.payeeUserId,
       type: NOTIFICATION_TYPES.newCommission,
       title: "Comissão disponível",
-      message: `Uma comissão de ${(commission.amountCents / 100).toFixed(2)} está disponível para saque.`,
+      message: `Uma comissão de ${formatCurrency(commission.amountCents / 100)} está disponível para saque.`,
     });
     eventBus.publish(AFFILIATE_EVENTS.commissionApproved, {
       commissionId: updated.id,

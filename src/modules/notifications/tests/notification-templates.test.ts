@@ -6,7 +6,7 @@ describe("NotificationTemplates", () => {
   it("DEPOSIT_CONFIRMED matches the spec's copy exactly (emoji + jogador + valor)", () => {
     const result = NotificationTemplates.DEPOSIT_CONFIRMED({ userName: "João", amountCents: 50000 });
     expect(result.title).toBe("💰 Novo depósito");
-    expect(result.body).toContain("Jogador João");
+    expect(result.body).toContain("Jogador: João");
     expect(result.body).toContain(formatCurrency(500));
     expect(result.priority).toBe("normal");
   });

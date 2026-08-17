@@ -3,6 +3,7 @@ import { BusinessRuleError, NotFoundError, ValidationError } from "@/server/erro
 import { eventBus } from "@/server/events";
 import { AuditService } from "@/server/audit";
 import { NotificationService, NOTIFICATION_TYPES } from "@/server/notifications";
+import { formatCurrency } from "@/lib/utils";
 import { CacheService } from "@/server/cache/cache.service";
 import { decrypt } from "@/server/security/crypto-utils";
 import { WalletService } from "@/modules/wallet/services/wallet.service";
@@ -234,8 +235,8 @@ export class CommercialWithdrawService {
       title: input.action === "APPROVE" ? "Saque aprovado" : "Saque rejeitado",
       message:
         input.action === "APPROVE"
-          ? `Seu saque de R$ ${(withdraw.amountCents / 100).toFixed(2)} foi aprovado.`
-          : `Seu saque de R$ ${(withdraw.amountCents / 100).toFixed(2)} foi rejeitado. Motivo: ${input.rejectionReason}`,
+          ? `Seu saque de ${formatCurrency(withdraw.amountCents / 100)} foi aprovado.`
+          : `Seu saque de ${formatCurrency(withdraw.amountCents / 100)} foi rejeitado. Motivo: ${input.rejectionReason}`,
     });
 
     eventBus.publish(

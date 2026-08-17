@@ -20,12 +20,19 @@ function money(cents: number): string {
  * NotificationDispatcher is the only caller — it already knows which
  * category a domain event maps to, so each builder takes just the context
  * that category's copy needs, not a shared do-everything shape.
+ *
+ * Body format standardized across every builder that has structured data:
+ * one "Rótulo: valor" per line (never a bare name/number with no label),
+ * money always through `money()` (BRL, thousands separator included), each
+ * static one-liner ends in a period. Keeps every push notification and every
+ * row in the admin push-log drawer reading the same way regardless of
+ * category.
  */
 export const NotificationTemplates = {
   DEPOSIT_CONFIRMED(ctx: { userName: string; amountCents: number }): NotificationTemplateResult {
     return {
       title: "💰 Novo depósito",
-      body: `Jogador ${ctx.userName}\n${money(ctx.amountCents)}\nConfirmado agora`,
+      body: `Jogador: ${ctx.userName}\nValor: ${money(ctx.amountCents)}\nConfirmado agora.`,
       icon: ICON,
       deepLink: zoneUrl("admin", "/deposits"),
       priority: "normal",
@@ -35,7 +42,7 @@ export const NotificationTemplates = {
   WITHDRAW_REQUESTED(ctx: { userName: string; amountCents: number }): NotificationTemplateResult {
     return {
       title: "🏦 Nova solicitação de saque",
-      body: `${ctx.userName}\n${money(ctx.amountCents)}`,
+      body: `Jogador: ${ctx.userName}\nValor: ${money(ctx.amountCents)}`,
       icon: ICON,
       deepLink: zoneUrl("admin", "/withdrawals"),
       priority: "high",
@@ -45,7 +52,7 @@ export const NotificationTemplates = {
   WITHDRAW_APPROVED(ctx: { amountCents: number }): NotificationTemplateResult {
     return {
       title: "✅ Saque aprovado",
-      body: money(ctx.amountCents),
+      body: `Valor: ${money(ctx.amountCents)}`,
       icon: ICON,
       deepLink: zoneUrl("admin", "/withdrawals"),
       priority: "normal",
@@ -55,7 +62,7 @@ export const NotificationTemplates = {
   WITHDRAW_REJECTED(): NotificationTemplateResult {
     return {
       title: "❌ Saque recusado",
-      body: "Um saque foi recusado",
+      body: "Um saque foi recusado.",
       icon: ICON,
       deepLink: zoneUrl("admin", "/withdrawals"),
       priority: "normal",
@@ -65,7 +72,7 @@ export const NotificationTemplates = {
   MANAGER_REQUESTED(): NotificationTemplateResult {
     return {
       title: "👤 Novo gerente aguardando aprovação",
-      body: "Uma nova solicitação de cadastro de gerente chegou",
+      body: "Uma nova solicitação de cadastro de gerente chegou.",
       icon: ICON,
       deepLink: zoneUrl("admin", "/managers/requests"),
       priority: "normal",
@@ -75,7 +82,7 @@ export const NotificationTemplates = {
   AFFILIATE_REQUESTED(): NotificationTemplateResult {
     return {
       title: "🤝 Novo afiliado aguardando aprovação",
-      body: "Uma nova solicitação de afiliado chegou",
+      body: "Uma nova solicitação de afiliado chegou.",
       icon: ICON,
       deepLink: zoneUrl("admin", "/affiliates"),
       priority: "normal",
@@ -121,7 +128,7 @@ export const NotificationTemplates = {
   MANAGER_NETWORK_AFFILIATE_REQUESTED(): NotificationTemplateResult {
     return {
       title: "🤝 Novo afiliado aguardando aprovação",
-      body: "Um novo afiliado da sua rede está aguardando aprovação",
+      body: "Um novo afiliado da sua rede está aguardando aprovação.",
       icon: ICON,
       deepLink: zoneUrl("manager", "/network"),
       priority: "normal",
