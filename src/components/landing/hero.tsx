@@ -72,7 +72,7 @@ export function Hero() {
             transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
             className="w-full flex flex-col items-center gap-4"
           >
-            <Link href="/demo" className="w-full max-w-xs">
+            <Link href="/jogada-gratis" className="w-full max-w-xs">
               <Button variant="gold" size="lg" className="w-full uppercase tracking-wide">
                 Jogar grátis
               </Button>

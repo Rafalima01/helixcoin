@@ -21,7 +21,24 @@ interface DemoResult {
   wouldHaveWonCents: number;
 }
 
-export function DemoPlayScreen({ firstDepositBonusPercent }: { firstDepositBonusPercent: number }) {
+export function DemoPlayScreen({
+  firstDepositBonusPercent,
+  engineParams,
+}: {
+  firstDepositBonusPercent: number;
+  /**
+   * Difficulty profile forwarded straight to GameEngine. The only caller
+   * (src/app/jogada-gratis, public/no-login) passes the static
+   * FREE_ROUND_CONFIG snapshot (src/config/free-round-config.ts) — a frozen
+   * copy of config.modes.DEMO's registry defaults, not a live database read,
+   * so the page renders even when Postgres is unreachable. A demo-tagged
+   * account playing the REAL game (src/components/game/play-screen.tsx) is a
+   * separate path that still reads the live config.modes.DEMO from
+   * /api/matches/start — unaffected by this component. Falls back to the
+   * engine's hardcoded ENGINE_CONFIG defaults if engineParams is omitted.
+   */
+  engineParams?: Record<string, number | boolean>;
+}) {
   const [seed, setSeed] = useState<string | null>(null);
   const [result, setResult] = useState<DemoResult | null>(null);
   const began = useRef(false);
@@ -65,7 +82,7 @@ export function DemoPlayScreen({ firstDepositBonusPercent }: { firstDepositBonus
 
   return (
     <div className="absolute inset-0 overflow-hidden" data-scope="game">
-      <GameEngine key={seed} seed={seed} onDeath={handleDeath} />
+      <GameEngine key={seed} seed={seed} engineParams={engineParams} onDeath={handleDeath} />
       <GameHud onCashout={handleCashout} cashoutLoading={false} />
       {result && (
         <DemoResultModal
