@@ -36,9 +36,24 @@ export const adminCommercialWithdrawDecisionSchema = z
   });
 export type AdminCommercialWithdrawDecisionInput = z.infer<typeof adminCommercialWithdrawDecisionSchema>;
 
+/** "Vínculo" admin filter — DIRECT/MANAGED only ever apply to payeeRole AFFILIATE (see commercial-withdraw.controller.ts's resolveBondUserIds); a MANAGER row has no managerId concept at all. */
+export const commercialWithdrawBondSchema = z.enum(["DIRECT", "MANAGED"]);
+
 export const adminCommercialWithdrawListQuerySchema = z.object({
   status: z.string().optional(),
   payeeRole: z.string().optional(),
   userId: z.string().optional(),
+  bond: commercialWithdrawBondSchema.optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
 });
 export type AdminCommercialWithdrawListQuery = z.infer<typeof adminCommercialWithdrawListQuerySchema>;
+
+/** GET /api/admin/commercial-withdrawals/summary — same filters as the list, minus status/pagination (see CommercialWithdrawSummaryFilter). */
+export const adminCommercialWithdrawSummaryQuerySchema = z.object({
+  payeeRole: z.string().optional(),
+  bond: commercialWithdrawBondSchema.optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+});
+export type AdminCommercialWithdrawSummaryQuery = z.infer<typeof adminCommercialWithdrawSummaryQuerySchema>;

@@ -591,12 +591,11 @@ const AFFILIATE_STATUS_LABEL: Record<string, { label: string; tone: "success" | 
 };
 
 /**
- * Every player already gets an AffiliateProfile automatically at signup
- * (AffiliateService.autoEnroll) — so this is null here only for accounts
- * created before that existed and that never opened the "Indique" tab
- * (which self-heals it). "Transformar em afiliado" is the admin-triggered
- * equivalent of that same self-heal, via AffiliateService.adminCreateDirect
- * — always creates a DIRECT affiliate (no manager), never a duplicate.
+ * Signup no longer creates an AffiliateProfile automatically — `affiliate`
+ * is `null` here for every regular account until an admin explicitly
+ * promotes it. "Transformar em afiliado" is that explicit promotion, via
+ * AffiliateService.adminCreateDirect — always creates a DIRECT affiliate (no
+ * manager), never a duplicate for an account that already has one.
  */
 function UserAffiliateTab({ userId }: { userId: string }) {
   const queryClient = useQueryClient();

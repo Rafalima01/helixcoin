@@ -7,6 +7,7 @@ import { NotFoundError } from "@/server/errors";
 // repository interfaces, not worth a cross-module dependency for.
 import { prisma } from "@/lib/prisma";
 import { affiliateContainer } from "@/modules/affiliate/container";
+import { getAffiliateRawMetrics } from "@/modules/affiliate/services/affiliate-metrics";
 import {
   applyAffiliateSchema,
   assignAffiliateManagerSchema,
@@ -39,15 +40,17 @@ export async function handleApplyAffiliate(req: NextRequest, auth: AuthContext) 
 }
 
 /**
- * Every player is auto-enrolled as an APPROVED affiliate at signup (see
- * AffiliateService.autoEnroll) — this self-heals any account created before
- * that existed, so `data` is effectively never `null` in practice. The
- * return type keeps the `| null` union anyway since it costs nothing and
- * protects the frontend if enrollment ever genuinely fails.
+ * `data` is `null` whenever the player has no AffiliateProfile — the normal
+ * case for every account now, since signup no longer auto-enrolls anyone
+ * (see auth.controller.ts's handleRegister) and this handler no longer
+ * self-heals one into existence just because the "Indique" tab was opened.
+ * An account only ever gets an AffiliateProfile via an explicit admin action
+ * (AffiliateService.adminCreateDirect, "Transformar em afiliado") or the
+ * self-service apply() flow. AffiliatePanel (src/components/referrals)
+ * branches its UI on this being null.
  */
 export async function handleGetMyAffiliateProfile(_req: NextRequest, auth: AuthContext) {
-  let profile = await affiliateService.getProfile(auth.userId).catch(() => null);
-  if (!profile) profile = await affiliateService.autoEnroll(auth.userId).catch(() => null);
+  const profile = await affiliateService.getProfile(auth.userId).catch(() => null);
   if (!profile) return ok(null);
   const settings = await affiliateService.getSettings();
 
@@ -65,51 +68,45 @@ export async function handleGetMyAffiliateProfile(_req: NextRequest, auth: AuthC
   );
 }
 
+/**
+ * The "Indique e Ganhe" self-service dashboard — works for EVERY logged-in
+ * player, not just accounts an admin promoted to AffiliateProfile. Referral
+ * identity (User.referralCode/referredById, set at signup — see
+ * auth.service.ts's register()) has always been independent of
+ * AffiliateProfile, so `profile` missing here must never turn into a 404:
+ * it only means this account was never administratively promoted, which
+ * getAffiliateRawMetrics(null, ...) already accounts for (real
+ * referredCount/referredDepositTotalCents, structurally zero commission
+ * figures, default 5% commissionPercent). See AffiliateDashboardDto's doc
+ * comment for the full split.
+ */
 export async function handleGetAffiliateDashboard(_req: NextRequest, auth: AuthContext) {
-  const profile = await affiliateService.getProfile(auth.userId);
-
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-  // payeeUserId (not affiliateId alone) — a MANAGER_SPREAD row now carries
-  // this SAME affiliateId when it was triggered by this affiliate's traffic
-  // (see generateManagerSpreadForAffiliate), but pays the MANAGER, not this
-  // affiliate. Without this filter, the affiliate's own dashboard would
-  // show money credited to someone else as if they'd earned it themselves.
-  const [total, today, last7d, last30d, available, locked, referredCount, confirmedDeposits, referredDeposits] =
-    await Promise.all([
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, from: startOfToday }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, from: sevenDaysAgo }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, from: thirtyDaysAgo }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, status: "AVAILABLE" }),
-      commissionRepository.sumAmountCents({ affiliateId: profile.id, payeeUserId: auth.userId, status: "LOCKED" }),
-      prisma.user.count({ where: { referredById: auth.userId } }),
-      commissionRepository.countConfirmedDeposits(profile.id),
-      // Direct read, same precedent as the manager-code resolution above —
-      // gross deposit volume by this affiliate's referred players ("Total
-      // Depositado"), not something commission.service.ts tracks (it only
-      // knows the commission cut, not the underlying deposit total).
-      prisma.deposit.aggregate({
-        where: { user: { referredById: auth.userId }, status: "PAID" },
-        _sum: { amountCents: true },
-      }),
-    ]);
+  const [profile, settings] = await Promise.all([
+    affiliateService.getProfile(auth.userId).catch(() => null),
+    affiliateService.getSettings(),
+  ]);
+  const m = await getAffiliateRawMetrics(commissionRepository, profile?.id ?? null, auth.userId);
 
   return ok({
-    commissionTotalCents: total,
-    commissionTodayCents: today,
-    commission7dCents: last7d,
-    commission30dCents: last30d,
-    balanceAvailableCents: available,
-    balanceLockedCents: locked,
-    referredCount,
-    confirmedDeposits,
-    conversionPercent: referredCount > 0 ? Math.round((confirmedDeposits / referredCount) * 1000) / 10 : 0,
-    linkClicks: profile.linkClicks,
-    referredDepositTotalCents: referredDeposits._sum.amountCents ?? 0,
+    commissionTotalCents: m.commissionTotalCents,
+    commissionTodayCents: m.commissionTodayCents,
+    commission7dCents: m.commission7dCents,
+    commission30dCents: m.commission30dCents,
+    balanceAvailableCents: m.balanceAvailableCents,
+    balanceLockedCents: m.balanceLockedCents,
+    referredCount: m.referredCount,
+    confirmedDeposits: m.confirmedDeposits,
+    // Unchanged from before this handler was refactored to share
+    // getAffiliateRawMetrics — still confirmedDeposits/referredCount, NOT
+    // ftdCount, so this player's own "Indique" tab shows the exact same
+    // number it always has. The admin performance view (see
+    // affiliate-admin.controller.ts) uses ftdCount instead — see
+    // getAffiliateRawMetrics's doc comment for why the two differ on purpose.
+    conversionPercent: m.referredCount > 0 ? Math.round((m.confirmedDeposits / m.referredCount) * 1000) / 10 : 0,
+    linkClicks: profile?.linkClicks ?? 0,
+    referredDepositTotalCents: m.referredDepositTotalCents,
+    resolvedCommissionPercent: resolveCommissionPercent(profile?.revShareOverridePercent ?? null, settings.revShareLevel1Percent),
+    managerId: profile?.managerId ?? null,
   });
 }
 

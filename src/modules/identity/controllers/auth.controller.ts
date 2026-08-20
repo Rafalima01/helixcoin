@@ -19,10 +19,8 @@ import {
 import { ValidationError } from "@/server/errors";
 import { identityContainer } from "@/modules/identity/container";
 import { affiliateContainer } from "@/modules/affiliate/container";
-import { createChildLogger } from "@/server/logger";
 
 const { authService, userManagementService } = identityContainer;
-const logger = createChildLogger({ module: "auth.controller" });
 
 export async function handleRegister(req: NextRequest) {
   const body = registerSchema.parse(await req.json());
@@ -43,27 +41,21 @@ export async function handleRegister(req: NextRequest) {
     affiliateLinkId
   );
 
-  // Every player is a real, paid affiliate from the moment they sign up —
-  // no request/approval step (see AffiliateService.autoEnroll's doc
-  // comment). Best-effort: enrollment failing must never fail signup
-  // itself — handleGetMyAffiliateProfile self-heals this on first visit to
-  // the "Indique" tab if this call is ever skipped or races a cold start.
-  await affiliateContainer.affiliateService.autoEnroll(user.id).catch(() => {});
-
-  // Atomic manager attribution for the "Convidar Afiliados" flow (see
-  // /affiliate-invite/[code]/route.ts) — mirrors the best-effort,
-  // never-block-signup pattern of autoEnroll() above. Unlike autoEnroll,
-  // there is NO self-heal path for this one (handleGetMyAffiliateProfile
-  // only re-runs autoEnroll, never assignManagerIfUnset) — managerCode isn't
-  // persisted anywhere past this request, so a swallowed failure here loses
-  // the attribution permanently. Logged (not just swallowed) so it's at
-  // least traceable/reconcilable by an admin instead of vanishing silently.
-  if (body.managerCode) {
-    await affiliateContainer.affiliateService.assignManagerIfUnset(user.id, body.managerCode).catch((err) => {
-      logger.error({ err, userId: user.id, managerCode: body.managerCode }, "assignManagerIfUnset failed at signup — manager attribution lost");
-    });
-  }
-
+  // Signing up does NOT create an AffiliateProfile anymore — a regular
+  // account stays a regular account until an admin explicitly promotes it
+  // via "Transformar em afiliado" (AffiliateService.adminCreateDirect, see
+  // src/app/admin/users/page.tsx's UserAffiliateTab). This used to
+  // auto-enroll every signup as an APPROVED affiliate
+  // (AffiliateService.autoEnroll) — removed by explicit product decision so
+  // the Afiliados admin tab only ever shows accounts an admin actually
+  // promoted, never every new player.
+  //
+  // `body.managerCode` (first-touch manager attribution for someone who
+  // arrived via a Manager's "Convidar Afiliados" link) has no effect here
+  // anymore either — attribution only makes sense once an account is
+  // actually an affiliate, which no longer happens at signup. If manager
+  // attribution needs to survive a later "Transformar em afiliado", that's
+  // a separate piece of work, not silently reintroduced here.
   return created({ user: toUserResponseDto(user) });
 }
 

@@ -86,6 +86,36 @@ export function toAffiliateProfileAdminDto(row: AffiliateProfileAdminRow): Affil
   };
 }
 
+/**
+ * Admin-only performance view for a single affiliate — the "Desempenho"
+ * section in the Afiliados drawer (src/app/admin/affiliates/page.tsx).
+ * Built from AffiliateRawMetrics (src/modules/affiliate/services/affiliate-metrics.ts)
+ * plus commercialWithdrawRepository.sumApprovedAmountCents — see
+ * affiliate-admin.controller.ts's handleGetAffiliatePerformanceAdmin.
+ */
+export interface AffiliatePerformanceAdminDto {
+  /** prisma.user.count({ referredById }) — jogadores indicados por este afiliado. */
+  referredCount: number;
+  /** Distinct referred users with at least one PAID deposit — true First-Time-Deposit count, NOT a count of deposits (see AffiliateRawMetrics.ftdCount's doc comment). */
+  ftdCount: number;
+  /** ftdCount / referredCount * 100, 0 quando referredCount é 0. */
+  conversionPercent: number;
+  /** Soma de Deposit.amountCents (status PAID) dos usuários indicados. */
+  referredDepositTotalCents: number;
+  /** Soma de TODAS as Commission (qualquer status) geradas para este afiliado — mesma definição usada no próprio dashboard do afiliado (AffiliateDashboardDto.commissionTotalCents). */
+  commissionGeneratedCents: number;
+  /** Soma de CommercialWithdraw.amountCents com status APPROVED, payeeRole AFFILIATE — comissão que já efetivamente saiu para o afiliado. Fonte: src/modules/commercial-withdrawals. */
+  commissionPaidCents: number;
+  /** max(0, balanceAvailableCents + balanceLockedCents - commissionPaidCents) — comissão real (não rejeitada) ainda não retirada. */
+  commissionPendingCents: number;
+  balanceAvailableCents: number;
+  balanceLockedCents: number;
+  linkClicks: number;
+  commissionTodayCents: number;
+  commission7dCents: number;
+  commission30dCents: number;
+}
+
 // ---------------------------------------------------------------------------
 // Links
 // ---------------------------------------------------------------------------
@@ -209,6 +239,17 @@ export function toAffiliateSettingsDto(entity: AffiliateSettings): AffiliateSett
 // Dashboard (aggregated KPIs — built directly by the service, not from a single entity)
 // ---------------------------------------------------------------------------
 
+/**
+ * Powers the self-service "Indique e Ganhe" screen for EVERY logged-in
+ * player — not just users an admin promoted to AffiliateProfile
+ * ("Transformar em afiliado"). Referral identity (referralCode/referredById,
+ * see auth.service.ts's register()) has always been independent of
+ * AffiliateProfile; this DTO is what makes that split explicit end to end.
+ * A user with no AffiliateProfile gets real, non-zero `referredCount`/
+ * `referredDepositTotalCents` (their referral network is real) but
+ * structurally zero commission figures (they were never approved to earn
+ * one) and `resolvedCommissionPercent` falling back to the platform default.
+ */
 export interface AffiliateDashboardDto {
   commissionTotalCents: number;
   commissionTodayCents: number;
@@ -216,13 +257,17 @@ export interface AffiliateDashboardDto {
   commission30dCents: number;
   balanceAvailableCents: number;
   balanceLockedCents: number;
-  /** Jogadores indicados — prisma.user.count({ referredById: userId }). */
+  /** Jogadores indicados — prisma.user.count({ referredById: userId }). Independent of AffiliateProfile. */
   referredCount: number;
-  /** Depósitos confirmados — depósitos distintos que geraram comissão de nível 1 para este afiliado. */
+  /** Depósitos confirmados — depósitos distintos que geraram comissão de nível 1 para este afiliado. Sempre 0 sem AffiliateProfile. */
   confirmedDeposits: number;
   /** confirmedDeposits / referredCount * 100, 0 quando referredCount é 0. */
   conversionPercent: number;
   linkClicks: number;
-  /** Soma de Deposit.amountCents (status PAID) dos usuários com referredById = este afiliado — volume bruto depositado pela rede, não o valor da comissão. */
+  /** Soma de Deposit.amountCents (status PAID) dos usuários com referredById = este usuário — volume bruto depositado pela rede, não o valor da comissão. Independent of AffiliateProfile. */
   referredDepositTotalCents: number;
+  /** `revShareOverridePercent ?? AffiliateSettings.revShareLevel1Percent`, 0-100 — o mesmo default (5%) que todo usuário vê antes de qualquer promoção administrativa. Sempre calculado no backend. */
+  resolvedCommissionPercent: number;
+  /** AffiliateProfile.managerId, ou null quando não há AffiliateProfile — gate para o efeito de atribuição de gerente por link ("Convidar Afiliados"), que só se aplica a um afiliado administrativo de verdade. */
+  managerId: string | null;
 }

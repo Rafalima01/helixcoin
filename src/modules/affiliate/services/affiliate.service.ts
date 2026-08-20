@@ -78,13 +78,15 @@ export class AffiliateService {
   }
 
   /**
-   * Every player is a real, paid affiliate from the moment they sign up —
-   * no request/approval step (see the "Indique e Ganhe" screen). Called
-   * best-effort right after registration (auth.controller.ts) AND lazily
-   * from handleGetMyAffiliateProfile for any account created before this
-   * existed, so opening the tab is always enough to already have a link.
-   * Idempotent: returns the existing profile untouched if one is already
-   * there, never throws ConflictError like apply() does.
+   * Creates an APPROVED AffiliateProfile with no request/approval step.
+   * NOT called automatically anymore — signup (auth.controller.ts) and
+   * opening the "Indique" tab (handleGetMyAffiliateProfile) both stopped
+   * calling this by explicit product decision, so a regular account no
+   * longer becomes an affiliate on its own. The one remaining caller is
+   * adminCreateDirect() below ("Transformar em afiliado"), which is always
+   * an explicit admin action. Idempotent: returns the existing profile
+   * untouched if one is already there, never throws ConflictError like
+   * apply() does.
    */
   async autoEnroll(userId: string): Promise<AffiliateProfile> {
     const existing = await this.affiliates.findByUserId(userId);

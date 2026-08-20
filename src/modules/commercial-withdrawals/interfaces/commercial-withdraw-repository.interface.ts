@@ -20,10 +20,34 @@ export interface CreateCommercialWithdrawInput {
 
 export interface CommercialWithdrawListFilter {
   userId?: string;
+  /** Pre-resolved set of userIds — how the "Vínculo" (Direto/De gerente) admin filter is applied, since CommercialWithdraw itself carries no manager linkage (see commercial-withdraw.controller.ts's resolveBondUserIds, which resolves this from AffiliateProfile.managerId before calling listAdmin/getSummary). */
+  userIdIn?: string[];
   payeeRole?: CommercialWithdrawPayeeRole;
   status?: CommercialWithdrawStatus;
+  /** Filters on `createdAt` (the request's creation timestamp) — the "Período" admin filter (Hoje/7 dias/30 dias/Personalizado). */
+  from?: Date;
+  to?: Date;
   page: number;
   pageSize: number;
+}
+
+/** Same filter shape as the list, minus pagination — the admin "cards de resumo" query never paginates, it aggregates. */
+export type CommercialWithdrawSummaryFilter = Omit<CommercialWithdrawListFilter, "page" | "pageSize" | "status">;
+
+export interface CommercialWithdrawSummary {
+  /** Sum of amountCents where status = PENDING. */
+  pendingCents: number;
+  /** Sum of amountCents across every status matching the filter — "Total solicitado", deliberately NOT named after Commission to avoid confusion with that unrelated entity. */
+  totalRequestedCents: number;
+  /**
+   * Sum of amountCents where status = APPROVED. APPROVE debits the wallet
+   * synchronously (see CommercialWithdrawService.decide) — there is no
+   * separate PROCESSING/PAID state in this architecture, so APPROVED IS the
+   * "actually paid out" figure. Never invent a PAID status to represent this.
+   */
+  paidCents: number;
+  /** Count of requests matching the filter, any status. */
+  count: number;
 }
 
 export interface DecideCommercialWithdrawPatch {
@@ -66,4 +90,8 @@ export interface ICommercialWithdrawRepository {
   attachSettleTransaction(id: string, settleWalletTransactionId: string): Promise<void>;
   /** True if any PENDING CommercialWithdraw still references this pixKeyId — backs PixKeyService.delete's guard. */
   hasPendingForPixKey(pixKeyId: string): Promise<boolean>;
+  /** Sum of amountCents for APPROVED (actually paid out) requests — the "Comissão paga" figure on the admin Afiliados performance view (see affiliate-admin.controller.ts's handleGetAffiliatePerformanceAdmin). PENDING/REJECTED/CANCELLED never count as paid. */
+  sumApprovedAmountCents(userId: string, payeeRole: CommercialWithdrawPayeeRole): Promise<number>;
+  /** The "Saques Comerciais" admin page's summary cards — one aggregate query (groupBy status), never N+1. */
+  getSummary(filter: CommercialWithdrawSummaryFilter): Promise<CommercialWithdrawSummary>;
 }

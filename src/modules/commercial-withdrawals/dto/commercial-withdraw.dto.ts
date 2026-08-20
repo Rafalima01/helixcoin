@@ -58,8 +58,26 @@ export function toCommercialWithdrawDto(entity: CommercialWithdraw, decryptedPix
 // Admin
 // ---------------------------------------------------------------------------
 
+/**
+ * Commercial hierarchy for one withdraw's payee — resolved by the controller
+ * from the REAL, existing relations (AffiliateProfile.managerId ->
+ * ManagerProfile, ManagerProfile.affiliates), never invented. Only the
+ * fields matching `payeeRole` are populated; the rest stay null.
+ * See commercial-withdraw.controller.ts's resolveHierarchy.
+ */
+export interface CommercialWithdrawHierarchyDto {
+  /** true when payeeRole=AFFILIATE and AffiliateProfile.managerId is null ("Afiliado Direto"). Null when payeeRole=MANAGER — the concept doesn't apply. */
+  isDirectAffiliate: boolean | null;
+  /** Populated only when payeeRole=AFFILIATE and the affiliate has a manager (AffiliateProfile.managerId is set). */
+  managerId: string | null;
+  managerName: string | null;
+  managerEmail: string | null;
+  /** Populated only when payeeRole=MANAGER — ManagerProfile's real `_count.affiliates`. */
+  affiliateCount: number | null;
+}
+
 /** `pixKeyMasked` is always precomputed by the caller (CommercialWithdrawService) — the DTO layer never decrypts a PIX key itself, same convention as payments' toWithdrawAdminDto. */
-export interface CommercialWithdrawAdminDto {
+export interface CommercialWithdrawAdminDto extends CommercialWithdrawHierarchyDto {
   id: string;
   userId: string;
   userName: string;
@@ -76,7 +94,11 @@ export interface CommercialWithdrawAdminDto {
   createdAt: string;
 }
 
-export function toCommercialWithdrawAdminDto(row: CommercialWithdrawAdminRow, pixKeyMasked: string): CommercialWithdrawAdminDto {
+export function toCommercialWithdrawAdminDto(
+  row: CommercialWithdrawAdminRow,
+  pixKeyMasked: string,
+  hierarchy: CommercialWithdrawHierarchyDto
+): CommercialWithdrawAdminDto {
   return {
     id: row.id,
     userId: row.userId,
@@ -92,5 +114,14 @@ export function toCommercialWithdrawAdminDto(row: CommercialWithdrawAdminRow, pi
     requestedAt: row.requestedAt.toISOString(),
     processedAt: row.processedAt ? row.processedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
+    ...hierarchy,
   };
+}
+
+/** GET /api/admin/commercial-withdrawals/summary — the admin page's summary cards. */
+export interface CommercialWithdrawSummaryDto {
+  pendingCents: number;
+  totalRequestedCents: number;
+  paidCents: number;
+  count: number;
 }

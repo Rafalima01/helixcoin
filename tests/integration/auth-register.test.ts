@@ -3,14 +3,18 @@ import { NextRequest } from "next/server";
 
 /**
  * Exercises the real route → controller → validation chain for
- * POST /api/auth/register, focused on the new "Convidar Afiliados" atomic
- * attribution wiring (see /affiliate-invite/[code]/route.ts and
- * AuthController.handleRegister): a `managerCode` in the signup payload
- * must trigger `affiliateService.assignManagerIfUnset(user.id, managerCode)`
- * right after `autoEnroll`, best-effort (never blocks/fails signup), and
- * must NOT be called at all when no managerCode is present. AuthService's
- * own registration logic (referredById, referralCode generation, etc.)
- * already has dedicated coverage in src/modules/identity/tests/**.
+ * POST /api/auth/register. Signup no longer creates or attributes an
+ * AffiliateProfile in any way — `autoEnroll` (auto-approved affiliate at
+ * signup) and the "Convidar Afiliados" `assignManagerIfUnset` attribution
+ * were BOTH removed from handleRegister by explicit product decision (see
+ * auth.controller.ts's updated doc comment): the former because a regular
+ * account must never become an affiliate on its own, the latter because it
+ * only ever makes sense once an account IS an affiliate, which no longer
+ * happens here — keeping that call would have meant it silently failed
+ * (NotFoundError, no AffiliateProfile to attribute to) on every signup that
+ * carries a managerCode, forever. AuthService's own registration logic
+ * (referredById, referralCode generation, etc.) already has dedicated
+ * coverage in src/modules/identity/tests/**.
  */
 const registerMock = vi.fn();
 vi.mock("@/modules/identity/container", () => ({
@@ -85,23 +89,17 @@ describe("POST /api/auth/register (integration)", () => {
     assignManagerIfUnsetMock.mockReset().mockResolvedValue(undefined);
   });
 
-  it("calls assignManagerIfUnset with the new user's id and managerCode when present", async () => {
+  it("never calls autoEnroll or assignManagerIfUnset, even when managerCode is present — a fresh signup never becomes an affiliate", async () => {
     const res = await handleRegister(registerRequest({ ...BASE_BODY, managerCode: "MGR001" }));
     expect(res.status).toBe(201);
-    expect(autoEnrollMock).toHaveBeenCalledWith("user-1");
-    expect(assignManagerIfUnsetMock).toHaveBeenCalledWith("user-1", "MGR001");
-  });
-
-  it("never calls assignManagerIfUnset when no managerCode is in the payload", async () => {
-    const res = await handleRegister(registerRequest(BASE_BODY));
-    expect(res.status).toBe(201);
-    expect(autoEnrollMock).toHaveBeenCalledWith("user-1");
+    expect(autoEnrollMock).not.toHaveBeenCalled();
     expect(assignManagerIfUnsetMock).not.toHaveBeenCalled();
   });
 
-  it("signup still succeeds even if assignManagerIfUnset rejects (best-effort, never blocks registration)", async () => {
-    assignManagerIfUnsetMock.mockRejectedValue(new Error("boom"));
-    const res = await handleRegister(registerRequest({ ...BASE_BODY, managerCode: "MGR001" }));
+  it("never calls autoEnroll or assignManagerIfUnset when no managerCode is in the payload either", async () => {
+    const res = await handleRegister(registerRequest(BASE_BODY));
     expect(res.status).toBe(201);
+    expect(autoEnrollMock).not.toHaveBeenCalled();
+    expect(assignManagerIfUnsetMock).not.toHaveBeenCalled();
   });
 });

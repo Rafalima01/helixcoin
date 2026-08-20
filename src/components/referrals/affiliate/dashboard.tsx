@@ -25,7 +25,6 @@ import { useWallet } from "@/hooks/use-wallet";
 import { useAffiliateDashboard, useAssignAffiliateManager } from "@/hooks/use-affiliate";
 import { formatCurrency, cn } from "@/lib/utils";
 import { centsToReais } from "@/lib/multiplier";
-import type { AffiliateMyProfileDto } from "@/modules/affiliate/dto/affiliate.dto";
 
 const STEPS = [
   {
@@ -152,13 +151,15 @@ function CopyLinkCard({ url }: { url: string }) {
   );
 }
 
-export function AffiliateDashboard({
-  profile,
-  managerCode,
-}: {
-  profile: AffiliateMyProfileDto;
-  managerCode?: string;
-}) {
+/**
+ * No `profile` prop anymore — entirely driven by useAffiliateDashboard(),
+ * which works for every logged-in player regardless of AffiliateProfile
+ * (see handleGetAffiliateDashboard/AffiliateDashboardDto). `resolvedCommissionPercent`/
+ * `managerId` now come from `stats` instead of a separate AffiliateProfile
+ * fetch — the platform-default 5% for a regular account, the real override/
+ * manager once one exists.
+ */
+export function AffiliateDashboard({ managerCode }: { managerCode?: string }) {
   const { data: wallet } = useWallet();
   const { data: stats, isLoading: statsLoading } = useAffiliateDashboard();
   const { mutate: assignManager } = useAssignAffiliateManager();
@@ -167,19 +168,23 @@ export function AffiliateDashboard({
 
   // First-touch attribution for someone who arrived via a Manager's
   // "Convidar Afiliados" link — see AffiliateService.assignManagerIfUnset.
-  // Only fires once, and only if there's no manager attached yet.
+  // Only meaningful once this account is an actual AffiliateProfile (a
+  // regular account has no managerId concept yet — assignManagerIfUnset
+  // itself no-ops/fails harmlessly if called too early); only fires once,
+  // and only if there's no manager attached yet.
   useEffect(() => {
-    if (managerCode && !profile.managerId && !attemptedManagerAssign.current) {
+    if (managerCode && stats && !stats.managerId && !attemptedManagerAssign.current) {
       attemptedManagerAssign.current = true;
       assignManager(managerCode);
     }
-  }, [managerCode, profile.managerId, assignManager]);
+  }, [managerCode, stats, assignManager]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const referralCode = wallet?.user?.referralCode ?? "";
   const directLink = referralCode ? `${origin}/r/${referralCode}` : "";
 
   const availableCents = stats?.balanceAvailableCents ?? 0;
+  const commissionPercent = stats?.resolvedCommissionPercent ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -206,8 +211,8 @@ export function AffiliateDashboard({
           icon={Percent}
           tone="gold"
           label="Comissão"
-          value={`${profile.resolvedCommissionPercent}%`}
-          loading={false}
+          value={`${commissionPercent}%`}
+          loading={statsLoading}
         />
         <StatTile
           icon={Users}

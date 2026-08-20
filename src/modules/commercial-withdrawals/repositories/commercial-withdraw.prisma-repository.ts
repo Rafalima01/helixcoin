@@ -5,11 +5,14 @@ import type {
   ICommercialWithdrawRepository,
   CreateCommercialWithdrawInput,
   CommercialWithdrawListFilter,
+  CommercialWithdrawSummaryFilter,
+  CommercialWithdrawSummary,
   DecideCommercialWithdrawPatch,
 } from "@/modules/commercial-withdrawals/interfaces/commercial-withdraw-repository.interface";
 import type {
   CommercialWithdraw,
   CommercialWithdrawAdminRow,
+  CommercialWithdrawPayeeRole,
   CommercialWithdrawStatus,
 } from "@/modules/commercial-withdrawals/entities/commercial-withdraw.entity";
 
@@ -46,6 +49,21 @@ function toAdminRow(row: AdminRow): CommercialWithdrawAdminRow {
     ...toEntity(row),
     userName: `${row.user.firstName} ${row.user.lastName}`.trim(),
     userEmail: row.user.email,
+  };
+}
+
+/** Shared by listAdmin and getSummary — the "Tipo"/"Vínculo"/"Período" admin filters all bottom out in these same WHERE clauses. `userIdIn` is how "Vínculo" (Direto/De gerente) is applied — resolved from AffiliateProfile.managerId by the controller before either query runs (see commercial-withdraw.controller.ts's resolveBondUserIds). */
+function buildAdminWhere(
+  filter: Pick<CommercialWithdrawListFilter, "userId" | "userIdIn" | "payeeRole" | "status" | "from" | "to">
+): Prisma.CommercialWithdrawWhereInput {
+  return {
+    ...(filter.userId ? { userId: filter.userId } : {}),
+    ...(filter.userIdIn ? { userId: { in: filter.userIdIn } } : {}),
+    ...(filter.payeeRole ? { payeeRole: filter.payeeRole } : {}),
+    ...(filter.status ? { status: filter.status } : {}),
+    ...(filter.from || filter.to
+      ? { createdAt: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lte: filter.to } : {}) } }
+      : {}),
   };
 }
 
@@ -87,11 +105,7 @@ export class PrismaCommercialWithdrawRepository implements ICommercialWithdrawRe
   }
 
   async listAdmin(filter: CommercialWithdrawListFilter): Promise<{ items: CommercialWithdrawAdminRow[]; total: number }> {
-    const where: Prisma.CommercialWithdrawWhereInput = {
-      ...(filter.userId ? { userId: filter.userId } : {}),
-      ...(filter.payeeRole ? { payeeRole: filter.payeeRole } : {}),
-      ...(filter.status ? { status: filter.status } : {}),
-    };
+    const where = buildAdminWhere(filter);
 
     const [rows, total] = await Promise.all([
       prisma.commercialWithdraw.findMany({
@@ -149,5 +163,38 @@ export class PrismaCommercialWithdrawRepository implements ICommercialWithdrawRe
   async hasPendingForPixKey(pixKeyId: string): Promise<boolean> {
     const count = await prisma.commercialWithdraw.count({ where: { pixKeyId, status: "PENDING" } });
     return count > 0;
+  }
+
+  async sumApprovedAmountCents(userId: string, payeeRole: CommercialWithdrawPayeeRole): Promise<number> {
+    const result = await prisma.commercialWithdraw.aggregate({
+      where: { userId, payeeRole, status: "APPROVED" },
+      _sum: { amountCents: true },
+    });
+    return result._sum.amountCents ?? 0;
+  }
+
+  /** One groupBy query, never one query per status — the summary cards on the admin Saques Comerciais page. */
+  async getSummary(filter: CommercialWithdrawSummaryFilter): Promise<CommercialWithdrawSummary> {
+    const where = buildAdminWhere(filter);
+    const grouped = await prisma.commercialWithdraw.groupBy({
+      by: ["status"],
+      where,
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    });
+
+    let pendingCents = 0;
+    let totalRequestedCents = 0;
+    let paidCents = 0;
+    let count = 0;
+    for (const row of grouped) {
+      const amount = row._sum.amountCents ?? 0;
+      totalRequestedCents += amount;
+      count += row._count._all;
+      if (row.status === "PENDING") pendingCents += amount;
+      if (row.status === "APPROVED") paidCents += amount;
+    }
+
+    return { pendingCents, totalRequestedCents, paidCents, count };
   }
 }

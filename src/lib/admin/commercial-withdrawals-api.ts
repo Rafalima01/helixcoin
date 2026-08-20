@@ -6,7 +6,7 @@
  * than imported, matching this codebase's established per-file convention
  * (none of the sibling *-api.ts files export theirs either).
  */
-import type { CommercialWithdrawAdminDto } from "@/modules/commercial-withdrawals/dto/commercial-withdraw.dto";
+import type { CommercialWithdrawAdminDto, CommercialWithdrawSummaryDto } from "@/modules/commercial-withdrawals/dto/commercial-withdraw.dto";
 
 export interface PaginationMeta {
   page: number;
@@ -49,8 +49,21 @@ export interface CommercialWithdrawListParams {
   status?: string;
   payeeRole?: string;
   userId?: string;
+  /** "Vínculo" filter — DIRECT (afiliado direto) / MANAGED (afiliado de gerente). Resolved server-side from AffiliateProfile.managerId, never client-side. */
+  bond?: string;
+  /** ISO 8601 — the "Período" filter, applied to CommercialWithdraw.createdAt server-side. */
+  from?: string;
+  to?: string;
   page?: number;
   pageSize?: number;
+  [key: string]: string | number | undefined;
+}
+
+export interface CommercialWithdrawSummaryParams {
+  payeeRole?: string;
+  bond?: string;
+  from?: string;
+  to?: string;
   [key: string]: string | number | undefined;
 }
 
@@ -66,5 +79,9 @@ export const CommercialWithdrawalsAdminApi = {
       method: "POST",
       body: JSON.stringify({ action, rejectionReason }),
     });
+  },
+  /** Summary cards — pendentes/total solicitado/pago/quantidade, same filters as list minus status/pagination. */
+  async getSummary(params: CommercialWithdrawSummaryParams) {
+    return request<CommercialWithdrawSummaryDto>(`/api/admin/commercial-withdrawals/summary${buildQuery(params)}`);
   },
 };

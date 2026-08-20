@@ -5,6 +5,7 @@
  */
 import type {
   AffiliateProfileAdminDto,
+  AffiliatePerformanceAdminDto,
   CommissionAdminDto,
   AffiliateSettingsDto,
 } from "@/modules/affiliate/dto/affiliate.dto";
@@ -94,6 +95,10 @@ export const AffiliateApplicationsAdminApi = {
       method: "PATCH",
       body: JSON.stringify({ percent }),
     });
+  },
+  /** "Desempenho" section of the Afiliados drawer — cadastros, FTDs, conversão, depósitos da rede, comissão gerada/paga/pendente. */
+  async getPerformance(id: string) {
+    return request<AffiliatePerformanceAdminDto>(`/api/admin/affiliate/applications/${id}/performance`);
   },
 };
 

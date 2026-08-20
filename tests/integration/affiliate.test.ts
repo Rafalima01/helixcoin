@@ -47,6 +47,15 @@ const commissionCountConfirmedDepositsMock = vi.fn().mockResolvedValue(0);
 const commissionApproveMock = vi.fn();
 const commissionRejectMock = vi.fn();
 
+const sumApprovedAmountCentsMock = vi.fn().mockResolvedValue(0);
+vi.mock("@/modules/commercial-withdrawals/container", () => ({
+  commercialWithdrawalsContainer: {
+    commercialWithdrawRepository: {
+      sumApprovedAmountCents: (...args: unknown[]) => sumApprovedAmountCentsMock(...args),
+    },
+  },
+}));
+
 vi.mock("@/modules/affiliate/container", () => ({
   affiliateContainer: {
     affiliateService: {
@@ -87,6 +96,7 @@ import { PATCH as updateLinkRoute, DELETE as deleteLinkRoute } from "@/app/api/a
 import { GET as listCommissionsRoute } from "@/app/api/affiliate/commissions/route";
 import { GET as listApplicationsAdminRoute } from "@/app/api/admin/affiliate/applications/route";
 import { POST as decideApplicationAdminRoute } from "@/app/api/admin/affiliate/applications/[id]/decide/route";
+import { GET as getPerformanceAdminRoute } from "@/app/api/admin/affiliate/applications/[id]/performance/route";
 import { POST as decideCommissionAdminRoute } from "@/app/api/admin/affiliate/commissions/[id]/decide/route";
 import { GET as getSettingsAdminRoute, PUT as updateSettingsAdminRoute } from "@/app/api/admin/affiliate/settings/route";
 import { ConflictError } from "@/server/errors";
@@ -186,20 +196,18 @@ describe("/api/affiliate routes (integration)", () => {
       expect(res.status).toBe(200);
     });
 
-    it("self-heals via autoEnroll when no profile exists yet — every account is an auto-approved affiliate, never a null/pending state", async () => {
+    it("returns null (never self-heals/creates a profile) when the account has no AffiliateProfile — the normal state for a regular account now", async () => {
       const { NotFoundError } = await import("@/server/errors");
       getProfileMock.mockRejectedValue(new NotFoundError("Perfil de afiliado"));
-      autoEnrollMock.mockResolvedValue(fakeProfile);
       const token = await playerToken();
       const res = await getMeRoute(
         new NextRequest("http://localhost/api/affiliate/me", { headers: { authorization: `Bearer ${token}` } }),
         {}
       );
       expect(res.status).toBe(200);
-      expect(autoEnrollMock).toHaveBeenCalledWith("user-1");
+      expect(autoEnrollMock).not.toHaveBeenCalled();
       const json = await res.json();
-      expect(json.data).not.toBeNull();
-      expect(json.data.status).toBe("APPROVED");
+      expect(json.data).toBeNull();
     });
   });
 
@@ -215,6 +223,35 @@ describe("/api/affiliate routes (integration)", () => {
       const json = await res.json();
       expect(json.data.commissionTotalCents).toBe(0);
       expect(json.data.referredDepositTotalCents).toBe(0);
+    });
+
+    /**
+     * Regression test — "Indique e Ganhe" must work for a regular account
+     * that was NEVER promoted to AffiliateProfile (no autoEnroll at signup,
+     * no self-heal on this tab anymore). Before the fix, getProfile()
+     * rejecting bubbled up as a 404/500 here instead of a 200 with
+     * structurally-zero commission figures and the platform default 5%.
+     */
+    it("200s (never 404s) for an account with NO AffiliateProfile — real referredCount, zero commission figures, default 5% commissionPercent", async () => {
+      const { NotFoundError } = await import("@/server/errors");
+      getProfileMock.mockRejectedValue(new NotFoundError("Perfil de afiliado"));
+      userCountMock.mockReset().mockResolvedValueOnce(7).mockResolvedValueOnce(0); // referredCount=7, ftdCount=0
+      depositAggregateMock.mockReset().mockResolvedValue({ _sum: { amountCents: 12000 } });
+
+      const token = await playerToken();
+      const res = await getDashboardRoute(
+        new NextRequest("http://localhost/api/affiliate/dashboard", { headers: { authorization: `Bearer ${token}` } }),
+        {}
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.referredCount).toBe(7); // real, independent of AffiliateProfile
+      expect(json.data.referredDepositTotalCents).toBe(12000); // real, independent of AffiliateProfile
+      expect(json.data.commissionTotalCents).toBe(0); // never earned, no AffiliateProfile to have paid it
+      expect(json.data.balanceAvailableCents).toBe(0);
+      expect(json.data.linkClicks).toBe(0);
+      expect(json.data.managerId).toBeNull();
+      expect(json.data.resolvedCommissionPercent).toBe(5); // AffiliateSettings.revShareLevel1Percent default, not invented
     });
   });
 
@@ -310,6 +347,11 @@ describe("/api/admin/affiliate routes (integration)", () => {
     getByIdAdminMock.mockReset();
     getSettingsMock.mockReset();
     updateSettingsMock.mockReset();
+    commissionSumMock.mockReset().mockResolvedValue(0);
+    commissionCountConfirmedDepositsMock.mockReset().mockResolvedValue(0);
+    sumApprovedAmountCentsMock.mockReset().mockResolvedValue(0);
+    userCountMock.mockReset().mockResolvedValue(0);
+    depositAggregateMock.mockReset().mockResolvedValue({ _sum: { amountCents: 0 } });
   });
 
   describe("GET /api/admin/affiliate/applications", () => {
@@ -367,6 +409,77 @@ describe("/api/admin/affiliate routes (integration)", () => {
         { params: Promise.resolve({ id: "aff-1" }) }
       );
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe("GET /api/admin/affiliate/applications/[id]/performance", () => {
+    it("401s with no token", async () => {
+      const res = await getPerformanceAdminRoute(
+        new NextRequest("http://localhost/api/admin/affiliate/applications/aff-1/performance"),
+        { params: Promise.resolve({ id: "aff-1" }) }
+      );
+      expect(res.status).toBe(401);
+      expect(getByIdAdminMock).not.toHaveBeenCalled();
+    });
+
+    it("403s for a player (AFFILIATE/USER) role — an affiliate can never read another affiliate's (or their own) admin performance view through this route", async () => {
+      const token = await playerToken();
+      const res = await getPerformanceAdminRoute(
+        new NextRequest("http://localhost/api/admin/affiliate/applications/aff-1/performance", {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+        { params: Promise.resolve({ id: "aff-1" }) }
+      );
+      expect(res.status).toBe(403);
+      expect(getByIdAdminMock).not.toHaveBeenCalled();
+    });
+
+    it("403s when the admin role lacks affiliate.applications.read", async () => {
+      hasPermissionMock.mockResolvedValue(false);
+      const token = await adminToken();
+      const res = await getPerformanceAdminRoute(
+        new NextRequest("http://localhost/api/admin/affiliate/applications/aff-1/performance", {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+        { params: Promise.resolve({ id: "aff-1" }) }
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it("200s for an admin, with FTD (distinct referred users) kept separate from referredCount, and commissionPendingCents derived from balance minus what was actually paid", async () => {
+      getByIdAdminMock.mockResolvedValue({ ...fakeProfile, userName: "X", userEmail: "x@y.com", userPhone: null, managerName: null });
+      // getAffiliateRawMetrics fires, in array order: total, today, 7d, 30d,
+      // available, locked, referredCount (user.count #1), confirmedDeposits,
+      // ftdCount (user.count #2), depositAggregate.
+      commissionSumMock
+        .mockResolvedValueOnce(10000) // total
+        .mockResolvedValueOnce(0) // today
+        .mockResolvedValueOnce(0) // 7d
+        .mockResolvedValueOnce(0) // 30d
+        .mockResolvedValueOnce(3000) // AVAILABLE
+        .mockResolvedValueOnce(1000); // LOCKED
+      commissionCountConfirmedDepositsMock.mockResolvedValueOnce(9); // distinct deposits (NOT the FTD figure)
+      userCountMock.mockResolvedValueOnce(20).mockResolvedValueOnce(6); // referredCount=20, ftdCount=6
+      depositAggregateMock.mockResolvedValueOnce({ _sum: { amountCents: 500000 } });
+      sumApprovedAmountCentsMock.mockResolvedValueOnce(1500); // already paid out
+
+      const token = await adminToken();
+      const res = await getPerformanceAdminRoute(
+        new NextRequest("http://localhost/api/admin/affiliate/applications/aff-1/performance", {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+        { params: Promise.resolve({ id: "aff-1" }) }
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data.referredCount).toBe(20);
+      expect(json.data.ftdCount).toBe(6); // NOT 9 (confirmedDeposits) — proves FTD isn't conflated with deposit count
+      expect(json.data.conversionPercent).toBeCloseTo(30); // 6/20 * 100
+      expect(json.data.referredDepositTotalCents).toBe(500000);
+      expect(json.data.commissionGeneratedCents).toBe(10000);
+      expect(json.data.commissionPaidCents).toBe(1500);
+      expect(json.data.commissionPendingCents).toBe(2500); // (3000 available + 1000 locked) - 1500 paid
+      expect(sumApprovedAmountCentsMock).toHaveBeenCalledWith(fakeProfile.userId, "AFFILIATE");
     });
   });
 

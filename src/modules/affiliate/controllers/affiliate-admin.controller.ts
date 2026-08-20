@@ -5,6 +5,8 @@ import { ForbiddenError } from "@/server/errors";
 import { extractRequestMeta } from "@/server/audit";
 import { identityContainer } from "@/modules/identity/container";
 import { affiliateContainer } from "@/modules/affiliate/container";
+import { commercialWithdrawalsContainer } from "@/modules/commercial-withdrawals/container";
+import { getAffiliateRawMetrics } from "@/modules/affiliate/services/affiliate-metrics";
 import {
   adminAffiliateListQuerySchema,
   adminCommissionListQuerySchema,
@@ -120,6 +122,46 @@ export async function handleUpdateCommissionAdmin(req: NextRequest, auth: AuthCo
     userAgent: meta.userAgent,
   });
   return ok(toAffiliateProfileAdminDto(await affiliateService.getByIdAdmin(updated.id)));
+}
+
+/**
+ * GET /api/admin/affiliate/applications/{id}/performance — the "Desempenho"
+ * section of the admin Afiliados drawer. Reuses getAffiliateRawMetrics (the
+ * same aggregate queries the affiliate's own dashboard uses, see
+ * affiliate.controller.ts's handleGetAffiliateDashboard) instead of
+ * duplicating them, and adds `commissionPaidCents` from
+ * commercialWithdrawalsContainer — the one figure the self-service dashboard
+ * doesn't expose. Gated by the same `affiliate.applications.read` permission
+ * and `withRole(...ROLE_HIERARCHY)` as every other route in this file, which
+ * excludes the AFFILIATE role entirely — an affiliate can never reach this
+ * handler for their own id, let alone anyone else's.
+ */
+export async function handleGetAffiliatePerformanceAdmin(_req: NextRequest, auth: AuthContext, id: string) {
+  await assertPermission(auth, "affiliate.applications.read");
+  const profile = await affiliateService.getByIdAdmin(id);
+
+  const [m, commissionPaidCents] = await Promise.all([
+    getAffiliateRawMetrics(commissionRepository, profile.id, profile.userId),
+    commercialWithdrawalsContainer.commercialWithdrawRepository.sumApprovedAmountCents(profile.userId, "AFFILIATE"),
+  ]);
+
+  const commissionPendingCents = Math.max(0, m.balanceAvailableCents + m.balanceLockedCents - commissionPaidCents);
+
+  return ok({
+    referredCount: m.referredCount,
+    ftdCount: m.ftdCount,
+    conversionPercent: m.referredCount > 0 ? Math.round((m.ftdCount / m.referredCount) * 1000) / 10 : 0,
+    referredDepositTotalCents: m.referredDepositTotalCents,
+    commissionGeneratedCents: m.commissionTotalCents,
+    commissionPaidCents,
+    commissionPendingCents,
+    balanceAvailableCents: m.balanceAvailableCents,
+    balanceLockedCents: m.balanceLockedCents,
+    linkClicks: profile.linkClicks,
+    commissionTodayCents: m.commissionTodayCents,
+    commission7dCents: m.commission7dCents,
+    commission30dCents: m.commission30dCents,
+  });
 }
 
 // ----------------------------------------------------------------- commissions

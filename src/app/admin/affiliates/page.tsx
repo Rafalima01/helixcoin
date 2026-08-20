@@ -14,13 +14,75 @@ import {
   Drawer,
   DetailRow,
   DrawerSkeleton,
+  KpiCard,
+  KpiGridSkeleton,
   type TableColumn,
 } from "@/components/admin/ui";
 import { AffiliateApplicationsAdminApi, ManagersAdminApi, ApiError, type AffiliateDecisionAction } from "@/lib/admin/affiliate-api";
-import type { AffiliateProfileAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
+import type { AffiliateProfileAdminDto, AffiliatePerformanceAdminDto } from "@/modules/affiliate/dto/affiliate.dto";
+import { formatCurrency } from "@/lib/utils";
 
 function formatDate(iso: string | null) {
   return iso ? new Date(iso).toLocaleString("pt-BR") : "—";
+}
+
+function formatCents(cents: number) {
+  return formatCurrency(cents / 100);
+}
+
+function formatPercent(value: number) {
+  return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+}
+
+/**
+ * "Desempenho" — the admin-only view of an affiliate's real numbers, fetched
+ * separately from the main profile query (GET .../performance, see
+ * affiliate-admin.controller.ts's handleGetAffiliatePerformanceAdmin) since
+ * it runs several aggregate queries and shouldn't block the drawer's first
+ * paint. Kept out of the main DataTable columns on purpose (PageHeader/user
+ * request: keep that table clean) — only shown once an admin opens a
+ * specific affiliate's details.
+ */
+function AffiliatePerformanceSection({ affiliateId }: { affiliateId: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["admin", "affiliate", "performance", affiliateId],
+    queryFn: () => AffiliateApplicationsAdminApi.getPerformance(affiliateId),
+  });
+
+  if (isLoading) return <KpiGridSkeleton count={7} />;
+  if (isError || !data) {
+    return <p className="text-sm text-text-muted">Não foi possível carregar o desempenho deste afiliado.</p>;
+  }
+
+  const perf: AffiliatePerformanceAdminDto = data.data;
+  const kpis = [
+    { id: "referred", label: "Cadastros", value: perf.referredCount.toLocaleString("pt-BR") },
+    { id: "ftd", label: "FTDs", value: perf.ftdCount.toLocaleString("pt-BR") },
+    { id: "conversion", label: "Conversão", value: formatPercent(perf.conversionPercent) },
+    { id: "deposits", label: "Depósitos da rede", value: formatCents(perf.referredDepositTotalCents) },
+    { id: "generated", label: "Comissão gerada", value: formatCents(perf.commissionGeneratedCents) },
+    { id: "paid", label: "Comissão paga", value: formatCents(perf.commissionPaidCents) },
+    { id: "pending", label: "Comissão pendente", value: formatCents(perf.commissionPendingCents) },
+  ];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-text-secondary">Desempenho</label>
+      {/* 2 columns, not KpiGrid's 3 — the admin drawer is much narrower than
+          the dashboard pages KpiGrid was built for, and labels like
+          "Depósitos da rede"/"Comissão gerada" truncate too aggressively at 3
+          columns in that width. Still the same KpiCard component/styling. */}
+      <div className="grid grid-cols-2 gap-2">
+        {kpis.map((k) => (
+          <KpiCard key={k.id} kpi={k} />
+        ))}
+      </div>
+      <p className="text-[11px] text-text-muted">
+        Cliques no link: {perf.linkClicks.toLocaleString("pt-BR")} · Comissão hoje: {formatCents(perf.commissionTodayCents)} ·
+        últimos 7d: {formatCents(perf.commission7dCents)} · últimos 30d: {formatCents(perf.commission30dCents)}
+      </p>
+    </div>
+  );
 }
 
 const STATUS: Record<string, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
@@ -207,6 +269,8 @@ function AffiliateDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             {affiliate.rejectionReason && <DetailRow label="Motivo da recusa" value={affiliate.rejectionReason} />}
             {affiliate.blockedReason && <DetailRow label="Motivo do bloqueio" value={affiliate.blockedReason} />}
           </div>
+
+          <AffiliatePerformanceSection affiliateId={affiliate.id} />
 
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-text-secondary">Comissão</label>
