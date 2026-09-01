@@ -9,7 +9,7 @@ import { Mail, Lock, Phone } from "lucide-react";
 import toast from "react-hot-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { loginSchema, type LoginInput } from "@/modules/identity/validators/auth.validator";
+import { loginSchema, phoneLoginSchema, type LoginInput } from "@/modules/identity/validators/auth.validator";
 import { formatPhone } from "@/lib/phone";
 
 export function LoginForm({
@@ -46,7 +46,10 @@ export function LoginForm({
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm<LoginInput>({ resolver: zodResolver(loginSchema), defaultValues: { rememberMe: false } });
+  } = useForm<LoginInput>({
+    resolver: zodResolver(isPhone ? phoneLoginSchema : loginSchema),
+    defaultValues: { rememberMe: false },
+  });
 
   const onSubmit = async (data: LoginInput) => {
     setSubmitting(true);
@@ -59,7 +62,7 @@ export function LoginForm({
     setSubmitting(false);
 
     if (!res.ok) {
-      toast.error(json?.error?.message ?? "Email ou senha incorretos");
+      toast.error(json?.error?.message ?? (isPhone ? "Telefone ou senha incorretos" : "Email ou senha incorretos"));
       return;
     }
 

@@ -44,17 +44,28 @@ export const registerSchema = z
   })
   .strict();
 
-export const loginSchema = z
-  .object({
-    // Accepts a real email OR a phone number (formatted or digits-only) —
-    // every player, including Contas Demo (see src/modules/demo-accounts),
-    // logs in with phone+senha. AuthService.login() branches on the presence
-    // of "@" to decide which repository lookup to use.
-    email: z.string().trim().toLowerCase().min(3, "Informe seu email ou login"),
-    password: z.string().min(1, "Informe sua senha"),
-    rememberMe: z.boolean().optional().default(false),
-  })
-  .strict();
+/**
+ * Same field (`email`) and shape for both — the wire format/backend
+ * validation never changes. Only the empty-field message differs, since the
+ * two zones show the player a genuinely different identifier: admin/manager
+ * staff log in with email, every player (including Contas Demo) logs in
+ * with phone (see AuthService.login()'s "@" branch, and login-form.tsx's
+ * `identityMode` prop, which picks between these two at the UI layer).
+ */
+function buildLoginSchema(identifierMessage: string) {
+  return z
+    .object({
+      email: z.string().trim().toLowerCase().min(3, identifierMessage),
+      password: z.string().min(1, "Informe sua senha"),
+      rememberMe: z.boolean().optional().default(false),
+    })
+    .strict();
+}
+
+/** Default — admin/manager staff (email identifier). Also what the backend controller parses with, since the identifier's actual format is validated server-side regardless of which message a given zone showed. */
+export const loginSchema = buildLoginSchema("Informe seu email ou login");
+/** Player zone (/login) — phone identifier, see login-form.tsx's `identityMode="phone"`. */
+export const phoneLoginSchema = buildLoginSchema("Informe seu número de telefone");
 
 /** Pre-parse shape (rememberMe optional) — what react-hook-form's defaultValues + zodResolver expect. */
 export type LoginInput = z.input<typeof loginSchema>;

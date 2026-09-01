@@ -140,8 +140,14 @@ export class AuthService {
     // username being a live credential was also a real brute-force surface
     // this removes.
     const identifier = input.email;
+    const isEmailIdentifier = identifier.includes("@");
+    // Every player (including Contas Demo) logs in with phone — "Email ou
+    // senha incorretos" for a wrong phone number is exactly the confusing
+    // message this fix removes (see login-form.tsx's identityMode="phone").
+    // Admin/manager staff still log in with email, so they keep that wording.
+    const invalidCredentialsMessage = isEmailIdentifier ? "Email ou senha incorretos" : "Telefone ou senha incorretos";
     let user: UserEntity | null;
-    if (identifier.includes("@")) {
+    if (isEmailIdentifier) {
       user = await this.users.findByEmail(identifier);
     } else {
       user = await this.users.findByPhone(onlyDigits(identifier));
@@ -156,7 +162,7 @@ export class AuthService {
         ip: meta.ip,
         userAgent: meta.userAgent,
       });
-      throw new UnauthorizedError("Email ou senha incorretos");
+      throw new UnauthorizedError(invalidCredentialsMessage);
     }
 
     if (isLocked(user)) {
@@ -189,7 +195,7 @@ export class AuthService {
       });
       eventBus.publish(IDENTITY_EVENTS.loginFailed, { userId: user.id }, user.id);
       logger.warn({ userId: user.id, attempts, lockedNow }, "login failed");
-      throw new UnauthorizedError("Email ou senha incorretos");
+      throw new UnauthorizedError(invalidCredentialsMessage);
     }
 
     await this.users.resetLoginAttempts(user.id);
