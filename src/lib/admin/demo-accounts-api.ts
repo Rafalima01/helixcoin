@@ -23,10 +23,17 @@ export const DemoAccountsAdminApi = {
   async list() {
     return request<DemoAccountListItemDto[]>("/api/admin/demo-accounts");
   },
-  async create(initialBalanceCents: number) {
+  async create(initialBalanceCents: number, name?: string) {
     return request<DemoAccountCreatedDto>("/api/admin/demo-accounts", {
       method: "POST",
-      body: JSON.stringify({ initialBalanceCents }),
+      body: JSON.stringify(name ? { initialBalanceCents, name } : { initialBalanceCents }),
+    });
+  },
+  /** Altera apenas o nome de identificação — nunca telefone, senha ou saldo. */
+  async rename(id: string, name: string) {
+    return request<Record<string, never>>(`/api/admin/demo-accounts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
     });
   },
   async addBalance(id: string, amountCents: number) {

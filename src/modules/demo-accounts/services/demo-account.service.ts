@@ -7,6 +7,11 @@ import { WalletService } from "@/modules/wallet/services/wallet.service";
 import type { IDemoAccountRepository } from "@/modules/demo-accounts/interfaces/demo-account-repository.interface";
 import type { DemoAccountRow } from "@/modules/demo-accounts/entities/demo-account.entity";
 import { generateDemoLogin, DEMO_ACCOUNT_DEFAULT_PASSWORD, generateDemoPhone, demoEmailFor } from "@/modules/demo-accounts/utils/credentials.util";
+import {
+  splitDisplayName,
+  joinDisplayName,
+  DEMO_ACCOUNT_DEFAULT_NAME,
+} from "@/modules/demo-accounts/utils/display-name.util";
 import { hashPassword } from "@/server/auth/password";
 import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
 import { generateReferralCode } from "@/modules/identity/utils/referral-code.util";
@@ -47,7 +52,9 @@ export class DemoAccountService {
   async create(
     initialBalanceCents: number,
     actor: AdminActor,
-    meta: RequestMeta
+    meta: RequestMeta,
+    /** Nome de identificação administrativa. Omitido, mantém o "Conta Demo" de sempre. */
+    name?: string
   ): Promise<CreateDemoAccountResult> {
     let login = generateDemoLogin();
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -76,9 +83,11 @@ export class DemoAccountService {
       phone = generateDemoPhone();
     }
 
+    const displayName = splitDisplayName(name?.trim() || DEMO_ACCOUNT_DEFAULT_NAME);
+
     const user = await this.users.create({
-      firstName: "Conta",
-      lastName: "Demo",
+      firstName: displayName.firstName,
+      lastName: displayName.lastName,
       username: login,
       email: demoEmailFor(login),
       phone,
@@ -111,12 +120,50 @@ export class DemoAccountService {
       action: "admin.demo_account.create",
       entityType: "User",
       entityId: user.id,
-      after: { login: user.username, phone, initialBalanceCents },
+      after: { login: user.username, phone, initialBalanceCents, name: joinDisplayName(user.firstName, user.lastName) },
       ip: meta.ip,
       userAgent: meta.userAgent,
     });
 
     return { id: user.id, login, phone, password, balanceCents: initialBalanceCents };
+  }
+
+  /**
+   * Altera SOMENTE o nome de identificação administrativa da conta demo.
+   *
+   * Escreve exclusivamente `firstName`/`lastName` via `IUserRepository.update`,
+   * cujo tipo `UpdateUserRecord` já exclui `passwordHash` e `referralCode` na
+   * assinatura — e nada mais é passado aqui, então telefone, username, email,
+   * status, `isDemo`, saldo, carteira e transações ficam intocados por
+   * construção, não por convenção. O `userId` é a chave da atualização, nunca
+   * um valor atualizado.
+   *
+   * Restrito a contas demo por `getDemoUserOrThrow`: apontar este método para
+   * um jogador real devolve 404, jamais renomeia.
+   */
+  async rename(userId: string, name: string, actor: AdminActor, meta: RequestMeta): Promise<void> {
+    const user = await this.getDemoUserOrThrow(userId);
+
+    const previousName = joinDisplayName(user.firstName, user.lastName);
+    const nextName = name.trim().replace(/\s+/g, " ");
+    if (!nextName) throw new BusinessRuleError("Informe um nome para a conta");
+    if (nextName === previousName) return;
+
+    const { firstName, lastName } = splitDisplayName(nextName);
+    await this.users.update(user.id, { firstName, lastName });
+
+    await AuditService.record({
+      actorId: actor.id,
+      actorType: "USER",
+      actorRole: actor.role as Role,
+      action: "admin.demo_account.rename",
+      entityType: "User",
+      entityId: user.id,
+      before: { name: previousName },
+      after: { name: nextName },
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
   }
 
   /**

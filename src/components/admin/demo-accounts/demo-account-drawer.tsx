@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { PlusCircle, Ban } from "lucide-react";
+import { PlusCircle, Ban, Pencil } from "lucide-react";
 import { Drawer, DetailRow, StatusBadge } from "@/components/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +75,13 @@ export function DemoAccountDrawer({
           <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
         </div>
 
+        {/*
+          `key` amarra o rascunho do nome à conta E ao nome atual: trocar de
+          conta, ou o nome mudar após salvar, remonta o editor com o valor
+          novo. Evita sincronizar estado com prop via useEffect.
+        */}
+        <NameEditor key={`${account.id}:${account.fullName}`} account={account} onSaved={invalidate} />
+
         <div className="rounded-xl border border-border p-4 flex flex-col gap-2">
           <DetailRow
             label="Telefone (login)"
@@ -130,6 +137,72 @@ export function DemoAccountDrawer({
         </div>
       </div>
     </Drawer>
+  );
+}
+
+/** Edição do nome de identificação administrativa. Não toca em telefone, senha, saldo ou credenciais — ver DemoAccountService.rename. */
+function NameEditor({ account, onSaved }: { account: DemoAccountListItemDto; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(account.fullName);
+
+  const rename = useMutation({
+    mutationFn: () => DemoAccountsAdminApi.rename(account.id, draft.trim()),
+    onSuccess: () => {
+      toast.success("Nome atualizado");
+      setEditing(false);
+      onSaved();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Falha ao alterar o nome"),
+  });
+
+  const trimmed = draft.trim();
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+      <p className="text-sm font-semibold">Nome da conta</p>
+      {editing ? (
+        <>
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Ex: Influenciador João"
+            maxLength={60}
+            autoFocus
+            hint="Identificação administrativa. Não altera telefone, senha nem saldo."
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1"
+              loading={rename.isPending}
+              disabled={trimmed.length === 0 || trimmed === account.fullName}
+              onClick={() => rename.mutate()}
+            >
+              Salvar
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="border border-border"
+              onClick={() => {
+                setEditing(false);
+                setDraft(account.fullName);
+              }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate font-semibold">{account.fullName}</p>
+          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="size-4" /> Editar nome
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 

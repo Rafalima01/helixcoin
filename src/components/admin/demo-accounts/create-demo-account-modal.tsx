@@ -17,11 +17,12 @@ const QUICK_AMOUNTS = [50_00, 100_00, 250_00, 500_00, 1000_00];
 export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [initialReais, setInitialReais] = useState("100,00");
+  const [name, setName] = useState("");
   const [result, setResult] = useState<DemoAccountCreatedDto | null>(null);
   const [copiedField, setCopiedField] = useState<"phone" | "password" | "all" | null>(null);
 
   const create = useMutation({
-    mutationFn: () => DemoAccountsAdminApi.create(reaisToCents(initialReais)),
+    mutationFn: () => DemoAccountsAdminApi.create(reaisToCents(initialReais), name.trim() || undefined),
     onSuccess: (res) => {
       setResult(res.data);
       queryClient.invalidateQueries({ queryKey: ["admin", "demo-accounts", "list"] });
@@ -31,6 +32,7 @@ export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClo
 
   const handleClose = () => {
     setInitialReais("100,00");
+    setName("");
     setResult(null);
     setCopiedField(null);
     onClose();
@@ -95,6 +97,14 @@ export function CreateDemoAccountModal({ open, onClose }: { open: boolean; onClo
         </div>
       ) : (
         <div className="flex flex-col gap-4">
+          <Input
+            label="Nome da conta"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ex: Influenciador João"
+            maxLength={60}
+            hint='Opcional — em branco, a conta nasce como "Conta Demo". Pode ser alterado depois.'
+          />
           <Input
             label="Saldo Inicial"
             value={initialReais}

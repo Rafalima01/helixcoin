@@ -9,6 +9,7 @@ import {
   createDemoAccountSchema,
   addDemoBalanceSchema,
   setDemoFlagSchema,
+  renameDemoAccountSchema,
 } from "@/modules/demo-accounts/validators/demo-account.validator";
 import { toDemoAccountListItemDto } from "@/modules/demo-accounts/dto/demo-account.dto";
 
@@ -34,9 +35,19 @@ export async function handleCreateDemoAccount(req: NextRequest, auth: AuthContex
   const result = await demoAccountService.create(
     body.initialBalanceCents,
     { id: auth.userId, role: auth.role! },
-    meta
+    meta,
+    body.name
   );
   return created(result);
+}
+
+/** PATCH /api/admin/demo-accounts/{id} — renomeia a conta demo. Não toca em nenhum outro campo (ver DemoAccountService.rename). */
+export async function handleRenameDemoAccount(req: NextRequest, auth: AuthContext, userId: string) {
+  await assertPermission(auth);
+  const body = renameDemoAccountSchema.parse(await req.json());
+  const meta = extractRequestMeta(req);
+  await demoAccountService.rename(userId, body.name, { id: auth.userId, role: auth.role! }, meta);
+  return ok({});
 }
 
 export async function handleAddDemoBalance(req: NextRequest, auth: AuthContext, userId: string) {
