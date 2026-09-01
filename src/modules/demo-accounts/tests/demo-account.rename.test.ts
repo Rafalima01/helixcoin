@@ -210,3 +210,40 @@ describe("DemoAccountService.create — nome opcional", () => {
     expect(stored!.username).toMatch(/^demo\d{5}$/); // login segue gerado, não vem do nome
   });
 });
+
+describe("DemoAccountService.create — codigo de indicacao neutro", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // Poucas iteracoes de proposito: cada create() faz um hash bcrypt real. A
+  // garantia estatistica do gerador (20k amostras) vive em
+  // identity/tests/referral-code.util.test.ts; aqui so verificamos que o
+  // servico realmente usa o gerador neutro.
+  it("o referralCode de uma nova Conta Demo nao denuncia que ela e demo", async () => {
+    const { service, users } = buildService();
+
+    for (let i = 0; i < 5; i++) {
+      const created = await service.create(0, actor, meta);
+      const stored = await users.findById(created.id);
+      expect(stored!.referralCode).not.toMatch(/demo/i);
+      expect(stored!.referralCode).toMatch(/^[A-HJ-NP-Z2-9]{9}$/);
+    }
+  }, 20_000);
+
+  it("o codigo nao deriva do nome dado a conta", async () => {
+    const { service, users } = buildService();
+    const created = await service.create(0, actor, meta, "Influenciador João");
+    const stored = await users.findById(created.id);
+    expect(stored!.referralCode).not.toMatch(/^INFLU/i);
+    expect(stored!.referralCode).not.toMatch(/demo/i);
+  });
+
+  it("codigos de contas demo distintas nao colidem", async () => {
+    const { service, users } = buildService();
+    const codigos = new Set<string>();
+    for (let i = 0; i < 5; i++) {
+      const created = await service.create(0, actor, meta);
+      codigos.add((await users.findById(created.id))!.referralCode);
+    }
+    expect(codigos.size).toBe(5);
+  }, 20_000);
+});

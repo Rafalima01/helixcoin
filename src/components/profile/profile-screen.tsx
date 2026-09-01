@@ -76,7 +76,13 @@ export function ProfileScreen() {
   const [tab, setTab] = useState<TabKey>("conta");
 
   const name = data?.user?.name ?? "Jogador";
-  const email = data?.user?.email ?? "";
+  // O e-mail deliberadamente NÃO é exibido no perfil: em contas criadas por
+  // telefone ele é um endereço sintético interno (ver auto-identity.util.ts),
+  // e em Conta Demo ele denuncia o tipo da conta. O identificador público do
+  // jogador é o referralCode — o mesmo valor mostrado em "Indique e Ganhe"
+  // (referrals/affiliate/dashboard.tsx), vindo da mesma fonte (/api/wallet),
+  // sem nenhum código novo ou duplicado.
+  const referralCode = data?.user?.referralCode ?? "";
   const initial = name.charAt(0).toUpperCase();
 
   return (
@@ -102,7 +108,11 @@ export function ProfileScreen() {
                 <h1 className="text-xl md:text-2xl font-extrabold tracking-tight truncate">
                   {name}
                 </h1>
-                <p className="text-sm text-text-secondary truncate">{email}</p>
+                {referralCode && (
+                  <span className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
+                    Código: <span className="tabular-nums tracking-wide">{referralCode}</span>
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -114,7 +124,7 @@ export function ProfileScreen() {
 
       {/* Tab content */}
       {tab === "conta" && <AccountStats />}
-      {tab === "seguranca" && <SecuritySection email={email} />}
+      {tab === "seguranca" && <SecuritySection />}
       {tab === "transacoes" && <TransactionsList />}
       {tab === "historico" && <GameHistory />}
     </div>

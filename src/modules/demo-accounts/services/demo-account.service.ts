@@ -14,7 +14,7 @@ import {
 } from "@/modules/demo-accounts/utils/display-name.util";
 import { hashPassword } from "@/server/auth/password";
 import { revokeFamily, blacklistFamilyAccessTokens } from "@/server/auth/tokens";
-import { generateReferralCode } from "@/modules/identity/utils/referral-code.util";
+import { generateNeutralReferralCode } from "@/modules/identity/utils/referral-code.util";
 import { AuditService } from "@/server/audit";
 import { BusinessRuleError, NotFoundError } from "@/server/errors";
 
@@ -68,10 +68,13 @@ export class DemoAccountService {
     const password = DEMO_ACCOUNT_DEFAULT_PASSWORD;
     const passwordHash = await hashPassword(password);
 
-    let referralCode = generateReferralCode("Demo");
+    // Neutro de propósito: `generateReferralCode(nome)` derivaria o prefixo do
+    // nome, e o código aparece publicamente no Perfil e no "Indique e Ganhe" —
+    // não deve anunciar que a conta é demonstrativa.
+    let referralCode = generateNeutralReferralCode();
     for (let attempt = 0; attempt < 5; attempt++) {
       if (!(await this.users.findByReferralCode(referralCode))) break;
-      referralCode = generateReferralCode("Demo");
+      referralCode = generateNeutralReferralCode();
     }
 
     // The login identifier: same requirement as a real player (phone+senha,

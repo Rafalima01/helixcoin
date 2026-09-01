@@ -8,7 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useChangePassword } from "@/hooks/use-profile";
 
-export function SecuritySection({ email }: { email: string }) {
+/**
+ * `email` é opcional e o bloco só aparece quando ele é passado.
+ *
+ * O Perfil do JOGADOR (profile/profile-screen.tsx) deixou de passá-lo — lá o
+ * e-mail não é exibido em ponto nenhum, e o identificador público mostrado é
+ * o referralCode. O portal do GERENTE (manager/profile-screen.tsx) continua
+ * passando, porque staff realmente se autentica por e-mail e aquela área está
+ * fora do escopo desta mudança.
+ */
+export function SecuritySection({ email }: { email?: string }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -89,10 +98,12 @@ export function SecuritySection({ email }: { email: string }) {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-white/[0.02] px-4 py-3">
-          <p className="text-[11px] uppercase tracking-wide text-text-muted mb-1">E-mail</p>
-          <p className="text-sm font-semibold truncate">{email || "—"}</p>
-        </div>
+        {email && (
+          <div className="rounded-xl border border-border bg-white/[0.02] px-4 py-3">
+            <p className="text-[11px] uppercase tracking-wide text-text-muted mb-1">E-mail</p>
+            <p className="text-sm font-semibold truncate">{email}</p>
+          </div>
+        )}
 
         <p className="text-xs text-text-secondary leading-relaxed">
           Suas transações e partidas são protegidas e auditadas. Nunca compartilhe sua senha — nossa
