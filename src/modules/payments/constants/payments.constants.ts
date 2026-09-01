@@ -11,6 +11,15 @@ export const PAYMENT_IDEMPOTENCY_KEYS = {
   /** Approve settles directly out of the LOCKED bucket via debit(account:"LOCKED") — no separate unlock() step, same pattern the pre-Fase-7 simulated withdraw flow used. */
   withdrawApprove: (withdrawId: string) => `withdraw:${withdrawId}:approve`,
   withdrawUnlockReject: (withdrawId: string) => `withdraw:${withdrawId}:unlock-reject`,
+  /**
+   * Conta Demo simulation. Deliberately a DIFFERENT key prefix from the real
+   * `withdraw:*` ones above so a simulated movement can never collide with,
+   * or be mistaken for, a real settlement in the WalletTransaction ledger —
+   * the key is stored on the row and is what an auditor reads.
+   */
+  simulatedWithdrawLock: (withdrawId: string) => `withdraw-sim:${withdrawId}:lock`,
+  simulatedWithdrawApprove: (withdrawId: string) => `withdraw-sim:${withdrawId}:approve`,
+  simulatedWithdrawUnlockReject: (withdrawId: string) => `withdraw-sim:${withdrawId}:unlock-reject`,
 } as const;
 
 /** Masks a PIX key for admin/player display — never the full value once persisted. */

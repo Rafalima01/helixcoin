@@ -67,7 +67,10 @@ export interface Deposit {
 export interface Withdraw {
   id: string;
   userId: string;
-  gatewayCredentialId: string;
+  /** Null if and only if `isSimulated` — see the schema's CHECK constraint. */
+  gatewayCredentialId: string | null;
+  /** Conta Demo simulation: never reaches a gateway, never moves real money. */
+  isSimulated: boolean;
   amountCents: number;
   status: WithdrawStatus;
   pixKeyEncrypted: string;
@@ -168,6 +171,7 @@ export interface DepositAdminRow extends Deposit {
 export interface WithdrawAdminRow extends Withdraw {
   userName: string;
   userEmail: string;
-  gatewayName: string;
-  gatewayProvider: GatewayProvider;
+  /** Null for a simulated (Conta Demo) withdraw — there is no gateway behind it. */
+  gatewayName: string | null;
+  gatewayProvider: GatewayProvider | null;
 }

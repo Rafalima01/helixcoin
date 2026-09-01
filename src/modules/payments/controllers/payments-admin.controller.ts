@@ -100,6 +100,7 @@ export async function handleListWithdrawalsAdmin(req: NextRequest, auth: AuthCon
     status: url.searchParams.get("status") ?? undefined,
     gatewayCredentialId: url.searchParams.get("gatewayCredentialId") ?? undefined,
     userId: url.searchParams.get("userId") ?? undefined,
+    simulated: url.searchParams.get("simulated") ?? undefined,
     from: url.searchParams.get("from") ?? undefined,
     to: url.searchParams.get("to") ?? undefined,
   });
@@ -108,6 +109,7 @@ export async function handleListWithdrawalsAdmin(req: NextRequest, auth: AuthCon
     status: query.status as WithdrawStatus | undefined,
     gatewayCredentialId: query.gatewayCredentialId,
     userId: query.userId,
+    isSimulated: query.simulated === undefined ? undefined : query.simulated === "true",
     from: dateOrUndefined(query.from),
     to: dateOrUndefined(query.to),
     page: pagination.page,

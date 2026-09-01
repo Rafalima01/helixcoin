@@ -14,6 +14,7 @@ function toEntity(row: PrismaWithdraw): Withdraw {
     id: row.id,
     userId: row.userId,
     gatewayCredentialId: row.gatewayCredentialId,
+    isSimulated: row.isSimulated,
     amountCents: row.amountCents,
     status: row.status,
     pixKeyEncrypted: row.pixKeyEncrypted,
@@ -42,6 +43,7 @@ export class PrismaWithdrawRepository implements IWithdrawRepository {
         id: input.id,
         userId: input.userId,
         gatewayCredentialId: input.gatewayCredentialId,
+        isSimulated: input.isSimulated ?? false,
         amountCents: input.amountCents,
         status: input.status ?? "PENDING",
         pixKeyEncrypted: input.pixKeyEncrypted,
@@ -77,8 +79,8 @@ export class PrismaWithdrawRepository implements IWithdrawRepository {
       ...toEntity(row),
       userName: `${row.user.firstName} ${row.user.lastName}`.trim(),
       userEmail: row.user.email,
-      gatewayName: row.gatewayCredential.name,
-      gatewayProvider: row.gatewayCredential.provider,
+      gatewayName: row.gatewayCredential?.name ?? null,
+      gatewayProvider: row.gatewayCredential?.provider ?? null,
     };
   }
 
@@ -109,6 +111,7 @@ export class PrismaWithdrawRepository implements IWithdrawRepository {
       ...(filter.userId ? { userId: filter.userId } : {}),
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.gatewayCredentialId ? { gatewayCredentialId: filter.gatewayCredentialId } : {}),
+      ...(filter.isSimulated !== undefined ? { isSimulated: filter.isSimulated } : {}),
       ...(filter.from || filter.to
         ? { createdAt: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lte: filter.to } : {}) } }
         : {}),
@@ -133,16 +136,41 @@ export class PrismaWithdrawRepository implements IWithdrawRepository {
         ...toEntity(r),
         userName: `${r.user.firstName} ${r.user.lastName}`.trim(),
         userEmail: r.user.email,
-        gatewayName: r.gatewayCredential.name,
-        gatewayProvider: r.gatewayCredential.provider,
+        gatewayName: r.gatewayCredential?.name ?? null,
+        gatewayProvider: r.gatewayCredential?.provider ?? null,
       })),
       total,
     };
   }
 
+  async decideSimulated(
+    id: string,
+    fromStatus: PrismaWithdraw["status"],
+    toStatus: PrismaWithdraw["status"],
+    patch: { processedAt: Date; rejectionReason?: string | null }
+  ): Promise<Withdraw | null> {
+    // `isSimulated: true` in the WHERE is deliberate, not redundant: this CAS
+    // can only ever move a simulated row, so it is structurally incapable of
+    // settling a real withdraw — those are settled only by the webhook
+    // dispatcher.
+    const { count } = await prisma.withdraw.updateMany({
+      where: { id, status: fromStatus, isSimulated: true },
+      data: {
+        status: toStatus,
+        processedAt: patch.processedAt,
+        ...(patch.rejectionReason !== undefined ? { rejectionReason: patch.rejectionReason } : {}),
+      },
+    });
+    if (count === 0) return null;
+    const row = await prisma.withdraw.findUnique({ where: { id } });
+    return row ? toEntity(row) : null;
+  }
+
   async findStuckPending(olderThan: Date): Promise<Withdraw[]> {
     const rows = await prisma.withdraw.findMany({
-      where: { status: { in: ["PENDING", "PROCESSING"] }, updatedAt: { lt: olderThan } },
+      // `isSimulated: false` keeps demo simulations out of the reconciliation
+      // poller entirely — that job exists solely to re-check a real gateway.
+      where: { status: { in: ["PENDING", "PROCESSING"] }, isSimulated: false, updatedAt: { lt: olderThan } },
       orderBy: { updatedAt: "asc" },
     });
     return rows.map(toEntity);

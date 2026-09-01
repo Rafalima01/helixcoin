@@ -124,6 +124,8 @@ export const adminWithdrawListQuerySchema = z.object({
   status: z.string().optional(),
   gatewayCredentialId: z.string().optional(),
   userId: z.string().optional(),
+  /** Filtro "Reais / Simulações" do backoffice. Ausente = ambos. Enum de string (não `z.coerce.boolean`, que trata "false" como true). */
+  simulated: z.enum(["true", "false"]).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
 });

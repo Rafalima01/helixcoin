@@ -80,6 +80,10 @@ export class PaymentReconciliationService {
   }
 
   private async reconcileWithdraw(withdraw: Withdraw): Promise<void> {
+    // Saque simulado (Conta Demo) nunca teve gateway e nunca terá — o
+    // repositório já o exclui de findStuckPending, este guard é redundante
+    // de propósito.
+    if (withdraw.isSimulated || !withdraw.gatewayCredentialId) return;
     if (!withdraw.providerTransactionId) return;
     const credential = await this.credentials.findById(withdraw.gatewayCredentialId);
     if (!credential || credential.provider !== "VEOPAG") return;

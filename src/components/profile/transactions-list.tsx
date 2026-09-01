@@ -25,6 +25,13 @@ const TYPE_META: Record<
 > = {
   DEPOSIT: { label: "Depósito", icon: ArrowDownToLine, tone: "text-green", sign: "+" },
   WITHDRAW: { label: "Saque", icon: ArrowUpFromLine, tone: "text-pink", sign: "-" },
+  // Os três tipos que o fluxo de saque realmente grava (o `WITHDRAW` acima
+  // nunca é emitido pelo WalletService). Sem estas entradas, a solicitação
+  // aparecia no extrato com o rótulo cru "WITHDRAW_PENDING" e o filtro
+  // "Saques" não casava nada — vale igualmente para saque real e simulado.
+  WITHDRAW_PENDING: { label: "Saque solicitado", icon: ArrowUpFromLine, tone: "text-pink", sign: "-" },
+  WITHDRAW_APPROVED: { label: "Saque aprovado", icon: ArrowUpFromLine, tone: "text-pink", sign: "-" },
+  WITHDRAW_REJECTED: { label: "Saque recusado", icon: ArrowUpFromLine, tone: "text-text-secondary", sign: "+" },
   BET: { label: "Aposta", icon: Gamepad2, tone: "text-text-secondary", sign: "-" },
   PAYOUT: { label: "Resgate", icon: Trophy, tone: "text-green", sign: "+" },
   BONUS: { label: "Bônus", icon: Gift, tone: "text-purple", sign: "+" },
@@ -54,6 +61,9 @@ export function TransactionsList() {
   const items = useMemo(() => {
     const all = data?.transactions ?? [];
     if (filter === "all") return all;
+    // "Saques" agrupa os três tipos reais (PENDING/APPROVED/REJECTED); os
+    // demais filtros continuam sendo igualdade simples de tipo.
+    if (filter === "WITHDRAW") return all.filter((t) => t.type.startsWith("WITHDRAW"));
     return all.filter((t) => t.type === filter);
   }, [data, filter]);
 

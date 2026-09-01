@@ -710,8 +710,24 @@ model Withdraw {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  gatewayCredentialId String
-  gatewayCredential   GatewayCredential @relation(fields: [gatewayCredentialId], references: [id])
+  /// NULL if and only if `isSimulated` is true — enforced by the
+  /// `Withdraw_simulated_gateway_check` CHECK constraint (see the
+  /// 20260810000000_add_simulated_withdraw migration). This is the structural
+  /// half of the demo/real separation: a simulated withdraw has no credential
+  /// to resolve, so `ProviderFactory.create` / `provider.createWithdraw` have
+  /// literally nothing to be called with — it is not a forgettable `if`.
+  gatewayCredentialId String?
+  gatewayCredential   GatewayCredential? @relation(fields: [gatewayCredentialId], references: [id])
+
+  /// Conta Demo (User.isDemo) withdrawal request — a full-fidelity SIMULATION
+  /// of the real flow: it locks/debits/unlocks the account's own (admin-
+  /// fabricated) demo balance and is approved or rejected by an Admin, but it
+  /// NEVER touches a payment gateway, never creates a PIX transfer and never
+  /// moves real money. Demo wallet movements are already invisible to the
+  /// ledger, to the admin transaction listing and to every dashboard
+  /// aggregate (all filter `user.isDemo = false`), so a simulated withdraw
+  /// cannot leak into any financial report either.
+  isSimulated Boolean @default(false)
 
   amountCents Int
   status      WithdrawStatus @default(PENDING)
@@ -741,6 +757,7 @@ model Withdraw {
   @@index([gatewayCredentialId])
   @@index([status])
   @@index([createdAt])
+  @@index([isSimulated])
 }
 
 /// One row per inbound gateway webhook delivery. Points at the Deposit/

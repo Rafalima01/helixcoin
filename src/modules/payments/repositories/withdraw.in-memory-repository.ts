@@ -15,6 +15,7 @@ export class InMemoryWithdrawRepository implements IWithdrawRepository {
       id: input.id,
       userId: input.userId,
       gatewayCredentialId: input.gatewayCredentialId,
+      isSimulated: input.isSimulated ?? false,
       amountCents: input.amountCents,
       status: input.status ?? "PENDING",
       pixKeyEncrypted: input.pixKeyEncrypted,
@@ -56,6 +57,7 @@ export class InMemoryWithdrawRepository implements IWithdrawRepository {
     if (filter.userId) items = items.filter((r) => r.userId === filter.userId);
     if (filter.status) items = items.filter((r) => r.status === filter.status);
     if (filter.gatewayCredentialId) items = items.filter((r) => r.gatewayCredentialId === filter.gatewayCredentialId);
+    if (filter.isSimulated !== undefined) items = items.filter((r) => r.isSimulated === filter.isSimulated);
     if (filter.from) items = items.filter((r) => r.createdAt >= filter.from!);
     if (filter.to) items = items.filter((r) => r.createdAt <= filter.to!);
     items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -74,9 +76,29 @@ export class InMemoryWithdrawRepository implements IWithdrawRepository {
     return { ...row, userName: "", userEmail: "", gatewayName: "", gatewayProvider: "MOCK" };
   }
 
+  /** Mirrors the Prisma repo's CAS, including the `isSimulated` guard. */
+  async decideSimulated(
+    id: string,
+    fromStatus: Withdraw["status"],
+    toStatus: Withdraw["status"],
+    patch: { processedAt: Date; rejectionReason?: string | null }
+  ): Promise<Withdraw | null> {
+    const existing = this.rows.get(id);
+    if (!existing || !existing.isSimulated || existing.status !== fromStatus) return null;
+    const updated: Withdraw = {
+      ...existing,
+      status: toStatus,
+      processedAt: patch.processedAt,
+      ...(patch.rejectionReason !== undefined ? { rejectionReason: patch.rejectionReason } : {}),
+      updatedAt: new Date(),
+    };
+    this.rows.set(id, updated);
+    return updated;
+  }
+
   async findStuckPending(olderThan: Date): Promise<Withdraw[]> {
     return [...this.rows.values()]
-      .filter((r) => (r.status === "PENDING" || r.status === "PROCESSING") && r.updatedAt < olderThan)
+      .filter((r) => (r.status === "PENDING" || r.status === "PROCESSING") && !r.isSimulated && r.updatedAt < olderThan)
       .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime());
   }
 }

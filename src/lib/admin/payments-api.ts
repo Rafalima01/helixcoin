@@ -82,6 +82,8 @@ export interface WithdrawListParams {
   status?: string;
   gatewayCredentialId?: string;
   userId?: string;
+  /** "true" = só simulações de Conta Demo, "false" = só saques reais, ausente = ambos. */
+  simulated?: string;
   from?: string;
   to?: string;
   page?: number;

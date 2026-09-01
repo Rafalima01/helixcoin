@@ -38,8 +38,11 @@ export interface WithdrawEventPayload {
   withdrawId: string;
   userId: string;
   amountCents: number;
-  gatewayCredentialId: string;
+  /** Null for a simulated (Conta Demo) withdraw — no gateway is ever involved. */
+  gatewayCredentialId: string | null;
   status: string;
+  /** True only for a Conta Demo simulation. Consumers must never treat these as real money. */
+  isSimulated?: boolean;
 }
 
 export interface WebhookEventPayload {

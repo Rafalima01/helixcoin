@@ -31,6 +31,7 @@ import type { IPaymentSettingsRepository, UpdatePaymentSettingsInput } from "@/m
 import type { PaymentProvider } from "@/modules/payments/interfaces/payment-provider.interface";
 import type {
   Deposit,
+  Withdraw,
   DepositAdminRow,
   WithdrawAdminRow,
   DepositStatus,
@@ -98,8 +99,14 @@ export class PaymentService {
     );
   }
 
-  /** Contas Demo (src/modules/demo-accounts) são exclusivamente demonstrativas — nunca movimentam dinheiro real. */
-  private async assertNotDemo(userId: string, action: "depositar" | "sacar"): Promise<void> {
+  /**
+   * Contas Demo (src/modules/demo-accounts) são exclusivamente demonstrativas
+   * — nunca movimentam dinheiro real. Depósito continua bloqueado: não há
+   * nada plausível a simular (o dinheiro entraria de fora). Saque, ao
+   * contrário, é simulado de ponta a ponta — ver
+   * `requestSimulatedWithdrawLocked`.
+   */
+  private async assertNotDemo(userId: string, action: "depositar"): Promise<void> {
     const user = await this.users.findById(userId);
     if (user?.isDemo) {
       throw new BusinessRuleError(`Contas Demo não podem ${action}`);
@@ -251,7 +258,6 @@ export class PaymentService {
     pixKeyType: string | undefined,
     actor: WalletActor
   ): Promise<RequestWithdrawResult> {
-    await this.assertNotDemo(userId, "sacar");
     const settings = await this.settingsRepo.get();
     if (amountCents < settings.withdrawMinCents || amountCents > settings.withdrawMaxCents) {
       throw new BusinessRuleError(
@@ -261,6 +267,12 @@ export class PaymentService {
 
     const withdrawId = crypto.randomUUID();
     const user = await this.users.findById(userId);
+
+    // Conta Demo: a partir daqui o caminho é OUTRO — nenhum gateway é
+    // resolvido, nenhuma chamada externa é feita. Ver o método abaixo.
+    if (user?.isDemo) {
+      return this.createSimulatedWithdraw(withdrawId, userId, amountCents, pixKey, pixKeyType, actor);
+    }
 
     const locked = await this.walletService.lock({
       userId,
@@ -327,7 +339,138 @@ export class PaymentService {
     return { withdrawId: withdraw.id, status: withdraw.status, amountCents };
   }
 
-  /** Admin-only Mock-only decision action — same "build a real signed webhook payload, settle through handleWebhook" pattern as simulateDeposit. */
+  /**
+   * Conta Demo — solicitação de saque SIMULADA.
+   *
+   * Percorre visualmente o mesmo fluxo do saque real (bloqueia o saldo, cria
+   * a solicitação PENDING, aparece no histórico do jogador e na fila do
+   * admin), mas é uma simulação em três sentidos verificáveis:
+   *
+   *  1. NENHUM gateway é envolvido. Este método não chama `withFailover`,
+   *     não resolve credencial e grava `gatewayCredentialId: null`. A CHECK
+   *     constraint do banco (`Withdraw_simulated_gateway_check`) impede que
+   *     uma linha simulada sequer possa apontar para um gateway — não é um
+   *     `if` que alguém possa esquecer no futuro.
+   *  2. `providerTransactionId` fica null, então nem o dispatcher de webhook
+   *     (que casa por esse campo) nem o reconciliador (que exige o campo E
+   *     filtra `isSimulated: false`) conseguem tocar nesta linha.
+   *  3. O saldo movimentado é o saldo demo — fabricado pelo admin, já
+   *     excluído do ledger, da listagem de transações do backoffice e de
+   *     todos os agregados financeiros do dashboard (todos filtram
+   *     `user.isDemo = false`).
+   */
+  private async createSimulatedWithdraw(
+    withdrawId: string,
+    userId: string,
+    amountCents: number,
+    pixKey: string,
+    pixKeyType: string | undefined,
+    actor: WalletActor
+  ): Promise<RequestWithdrawResult> {
+    // Mesmo mecanismo de saldo do fluxo real: MAIN -> LOCKED. É o que faz o
+    // saldo exibido cair na hora (/api/wallet devolve `balances.main`) e o
+    // que garante que o mesmo valor não possa ser sacado duas vezes.
+    const locked = await this.walletService.lock({
+      userId,
+      amountCents,
+      type: "WITHDRAW_PENDING",
+      origin: "payments-simulated",
+      originId: withdrawId,
+      idempotencyKey: PAYMENT_IDEMPOTENCY_KEYS.simulatedWithdrawLock(withdrawId),
+      metadata: { pixKeyMasked: maskPixKey(pixKey), simulated: true },
+      actor,
+    });
+
+    const withdraw = await this.withdraws.create({
+      id: withdrawId,
+      userId,
+      gatewayCredentialId: null,
+      isSimulated: true,
+      amountCents,
+      status: "PENDING",
+      pixKeyEncrypted: encrypt(pixKey),
+      pixKeyType: pixKeyType ?? null,
+      providerTransactionId: null,
+      lockWalletTransactionId: locked.transaction.id,
+      metadata: { simulated: true },
+    });
+
+    eventBus.publish(PAYMENT_EVENTS.withdrawRequested, {
+      withdrawId: withdraw.id,
+      userId,
+      amountCents,
+      gatewayCredentialId: null,
+      status: withdraw.status,
+      isSimulated: true,
+    });
+
+    return { withdrawId: withdraw.id, status: withdraw.status, amountCents };
+  }
+
+  /**
+   * Conta Demo — decisão administrativa sobre uma solicitação simulada.
+   *
+   * Sem gateway e sem webhook: o admin decide, o status muda e o saldo demo
+   * é ajustado direto. A ordem segue o padrão já provado em
+   * CommercialWithdrawService.decide — compare-and-swap PRIMEIRO, movimento
+   * de saldo DEPOIS — para que dois cliques concorrentes não consigam
+   * debitar e desbloquear o mesmo valor.
+   */
+  private async decideSimulatedWithdraw(
+    withdraw: Withdraw,
+    action: "APPROVE" | "REJECT",
+    rejectionReason: string | undefined
+  ): Promise<{ status: number }> {
+    const decided = await this.withdraws.decideSimulated(
+      withdraw.id,
+      "PENDING",
+      action === "APPROVE" ? "APPROVED" : "REJECTED",
+      { processedAt: new Date(), ...(action === "REJECT" ? { rejectionReason: rejectionReason ?? null } : {}) }
+    );
+    if (!decided) throw new BusinessRuleError("Saque já processado");
+
+    if (action === "APPROVE") {
+      // Sai do bucket LOCKED: o saldo permanece reduzido, como no real.
+      const settled = await this.walletService.debit({
+        userId: withdraw.userId,
+        amountCents: withdraw.amountCents,
+        type: "WITHDRAW_APPROVED",
+        account: "LOCKED",
+        origin: "payments-simulated",
+        originId: withdraw.id,
+        idempotencyKey: PAYMENT_IDEMPOTENCY_KEYS.simulatedWithdrawApprove(withdraw.id),
+        actor: SYSTEM_ACTOR,
+      });
+      await this.withdraws.update(withdraw.id, { settleWalletTransactionId: settled.transaction.id });
+    } else {
+      // Devolve para o saldo disponível.
+      await this.walletService.unlock({
+        userId: withdraw.userId,
+        amountCents: withdraw.amountCents,
+        type: "WITHDRAW_REJECTED",
+        origin: "payments-simulated",
+        originId: withdraw.id,
+        idempotencyKey: PAYMENT_IDEMPOTENCY_KEYS.simulatedWithdrawUnlockReject(withdraw.id),
+        actor: SYSTEM_ACTOR,
+      });
+    }
+
+    eventBus.publish(
+      action === "APPROVE" ? PAYMENT_EVENTS.withdrawApproved : PAYMENT_EVENTS.withdrawRejected,
+      {
+        withdrawId: withdraw.id,
+        userId: withdraw.userId,
+        amountCents: withdraw.amountCents,
+        gatewayCredentialId: null,
+        status: action === "APPROVE" ? "APPROVED" : "REJECTED",
+        isSimulated: true,
+      }
+    );
+
+    return { status: 200 };
+  }
+
+  /** Admin-only Mock-only decision action — same "build a real signed webhook payload, settle through handleWebhook" pattern as simulateDeposit. Simulated (Conta Demo) withdraws branch off before any gateway is touched. */
   async decideWithdraw(
     withdrawId: string,
     action: "APPROVE" | "REJECT",
@@ -336,6 +479,18 @@ export class PaymentService {
     const withdraw = await this.withdraws.findById(withdrawId);
     if (!withdraw) throw new NotFoundError("Saque");
     if (withdraw.status !== "PENDING") throw new BusinessRuleError("Saque já processado");
+
+    // Antes de qualquer coisa relacionada a gateway.
+    if (withdraw.isSimulated) {
+      return this.decideSimulatedWithdraw(withdraw, action, rejectionReason);
+    }
+
+    // Defesa em profundidade: um saque real sempre tem credencial (CHECK
+    // constraint), mas o tipo agora é nullable — falhar explicitamente é
+    // melhor do que passar `null` adiante.
+    if (!withdraw.gatewayCredentialId) {
+      throw new BusinessRuleError("Saque real sem gateway associado — estado inconsistente");
+    }
 
     const credential = await this.credentials.findById(withdraw.gatewayCredentialId);
     if (!credential || credential.provider !== "MOCK") {
@@ -542,6 +697,7 @@ export class PaymentService {
       case "withdraw.approved": {
         const withdraw = await this.withdraws.findById(webhook.relatedId);
         if (!withdraw) throw new NotFoundError("Saque");
+        this.assertNotSimulated(withdraw);
         if (withdraw.status !== "PENDING" && withdraw.status !== "PROCESSING") {
           this.publishWebhookOutOfOrder(webhook, withdraw.status);
           return;
@@ -557,6 +713,7 @@ export class PaymentService {
           idempotencyKey: PAYMENT_IDEMPOTENCY_KEYS.withdrawApprove(withdraw.id),
           actor: SYSTEM_ACTOR,
         });
+
 
         await this.withdraws.update(withdraw.id, {
           status: "APPROVED",
@@ -576,6 +733,7 @@ export class PaymentService {
       case "withdraw.rejected": {
         const withdraw = await this.withdraws.findById(webhook.relatedId);
         if (!withdraw) throw new NotFoundError("Saque");
+        this.assertNotSimulated(withdraw);
         if (withdraw.status !== "PENDING" && withdraw.status !== "PROCESSING") {
           this.publishWebhookOutOfOrder(webhook, withdraw.status);
           return;
@@ -609,6 +767,19 @@ export class PaymentService {
 
       default:
         throw new BusinessRuleError(`Evento de webhook desconhecido: ${webhook.eventType}`);
+    }
+  }
+
+  /**
+   * Última linha de defesa do lado da liquidação: um saque simulado nunca
+   * deveria ser alcançável por um webhook (ele não tem `providerTransactionId`,
+   * que é como o dispatcher casa a linha), mas se por qualquer motivo um id
+   * simulado chegar aqui, a liquidação para em vez de mexer no saldo por um
+   * caminho de gateway.
+   */
+  private assertNotSimulated(withdraw: Withdraw): void {
+    if (withdraw.isSimulated) {
+      throw new BusinessRuleError("Saque simulado não pode ser liquidado por webhook de gateway");
     }
   }
 

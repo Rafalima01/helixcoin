@@ -85,9 +85,12 @@ export interface WithdrawAdminDto {
   status: string;
   pixKeyMasked: string;
   pixKeyType: string | null;
-  gatewayCredentialId: string;
-  gatewayName: string;
-  gatewayProvider: string;
+  /** Null for a Conta Demo simulation — there is no gateway behind it. */
+  gatewayCredentialId: string | null;
+  gatewayName: string | null;
+  gatewayProvider: string | null;
+  /** True = solicitação SIMULADA de Conta Demo. Nunca movimenta dinheiro real. */
+  isSimulated: boolean;
   providerTransactionId: string | null;
   requestedAt: string;
   processedAt: string | null;
@@ -109,6 +112,7 @@ export function toWithdrawAdminDto(row: WithdrawAdminRow, pixKeyMasked: string):
     gatewayCredentialId: row.gatewayCredentialId,
     gatewayName: row.gatewayName,
     gatewayProvider: row.gatewayProvider,
+    isSimulated: row.isSimulated,
     providerTransactionId: row.providerTransactionId,
     requestedAt: row.requestedAt.toISOString(),
     processedAt: row.processedAt ? row.processedAt.toISOString() : null,
