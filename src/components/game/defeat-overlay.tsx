@@ -1,65 +1,41 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Link from "next/link";
-import { SkullIcon, RotateCcw, Home } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { ResultCard } from "@/components/game/ResultCard";
 import { useGameStore } from "@/store/game-store";
+import { useWallet } from "@/hooks/use-wallet";
 import { centsToReais } from "@/lib/multiplier";
-import { formatCurrency, formatMultiplier } from "@/lib/utils";
 
+/**
+ * Same external prop contract as before this swapped to the Lovable
+ * "Result Reveal" visual (see src/components/game/ResultCard.tsx) — only the
+ * presentation changed, play-screen.tsx needed zero edits. All real data
+ * still comes straight from useGameStore(); `newBalance` reuses the existing
+ * read-only useWallet() query, same as VictoryOverlay.
+ *
+ * The old defeat card's "Você atravessou N plataformas antes de cair" line
+ * (platformsPassed) has no equivalent slot in the Lovable design and is
+ * deliberately not force-fit into it — the underlying data still exists in
+ * game-store/the backend, only this particular flavor-text UI element was
+ * dropped because the new design doesn't have one.
+ */
 export function DefeatOverlay({ onTryAgain }: { onTryAgain: () => void }) {
-  const { betAmountCents, platformsPassed, multiplier } = useGameStore();
-  const lost = centsToReais(betAmountCents);
+  const router = useRouter();
+  const { betAmountCents, multiplier } = useGameStore();
+  const { data: wallet } = useWallet();
 
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/85 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="glass-card max-w-md w-full p-8 flex flex-col items-center text-center border-error/30 shadow-[0_0_40px_-8px_rgba(255,77,109,0.3),0_24px_60px_rgba(0,0,0,0.5)]"
-      >
-        <motion.div
-          initial={{ scale: 0.7, rotate: -8 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 14 }}
-          className="flex size-20 items-center justify-center rounded-full bg-error/15 border border-error/30 mb-5"
-        >
-          <SkullIcon className="size-10 text-error" />
-        </motion.div>
-
-        <p className="text-sm font-semibold text-error uppercase tracking-widest mb-2">
-          Fim de jogo
-        </p>
-        <p className="text-xs text-text-secondary mb-1">Valor perdido</p>
-        <p className="font-display text-5xl font-extrabold text-error mb-5 tabular-nums">
-          -{formatCurrency(lost)}
-        </p>
-
-        <div className="w-full rounded-xl border border-border bg-white/[0.03] px-4 py-3 flex flex-col gap-0.5 mb-6">
-          <span className="text-xs text-text-muted">Multiplicador alcançado</span>
-          <span className="font-display font-bold text-white">{formatMultiplier(multiplier)}</span>
-        </div>
-
-        <p className="text-sm text-text-secondary mb-8">
-          Você atravessou {platformsPassed} plataformas antes de cair. Tente de novo e resgate antes
-          do buraco te pegar.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-3 w-full">
-          <Link href="/home" className="flex-1">
-            <Button variant="secondary" size="lg" className="w-full">
-              <Home className="size-4" />
-              Início
-            </Button>
-          </Link>
-          <Button variant="gold" size="lg" onClick={onTryAgain} className="flex-1">
-            <RotateCcw className="size-4" />
-            Tentar Novamente
-          </Button>
-        </div>
-      </motion.div>
+      <ResultCard
+        won={false}
+        cashedOut={false}
+        prizeAmount={-centsToReais(betAmountCents)}
+        newBalance={centsToReais(wallet?.balance ?? 0)}
+        betAmount={centsToReais(betAmountCents)}
+        multiplier={Number(multiplier.toFixed(2))}
+        onPlayAgain={onTryAgain}
+        onExit={() => router.push("/home")}
+      />
     </div>
   );
 }

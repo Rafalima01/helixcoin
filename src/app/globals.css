@@ -820,3 +820,173 @@ body {
   z-index: 1;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
+
+/*
+ * ================== Result Card (Lovable export "Result Reveal") ==================
+ * Scoped exclusively to src/components/game/ResultCard.tsx (victory/defeat
+ * overlays) — ported verbatim from the Lovable export's styles.css, trimmed
+ * to only the tokens/utilities that component actually references. Every
+ * name here is a new `helix-*`/`confetti-*`/`result-card-*` identifier that
+ * doesn't collide with anything above, so nothing else in the app is
+ * affected. Do not repurpose these for other components — this is the
+ * Lovable design's own token set, not the app's canonical one.
+ */
+:root,
+.dark {
+  --helix-void: oklch(0.16 0.045 285);
+  --helix-deep: oklch(0.22 0.075 282);
+  --helix-violet: oklch(0.34 0.13 292);
+  --helix-blue: oklch(0.42 0.15 265);
+  --helix-neon: oklch(0.85 0.19 165);
+  --helix-cyan: oklch(0.82 0.14 200);
+  --helix-gold: oklch(0.84 0.17 88);
+  --helix-gold-deep: oklch(0.72 0.16 70);
+  --helix-coral: oklch(0.68 0.19 24);
+  --helix-text: oklch(0.98 0.005 280);
+  --helix-muted: oklch(0.75 0.035 285);
+  --helix-line: oklch(0.98 0.01 280 / 0.12);
+
+  --confetti-1: var(--helix-neon);
+  --confetti-2: var(--helix-cyan);
+  --confetti-3: var(--helix-gold);
+  --confetti-4: oklch(0.7 0.2 300);
+  --confetti-5: oklch(0.68 0.17 250);
+}
+
+@theme inline {
+  --color-helix-void: var(--helix-void);
+  --color-helix-deep: var(--helix-deep);
+  --color-helix-violet: var(--helix-violet);
+  --color-helix-blue: var(--helix-blue);
+  --color-helix-neon: var(--helix-neon);
+  --color-helix-cyan: var(--helix-cyan);
+  --color-helix-gold: var(--helix-gold);
+  --color-helix-coral: var(--helix-coral);
+  --color-helix-text: var(--helix-text);
+  --color-helix-muted: var(--helix-muted);
+  --color-helix-line: var(--helix-line);
+}
+
+@utility confetti-piece {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+  opacity: 0.9;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-20px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(260px) rotate(540deg);
+    opacity: 0;
+  }
+}
+
+@utility result-card-enter {
+  animation: result-card-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes result-card-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@utility helix-card {
+  background:
+    radial-gradient(120% 90% at 50% -10%, oklch(0.4 0.16 288 / 0.75), transparent 60%),
+    linear-gradient(160deg, var(--helix-deep) 0%, var(--helix-void) 55%, oklch(0.14 0.05 275) 100%);
+  border: 1px solid var(--helix-line);
+  box-shadow:
+    0 40px 90px -30px oklch(0.1 0.05 280 / 0.9),
+    0 0 0 1px oklch(0.7 0.18 290 / 0.12),
+    inset 0 1px 0 oklch(1 0 0 / 0.06);
+}
+
+@utility helix-header-win {
+  background:
+    radial-gradient(100% 120% at 50% 0%, oklch(0.55 0.16 200 / 0.45), transparent 65%),
+    linear-gradient(140deg, oklch(0.36 0.15 292) 0%, oklch(0.3 0.14 262) 100%);
+  box-shadow: inset 0 -1px 0 oklch(0.85 0.19 165 / 0.35);
+}
+
+@utility helix-header-lose {
+  background:
+    radial-gradient(100% 120% at 50% 0%, oklch(0.5 0.14 20 / 0.28), transparent 65%),
+    linear-gradient(140deg, oklch(0.26 0.08 288) 0%, oklch(0.2 0.06 272) 100%);
+  box-shadow: inset 0 -1px 0 oklch(0.68 0.19 24 / 0.35);
+}
+
+@utility helix-prize-win {
+  background: linear-gradient(135deg, oklch(0.28 0.09 200 / 0.55), oklch(0.26 0.1 285 / 0.55));
+  border: 1px solid oklch(0.85 0.19 165 / 0.45);
+  box-shadow:
+    0 0 24px -4px oklch(0.85 0.19 165 / 0.35),
+    inset 0 0 22px -8px oklch(0.82 0.14 200 / 0.6);
+}
+
+@utility helix-prize-lose {
+  background: linear-gradient(135deg, oklch(0.24 0.05 285 / 0.7), oklch(0.2 0.05 275 / 0.7));
+  border: 1px solid oklch(0.68 0.19 24 / 0.3);
+}
+
+@utility helix-neon-text {
+  color: var(--helix-neon);
+  text-shadow: 0 0 18px oklch(0.85 0.19 165 / 0.55), 0 0 42px oklch(0.82 0.14 200 / 0.3);
+}
+
+@utility helix-title-win {
+  /*
+   * `background-image` here, deliberately NOT the `background` shorthand —
+   * the project's CSS pipeline (Tailwind v4 + Lightning CSS) merges
+   * background-* longhands declared alongside a `background:` shorthand
+   * back into that shorthand, and `background-clip: text` has no
+   * representation in the `background` shorthand, so it was silently
+   * dropped (computed style came out as `background-clip: border-box`
+   * despite the source having `background-clip: text`). Result: color was
+   * transparent but nothing "filled" the glyph shapes, so the title
+   * rendered fully invisible — confirmed via getComputedStyle in-browser
+   * before this fix, and again after. `background-image` is a longhand on
+   * its own, never folded into `background`, so the clip survives.
+   */
+  background-image: linear-gradient(100deg, var(--helix-neon), var(--helix-cyan) 55%, oklch(0.92 0.06 280));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 34px oklch(0.85 0.19 165 / 0.25);
+}
+
+@utility helix-cta {
+  background: linear-gradient(140deg, oklch(0.9 0.15 96) 0%, var(--helix-gold) 45%, var(--helix-gold-deep) 100%);
+  color: oklch(0.22 0.06 70);
+  box-shadow:
+    0 12px 30px -12px oklch(0.84 0.17 88 / 0.85),
+    0 0 0 1px oklch(0.95 0.12 95 / 0.5) inset;
+}
+
+@utility helix-secondary {
+  background: linear-gradient(140deg, oklch(0.26 0.07 288 / 0.9), oklch(0.2 0.05 275 / 0.9));
+  border: 1px solid oklch(0.75 0.12 290 / 0.28);
+  color: var(--helix-text);
+}
+
+@utility helix-panel {
+  background: linear-gradient(140deg, oklch(0.24 0.06 288 / 0.7), oklch(0.19 0.045 275 / 0.7));
+  border: 1px solid var(--helix-line);
+}
